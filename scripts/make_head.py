@@ -13,11 +13,13 @@ The text format, one directive or bar per line (a line starting with "#" is a co
   [Dmaj7] A4/1~                          "[Chord]" sits on the next note or rest
 
 Notes are a letter and octave read against the key signature, like reading the
-sheet: in D, "F5" means F-sharp. Add "!n", "!s" or "!b" for a natural, sharp or
-flat; it lasts to the end of the bar for that note, as in printed music. "r" is a
+sheet: in D, "F5" means F-sharp. Add "!n", "!s", "!b" or "!x" for a natural, sharp,
+flat or double sharp; it lasts to the end of the bar for that note, as in printed music. "r" is a
 rest. Durations: 1 whole, 2 half, 4 quarter, 8 eighth, 16 sixteenth, a "." after
 any of them for dotted, and "t4" or "t8" for triplets. "~" ties into the next note.
-Each bar must add up to 4/4. Accidentals in the output are worked out again for
+Each bar must add up to 4/4. A bar in two voices puts "&&" between them: the
+first voice (stems up, with the chord symbols) then the second (stems down),
+each adding up to 4/4; accidentals carry within a voice only. Accidentals in the output are worked out again for
 the output key, so transposed parts read correctly. Plain Python 3.
 """
 
@@ -101,6 +103,72 @@ def harmony(symbol, interval):
     return out + "</harmony>"
 
 
+def voice(text, num, v, stem, interval, in_alters, out_alters, tied):
+    """One voice of a bar: MusicXML notes (and chord symbols) and its length in divisions.
+    Accidentals last to the end of the bar within the voice; mark them again ("!s") in the
+    other voice. `tied` carries each voice's open tie into the next bar."""
+    notes, total, read, shown = [], 0, {}, {}
+    group, filled = 0, 0  # open triplet bracket: its length and how much is filled, in divisions
+    for tok in re.findall(r"\[[^\]]+\]|\S+", text):
+        if tok.startswith("["):
+            notes.append(harmony(tok[1:-1], interval))
+            continue
+        tie = tok.endswith("~")
+        tok = tok.rstrip("~")
+        m = re.fullmatch(r"(r|[A-G]\d)(?:!([nsbx]))?/(t4|t8|16|8|4|2|1)(\.?)", tok)
+        if not m:
+            raise SystemExit(f"bar {num}: can't read {tok!r}")
+        pitch, mark, d, dot = m.groups()
+        dur, typ = DUR[d]
+        if dot:
+            dur = dur * 3 // 2
+        total += dur
+        x = "<note>"
+        if pitch == "r":
+            x += "<rest/>"
+        else:
+            step, octave = pitch[0], int(pitch[1])
+            if mark:
+                read[(step, octave)] = {"n": 0, "s": 1, "b": -1, "x": 2}[mark]
+            alter = read.get((step, octave), in_alters[step])
+            ostep, oalter, ooct = transpose_pitch(step, alter, octave, interval)
+            x += f"<pitch><step>{ostep}</step>" + (f"<alter>{oalter}</alter>" if oalter else "") + f"<octave>{ooct}</octave></pitch>"
+        x += f"<duration>{dur}</duration>"
+        if pitch != "r" and tied[v]:
+            x += '<tie type="stop"/>'
+        if tie and pitch != "r":
+            x += '<tie type="start"/>'
+        x += f"<voice>{v}</voice><type>{typ}</type>" + ("<dot/>" if dot else "")
+        if pitch != "r":
+            current = shown.get((ostep, ooct), out_alters[ostep])
+            if oalter != current and not tied[v]:
+                x += f"<accidental>{ {-2: 'flat-flat', -1: 'flat', 0: 'natural', 1: 'sharp', 2: 'double-sharp'}[oalter] }</accidental>"
+            shown[(ostep, ooct)] = oalter
+        if stem and pitch != "r":
+            x += f"<stem>{stem}</stem>"
+        notations = []
+        if d.startswith("t"):
+            x += "<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>"
+            # A bracket holds three of its first note's value, so quarter and eighth triplets can mix.
+            if not group:
+                group, filled = 3 * dur, 0
+                notations.append('<tuplet type="start" bracket="yes"/>')
+            filled += dur
+            if filled >= group:
+                notations.append('<tuplet type="stop"/>')
+                group = 0
+        if pitch != "r" and tied[v]:
+            notations.append('<tied type="stop"/>')
+        if tie and pitch != "r":
+            notations.append('<tied type="start"/>')
+        if notations:
+            x += "<notations>" + "".join(notations) + "</notations>"
+        notes.append(x + "</note>")
+        if pitch != "r":
+            tied[v] = tie
+    return notes, total
+
+
 def build(src: Path) -> str:
     key, interval, per_line, bars, title = "C", None, 4, [], src.stem.replace(".head", "")
     for raw in src.read_text().splitlines():
@@ -127,67 +195,23 @@ def build(src: Path) -> str:
         raise SystemExit(f"output key {out_key} has no simple signature; transpose another way")
     out_alters = key_alters(out_key)
 
-    measures, tied = [], False
+    measures, tied = [], {1: False, 2: False}
     for num, text in enumerate(bars, 1):
-        notes, total, triplet, read, shown = [], 0, 0, {}, {}
         section = None
-        for tok in re.findall(r"\[[^\]]+\]|\S+", text):
-            if tok.startswith("@"):
-                section = tok[1:]
-                continue
-            if tok.startswith("["):
-                notes.append(harmony(tok[1:-1], interval))
-                continue
-            tie = tok.endswith("~")
-            tok = tok.rstrip("~")
-            m = re.fullmatch(r"(r|[A-G]\d)(?:!([nsb]))?/(t4|t8|16|8|4|2|1)(\.?)", tok)
-            if not m:
-                raise SystemExit(f"bar {num}: can't read {tok!r}")
-            pitch, mark, d, dot = m.groups()
-            dur, typ = DUR[d]
-            if dot:
-                dur = dur * 3 // 2
-            total += dur
-            x = "<note>"
-            if pitch == "r":
-                x += "<rest/>"
-            else:
-                step, octave = pitch[0], int(pitch[1])
-                if mark:
-                    read[(step, octave)] = {"n": 0, "s": 1, "b": -1}[mark]
-                alter = read.get((step, octave), in_alters[step])
-                ostep, oalter, ooct = transpose_pitch(step, alter, octave, interval)
-                x += f"<pitch><step>{ostep}</step>" + (f"<alter>{oalter}</alter>" if oalter else "") + f"<octave>{ooct}</octave></pitch>"
-            x += f"<duration>{dur}</duration>"
-            if pitch != "r" and tied:
-                x += '<tie type="stop"/>'
-            if tie and pitch != "r":
-                x += '<tie type="start"/>'
-            x += f"<voice>1</voice><type>{typ}</type>" + ("<dot/>" if dot else "")
-            if pitch != "r":
-                current = shown.get((ostep, ooct), out_alters[ostep])
-                if oalter != current and not tied:
-                    x += f"<accidental>{ {-2: 'flat-flat', -1: 'flat', 0: 'natural', 1: 'sharp', 2: 'double-sharp'}[oalter] }</accidental>"
-                shown[(ostep, ooct)] = oalter
-            notations = []
-            if d.startswith("t"):
-                x += "<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>"
-                if triplet % 3 == 0:
-                    notations.append('<tuplet type="start" bracket="yes"/>')
-                if triplet % 3 == 2:
-                    notations.append('<tuplet type="stop"/>')
-                triplet += 1
-            if pitch != "r" and tied:
-                notations.append('<tied type="stop"/>')
-            if tie and pitch != "r":
-                notations.append('<tied type="start"/>')
-            if notations:
-                x += "<notations>" + "".join(notations) + "</notations>"
-            notes.append(x + "</note>")
-            if pitch != "r":
-                tied = tie
-        if total != 4 * DIV:
-            raise SystemExit(f"bar {num} adds up to {total / DIV} beats, not 4: {text}")
+        if text.startswith("@"):
+            section, _, text = text[1:].partition(" ")
+        parts = [p.strip() for p in text.split("&&")]
+        if len(parts) > 2:
+            raise SystemExit(f"bar {num}: at most two voices")
+        notes = []
+        for v, part in enumerate(parts, 1):
+            if v == 2:
+                notes.append(f"<backup><duration>{4 * DIV}</duration></backup>")
+            stem = ("up" if v == 1 else "down") if len(parts) == 2 else None
+            xml, total = voice(part, num, v, stem, interval, in_alters, out_alters, tied)
+            if total != 4 * DIV:
+                raise SystemExit(f"bar {num} voice {v} adds up to {total / DIV} beats, not 4: {part}")
+            notes += xml
         head = '<print new-system="yes"/>' if num > 1 and (num - 1) % per_line == 0 else ""
         if num == 1:
             head += (f"<attributes><divisions>{DIV}</divisions><key><fifths>{FIFTHS[out_key]}</fifths></key>"

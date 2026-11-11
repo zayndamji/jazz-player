@@ -1,6 +1,6 @@
 # Jazz Teacher
 
-A website for practicing jazz tunes. It shows the chord chart, or the lead sheet with the melody, and plays a backing band (bass, guitar, piano, drums) that follows the chords. Tunes so far: "Third Tune" (ballad), "Fourth Tune" (medium swing), "Example Tune" (bossa nova) and "Second Tune" (medium swing).
+A website for practicing jazz tunes. It shows the chord chart, or the lead sheet with the melody, and plays a backing band (bass, guitar, piano, drums) that follows the chords. Styles so far: bossa nova, medium swing and ballad.
 
 ## What it does
 
@@ -15,7 +15,7 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 - Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section.
 - Every tune is stored in its original concert key. Two separate settings in More change it:
   - Band plays in: moves the whole tune, sound and music, to any of the 12 keys, shown as half steps up or down from the original.
-  - Written for: prints the chart and lead sheet for a concert, B♭, E♭ or F instrument without changing the sound. A trumpet player picks B♭ and sees Example Tune in D while the band plays in C. The site remembers this choice between tunes and visits.
+  - Written for: prints the chart and lead sheet for a concert, B♭, E♭ or F instrument without changing the sound. A trumpet player picks B♭ and sees a tune in C printed in D while the band plays in C. The site remembers this choice between tunes and visits.
 - More also has the number of choruses or until stopped, a two-bar count-in, scale names under each chord, and a mixer with volume and mute for each part.
 - While playing, the player bar shows the bar, chorus, and a scale for the current chord with its notes.
 - Light theme only, like printed music. Works on phones.
