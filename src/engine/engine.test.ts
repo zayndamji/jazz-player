@@ -18,13 +18,13 @@ describe("timeline", () => {
   it("numbers bars like the sheet", () => {
     const bars = chartBars(chart);
     expect(bars.length).toBe(4 + 32 + 4 + 1);
-    expect(bars[4]).toMatchObject({ number: 5, text: "D", ref: { part: "form", section: 0, bar: 0 } });
+    expect(bars[4]).toMatchObject({ number: 5, text: "C", ref: { part: "form", section: 0, bar: 0 } });
     expect(bars[20].number).toBe(21);
-    expect(bars[20].text).toBe("Am7");
+    expect(bars[20].text).toBe("Gm7");
   });
 
   it("plays intro, each chorus, the tag twice and the final bar", () => {
-    const bars = buildTimeline(chart, playOrder(chart, 2), 0, 2);
+    const bars = buildTimeline(chart, playOrder(chart, 2), 0, 0);
     expect(bars.length).toBe(4 + 32 * 2 + 4 * 2 + 1);
     expect(bars[4].chorus).toBe(1);
     expect(bars[36].chorus).toBe(2);
@@ -32,14 +32,14 @@ describe("timeline", () => {
   });
 
   it("carries a chord through a repeat bar without a new attack", () => {
-    const bars = buildTimeline(chart, playOrder(chart, 1), 0, 2);
-    expect(bars[7].chords[0].chord.symbol).toBe("E7");
+    const bars = buildTimeline(chart, playOrder(chart, 1), 0, 0);
+    expect(bars[7].chords[0].chord.symbol).toBe("D7");
     expect(bars[7].chords[0].attack).toBe(false);
   });
 
   it("transposes chords", () => {
-    const bars = buildTimeline(chart, playOrder(chart, 1), -2, 0);
-    expect(bars[5].chords[0].chord.symbol).toBe("A7(#5)");
+    const bars = buildTimeline(chart, playOrder(chart, 1), 2, 2);
+    expect(bars[5].chords[0].chord.symbol).toBe("B7(#5)");
   });
 });
 
@@ -130,9 +130,9 @@ describe("bossa style", () => {
   });
 
   it("plays root and fifth in the bass", () => {
-    const bass = inBar(2, "bass"); // intro bar 1, D
+    const bass = inBar(2, "bass"); // intro bar 1, C
     expect(bass.map((e) => e.time - 8)).toEqual([0, 1.5, 2, 3.5]);
-    expect(pcs(bass.map((e) => e.notes![0]))).toEqual(["D", "A", "A", "A"]); // next bar is Em7/A
+    expect(pcs(bass.map((e) => e.notes![0]))).toEqual(["C", "G", "G", "G"]); // next bar is Dm7/G
   });
 
   it("plays eight hi-hats, 2 and 4 accented, and the clave", () => {
