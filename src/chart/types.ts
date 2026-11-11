@@ -5,8 +5,6 @@
 export interface Chart {
   id: string;
   title: string;
-  composers: string[];
-  year?: number;
   /** Concert key of the chart as written, e.g. "D" or "Bb". */
   key: string;
   /** Default tempo in quarter notes per minute. */

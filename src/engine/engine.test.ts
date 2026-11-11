@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { parseChord } from "../chart/chords";
 import { chordScale } from "../chart/scales";
-import { exampleTune } from "../charts/example-tune";
+import type { Chart } from "../chart/types";
+import exampleTuneJson from "../charts/example-tune.json";
+
+const exampleTune = exampleTuneJson as Chart;
 import { bossa } from "../styles/bossa";
 import { buildSchedule } from "./schedule";
 import { buildTimeline, chartBars, playOrder } from "./timeline";

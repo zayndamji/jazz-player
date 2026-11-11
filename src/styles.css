@@ -123,6 +123,87 @@ input:disabled {
   color: #c0392b;
 }
 
+.back {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.back::before {
+  content: "‹ ";
+}
+
+.back:hover {
+  color: var(--ink);
+}
+
+/* Library */
+.library {
+  padding-bottom: 48px;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.filters input,
+.filters select {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.filters input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tunes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.tunes li {
+  border-bottom: 1px solid var(--line);
+}
+
+.tunes a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 4px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.tunes a:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.tune-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.tune-meta {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.tunes .empty {
+  padding: 14px 4px;
+  color: var(--muted);
+}
+
 /* Chord chart */
 .grid {
   display: flex;

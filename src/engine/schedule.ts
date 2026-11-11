@@ -1,6 +1,6 @@
 import { keyPitchClass } from "../chart/chords";
 import type { Chart } from "../chart/types";
-import type { NoteEvent, Style } from "../styles/types";
+import type { NoteEvent, Style, Track } from "../styles/types";
 import { buildTimeline, playOrder, sameRef, sectionOrder, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
 
 export type Repeat = number | "loop";
@@ -34,6 +34,8 @@ export interface Schedule {
   beatsPerBar: number;
   /** Beats the Transport repeats between, when looping. */
   loop: { start: number; end: number } | null;
+  /** The style's level changes per track, in dB. */
+  mix: Partial<Record<Track, number>>;
 }
 
 /**
@@ -93,5 +95,5 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const loop =
     loopFrom >= 0 ? { start: (loopFrom - startAt + countInBars) * beatsPerBar, end: totalBeats } : null;
 
-  return { bars, events: style.generate(bars, 7), beats, totalBeats, beatsPerBar, loop };
+  return { bars, events: style.generate(bars, 7), beats, totalBeats, beatsPerBar, loop, mix: style.mix ?? {} };
 }

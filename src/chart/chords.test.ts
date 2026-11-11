@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { displayParts, parseBar, parseChord, transposeSymbol } from "./chords";
-import { exampleTune } from "../charts/example-tune";
+import type { Chart } from "../chart/types";
+import exampleTuneJson from "../charts/example-tune.json";
+
+const exampleTune = exampleTuneJson as Chart;
 
 describe("parseChord", () => {
   it("reads roots, qualities and slash basses", () => {

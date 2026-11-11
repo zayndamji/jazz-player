@@ -55,6 +55,9 @@ export class Player {
   private endId: number | null = null;
   private loaded: Promise<void> | null = null;
 
+  private styleMix: Partial<Record<Track, number>> = {};
+  private levels: Record<Mixable, number> = { bass: 1, piano: 1, guitar: 1, drums: 1, metronome: 1 };
+
   metronomeOn = false;
   onPosition: (p: Position | null) => void = () => {};
   onLoop: () => void = () => {};
@@ -90,6 +93,8 @@ export class Player {
 
   /** Replace what's playing. The Transport keeps its position, so this works mid-song. */
   setSchedule(schedule: Schedule) {
+    this.styleMix = schedule.mix;
+    (Object.keys(this.levels) as Mixable[]).forEach((t) => this.setVolume(t, this.levels[t]));
     const transport = Tone.getTransport();
     this.notes?.dispose();
     this.clock?.dispose();
@@ -167,8 +172,10 @@ export class Player {
   }
 
   setVolume(track: Mixable, level: number) {
+    this.levels[track] = level;
     if (!this.channels) return;
-    this.channels[track].volume.value = level <= 0 ? -Infinity : CHANNELS[track].volume + Tone.gainToDb(level);
+    const style = track === "metronome" ? 0 : (this.styleMix[track] ?? 0);
+    this.channels[track].volume.value = level <= 0 ? -Infinity : CHANNELS[track].volume + style + Tone.gainToDb(level);
   }
 
   setMute(track: Mixable, mute: boolean) {

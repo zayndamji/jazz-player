@@ -1,12 +1,14 @@
 # Jazz Teacher
 
-A website for practicing jazz tunes. It shows the chord chart, or the lead sheet with the melody, and plays a backing band (bass, guitar, piano, drums) that follows the chords. The first tune is "Example Tune".
+A website for practicing jazz tunes. It shows the chord chart, or the lead sheet with the melody, and plays a backing band (bass, guitar, piano, drums) that follows the chords. Tunes so far: "Example Tune" (bossa nova) and "Second Tune" (medium swing).
 
 ## What it does
 
+- Library: every tune in a list you can search by title and filter by style. Each tune has its own address (`#/tune/<id>`).
 - Chord chart view: four bars per line, rehearsal letters, bar numbers, repeat bars, double barlines at section ends. The bar that's playing is highlighted.
 - Lead sheet view: the melody in notation with the chords above it, drawn in the same colours and font as the chart, with the same highlight. Same band, same controls.
-- Bossa nova band: upright bass on 1 and 3 with anticipations, nylon guitar comping, soft held piano chords, and a sampled acoustic jazz kit with fills at section ends and a soft crash where a section starts. Ends with a tag (the last four bars twice) and a final chord.
+- Bossa nova band: upright bass on 1 and 3 with anticipations, nylon guitar comping that varies between figures and pushes chord changes, soft held piano chords, and a sampled acoustic jazz kit with fills at section ends, a crash where a section starts and the ride in the bridge.
+- Medium swing band: walking bass with half-step approaches, swung piano comping, quiet four-to-the-bar guitar, ride cymbal with the hi-hat on 2 and 4, snare comping and fills.
 - Player bar at the bottom: play and stop (or the space bar), a progress line you can click to jump, tempo from 60 to 240 BPM, Loop, Metronome, and More.
 - Click any bar, in either view, to play from there.
 - Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section.
@@ -16,9 +18,9 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 
 ## How it works
 
-- A chart is plain data: sections of bars written as chord symbols (`src/charts/example-tune.ts`).
+- A chart is one JSON file in `src/charts/`: key, tempo, style, and sections of bars written as chord symbols. The site collects every file in that folder; tests check each one.
 - The timeline lays it out in playing order: count-in, intro, choruses, tag, final bar. Looping plays the section or form twice and repeats the second copy, so playback can start on any bar.
-- A style turns the timeline into notes. The bossa style is modelled on a measured Band-in-a-Box bossa track.
+- A style turns the timeline into notes, and can set its own mix. Each style is modelled on a measured reference recording (`scripts/analyze_reference.py`).
 - Piano and guitar use rootless drop-2 voicings, each chord voice-led from the last.
 - The player schedules everything on the Tone.js clock in beats, so tempo and key changes apply while playing.
 - The lead sheet is a MusicXML file rendered by OpenSheetMusicDisplay, transposed with the chart.
@@ -29,13 +31,14 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 | Path | What it is |
 | --- | --- |
 | `src/chart/` | Chart types, chord parsing and transposing, scales, transposing instruments |
-| `src/charts/` | The tunes, and the loader for local lead sheets |
+| `src/charts/` | The tunes as JSON, the chart checks, and the loader for local lead sheets |
 | `src/engine/` | Timeline, voicings, playback schedule |
-| `src/styles/` | Backing styles (bossa nova) |
+| `src/styles/` | Backing styles (bossa nova, medium swing) |
 | `src/audio/player.ts` | Tone.js playback, sampled and synthesized instruments, mixer |
+| `src/pages/` | The library and the tune page |
 | `src/components/` | Chord chart, lead sheet, player bar, mixer |
 | `public/samples/` | Piano, bass, guitar and drum samples, each folder with its license |
-| `scripts/` | Repeatable jobs: fetching and converting samples |
+| `scripts/` | Repeatable jobs: fetching samples, measuring reference recordings |
 | `local/heads/` | Your lead sheets as MusicXML (not in git) |
 
 ## Run it
@@ -70,11 +73,17 @@ python3 scripts/fetch_drum_samples.py
 
 Downloads and converts the drum kit into `public/samples/drums/` (needs ffmpeg). The samples are already committed; run it only to change the kit.
 
+```bash
+python3 scripts/analyze_reference.py TRACK.m4a --form 32
+```
+
+Measures a reference recording: tempo, swing, rhythm per frequency band, band balance, loudness per form bar (needs ffmpeg and numpy).
+
 ## Adding a tune, a lead sheet or a style
 
-- Tune: add a file in `src/charts/` with the `Chart` shape from `src/chart/types.ts`. Bars are strings like `"Em7/A A7"` (chords split the bar evenly) or `"%"` (same chord).
+- Tune: add `src/charts/<id>.json` with the `Chart` shape from `src/chart/types.ts` (copy an existing one). Bars are strings like `"Em7/A A7"` (chords split the bar evenly) or `"%"` (same chord). Write the chords in concert pitch. `npm test` checks every chord and the style name.
 - Lead sheet: save the melody as `local/heads/<chart id>.musicxml` (MuseScore can export it). The Lead sheet view appears when the file is there. Lead sheets stay out of git because melodies are copyrighted; a build made on your machine includes yours.
-- Style: add a file in `src/styles/` that implements `Style` from `src/styles/types.ts`, and list it in `src/styles/index.ts`.
+- Style: add a file in `src/styles/` that implements `Style` from `src/styles/types.ts`, and list it in `src/styles/index.ts`. Balance its `mix` against a reference recording.
 
 ## Tools and licenses
 

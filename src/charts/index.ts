@@ -1,0 +1,48 @@
+import { parseBar, parseChord } from "../chart/chords";
+import type { Chart } from "../chart/types";
+
+/**
+ * Every chart in src/charts/*.json, collected at build time. Adding a tune is
+ * adding one JSON file; nothing else needs to change. File name = chart id.
+ */
+const files = import.meta.glob<Chart>("./*.json", { eager: true, import: "default" });
+
+export const CHARTS: Chart[] = Object.values(files).sort((a, b) => a.title.localeCompare(b.title));
+
+export function getChart(id: string): Chart | undefined {
+  return CHARTS.find((c) => c.id === id);
+}
+
+/** File name of each chart, for checks. */
+export const CHART_FILES: Record<string, Chart> = Object.fromEntries(
+  Object.entries(files).map(([path, chart]) => [path.replace(/^\.\/|\.json$/g, ""), chart]),
+);
+
+/** Problems with a chart, empty when it's fine. Styles are checked by the caller. */
+export function validateChart(chart: Chart): string[] {
+  const errors: string[] = [];
+  if (!chart.id || !/^[a-z0-9-]+$/.test(chart.id)) errors.push(`id "${chart.id}" must be lowercase letters, digits and dashes`);
+  if (!chart.title) errors.push("missing title");
+  if (!/^[A-G][b#]?$/.test(chart.key)) errors.push(`key "${chart.key}" must be a note like C, Bb or F#`);
+  if (!(chart.tempo >= 40 && chart.tempo <= 320)) errors.push(`tempo ${chart.tempo} out of range`);
+  if (chart.beatsPerBar !== 4) errors.push("only 4/4 is supported");
+  if (!chart.form?.length) errors.push("form has no sections");
+  const sections = [...(chart.intro ? [chart.intro] : []), ...(chart.form ?? []), ...(chart.ending ?? [])];
+  let first = true;
+  for (const section of sections) {
+    if (!section.bars?.length) errors.push(`section ${section.label} has no bars`);
+    section.bars?.forEach((text, i) => {
+      const bar = parseBar(text, chart.beatsPerBar);
+      if (bar.repeat && first) errors.push(`section ${section.label} bar ${i + 1}: "%" with no chord before it`);
+      for (const slot of bar.chords) {
+        try {
+          parseChord(slot.symbol);
+        } catch (e) {
+          errors.push(`section ${section.label} bar ${i + 1}: ${(e as Error).message}`);
+        }
+      }
+      first = false;
+    });
+  }
+  return errors;
+}

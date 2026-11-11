@@ -23,4 +23,6 @@ export interface Style {
   id: string;
   name: string;
   generate(bars: TimelineBar[], seed: number): NoteEvent[];
+  /** Level changes in dB for this style's band, on top of the player's defaults. */
+  mix?: Partial<Record<Track, number>>;
 }
