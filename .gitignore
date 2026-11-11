@@ -18,6 +18,8 @@ __pycache__/
 
 # Reference material (sheet music, recordings) stays local
 resources/
+# Where each tune's sheets and recordings came from, one file per tune
+sources/
 
 # Agent memory and instructions stay local to each checkout
 context/
