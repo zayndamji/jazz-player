@@ -28,10 +28,11 @@ export type Mixable = Track | "metronome";
 
 /** Level and stereo position of each channel. */
 const CHANNELS: Record<Mixable, { volume: number; pan: number }> = {
-  bass: { volume: -3, pan: 0 },
-  piano: { volume: -9, pan: -0.25 },
-  guitar: { volume: -6, pan: 0.35 },
-  drums: { volume: -9, pan: 0.05 },
+  // Balanced against the reference track's band levels (context/reference-backing-track.md).
+  bass: { volume: -6, pan: 0 },
+  piano: { volume: -8, pan: -0.25 },
+  guitar: { volume: -3.5, pan: 0.35 },
+  drums: { volume: -6, pan: 0.05 },
   metronome: { volume: -8, pan: 0 },
 };
 
@@ -71,7 +72,9 @@ export class Player {
 
       this.piano = new Tone.Sampler({ urls: PIANO_SAMPLES, baseUrl: BASE + "piano/", release: 0.9 }).connect(channels.piano);
       this.bass = new Tone.Sampler({ urls: BASS_SAMPLES, baseUrl: BASE + "bass/", release: 0.25 }).connect(channels.bass);
-      this.guitar = new Tone.Sampler({ urls: GUITAR_SAMPLES, baseUrl: BASE + "guitar/", release: 0.12 }).connect(channels.guitar);
+      // A treble lift gives the nylon guitar the presence of the reference recording.
+      const guitarTone = new Tone.Filter({ type: "highshelf", frequency: 2500, gain: 5 }).connect(channels.guitar);
+      this.guitar = new Tone.Sampler({ urls: GUITAR_SAMPLES, baseUrl: BASE + "guitar/", release: 0.12 }).connect(guitarTone);
       this.drums = makeDrums(channels.drums);
       this.click = new Tone.Synth({
         oscillator: { type: "triangle" },
@@ -190,7 +193,7 @@ function makeDrums(output: Tone.ToneAudioNode): Record<DrumSound, (time: number,
   const hatPan = new Tone.Panner(0.2).connect(output);
   const hatFilter = new Tone.Filter({ type: "highpass", frequency: 7500 }).connect(hatPan);
   const hat = new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.002, decay: 0.045, sustain: 0 } }).connect(hatFilter);
-  hat.volume.value = -6;
+  hat.volume.value = -3;
 
   const snareFilter = new Tone.Filter({ type: "bandpass", frequency: 2500, Q: 0.7 }).connect(output);
   const snare = new Tone.NoiseSynth({ noise: { type: "pink" }, envelope: { attack: 0.004, decay: 0.12, sustain: 0 } }).connect(snareFilter);
@@ -211,7 +214,7 @@ function makeDrums(output: Tone.ToneAudioNode): Record<DrumSound, (time: number,
     kick: (time, v) => kick.triggerAttackRelease("A0", 0.3, time, v),
     rim: (time, v) => {
       rimTone.triggerAttackRelease("E5", 0.05, time, v * 0.6);
-      rimNoise.triggerAttackRelease(0.03, time, v);
+      rimNoise.triggerAttackRelease(0.03, time, Math.min(1, v * 1.4));
     },
     hat: (time, v) => hat.triggerAttackRelease(0.04, time, v),
     snare: (time, v) => snare.triggerAttackRelease(0.1, time, v),
