@@ -15,13 +15,30 @@ import { STYLES } from "../styles";
 import { keyName } from "./format";
 
 const MUTE_KEY = "jazz-teacher.muted";
-const readMuted = () => {
+const INSTRUMENT_KEY = "jazz-teacher.instrument";
+const readStored = (key: string) => {
   try {
-    return localStorage.getItem(MUTE_KEY) === "1";
+    return localStorage.getItem(key);
   } catch {
-    return false;
+    return null;
   }
 };
+const store = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage can be unavailable (private windows); the setting still works for this visit.
+  }
+};
+const readMuted = () => readStored(MUTE_KEY) === "1";
+/** The player's instrument, kept between tunes and visits. */
+const readInstrument = () => {
+  const id = readStored(INSTRUMENT_KEY);
+  return INSTRUMENTS.some((i) => i.id === id) ? id! : "C";
+};
+
+/** "up 2" or "down 3": how far a key is from the original, in half steps. */
+const steps = (n: number) => (n > 0 ? `up ${n}` : `down ${-n}`);
 
 /** One player for the whole site, so samples load once even when switching tunes. */
 let sharedPlayer: Player | null = null;
@@ -59,7 +76,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [error, setError] = useState<string | null>(null);
   const [tempo, setTempo] = useState(chart.tempo);
   const [transpose, setTranspose] = useState(0);
-  const [instrumentId, setInstrumentId] = useState("C");
+  const [instrumentId, setInstrumentId] = useState(readInstrument);
   const [repeat, setRepeat] = useState<Repeat>(3);
   const [countIn, setCountIn] = useState(true);
   const [metronome, setMetronome] = useState(false);
@@ -75,12 +92,9 @@ export function TunePage({ chart }: { chart: Chart }) {
 
   useEffect(() => {
     sharedPlayer?.setMasterMute(muted);
-    try {
-      localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
-    } catch {
-      // Storage can be unavailable (private windows); the button still works for this visit.
-    }
+    store(MUTE_KEY, muted ? "1" : "0");
   }, [muted]);
+  useEffect(() => store(INSTRUMENT_KEY, instrumentId), [instrumentId]);
 
   const instrument = INSTRUMENTS.find((i) => i.id === instrumentId)!;
   const shift = fold(transpose + instrument.offset);
@@ -252,18 +266,21 @@ export function TunePage({ chart }: { chart: Chart }) {
   const settings = (
     <div className="settings">
       <label className="field">
-        <span>Key</span>
+        <span>Band plays in</span>
         <select value={transpose} onChange={(e) => setTranspose(Number(e.target.value))}>
-          {Array.from({ length: 12 }, (_, pc) => (
-            <option key={pc} value={fold(pc - chartKeyPc)}>
-              {keyName(pc)}
-              {pc === chartKeyPc ? " (original)" : ""}
-            </option>
-          ))}
+          {Array.from({ length: 12 }, (_, i) => {
+            const n = i - 6;
+            const pc = (chartKeyPc + n + 12) % 12;
+            return (
+              <option key={n} value={n}>
+                {keyName(pc)} {n === 0 ? "(original)" : `(${steps(n)})`}
+              </option>
+            );
+          })}
         </select>
       </label>
       <label className="field">
-        <span>Instrument</span>
+        <span>Written for</span>
         <select value={instrumentId} onChange={(e) => setInstrumentId(e.target.value)}>
           {INSTRUMENTS.map((i) => (
             <option key={i.id} value={i.id}>
@@ -272,6 +289,11 @@ export function TunePage({ chart }: { chart: Chart }) {
           ))}
         </select>
       </label>
+      <p className="hint">
+        {instrument.offset === 0
+          ? `Concert pitch: the music is written as the band sounds, in ${keyName(concertKeyPc)}.`
+          : `The band sounds in ${keyName(concertKeyPc)}; the music is written in ${keyName(printedKeyPc)} for ${instrument.name.split(" ")[0]} instruments.`}
+      </p>
       <label className="field">
         <span>Choruses</span>
         <select value={String(repeat)} disabled={playing} onChange={(e) => setRepeat(e.target.value === "loop" ? "loop" : Number(e.target.value))}>
@@ -304,7 +326,9 @@ export function TunePage({ chart }: { chart: Chart }) {
         <h1>{chart.title}</h1>
         <p className="meta">
           <span>{style.name}</span>
-          <span>{keyName(concertKeyPc)} major</span>
+          <span>
+            {keyName(concertKeyPc)} major{transpose !== 0 && `, ${steps(transpose)} from ${keyName(chartKeyPc)}`}
+          </span>
           <span>{chart.beatsPerBar}/4</span>
           {instrument.offset !== 0 && (
             <span className="part">
