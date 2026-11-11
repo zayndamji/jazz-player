@@ -2,10 +2,14 @@ import { BEAT, barTokens, parseBar, parseChord } from "../chart/chords";
 import type { Chart } from "../chart/types";
 
 /**
- * Every chart in src/charts/*.json, collected at build time. Adding a tune is
- * adding one JSON file; nothing else needs to change. File name = chart id.
+ * Every chart, collected at build time: your tunes in tunes/<id>/chart.json
+ * (gitignored: tunes are content you add, not part of the framework) and the
+ * examples in examples/<id>/chart.json. Folder name = chart id.
  */
-const files = import.meta.glob<Chart>("./*.json", { eager: true, import: "default" });
+const files = import.meta.glob<Chart>(["../../tunes/*/chart.json", "../../examples/*/chart.json"], { eager: true, import: "default" });
+
+/** The tune's folder name, from a path like ../../tunes/<id>/chart.json. */
+export const folderOf = (path: string) => path.split("/").at(-2)!;
 
 export const CHARTS: Chart[] = Object.values(files).sort((a, b) => a.title.localeCompare(b.title));
 
@@ -13,10 +17,8 @@ export function getChart(id: string): Chart | undefined {
   return CHARTS.find((c) => c.id === id);
 }
 
-/** File name of each chart, for checks. */
-export const CHART_FILES: Record<string, Chart> = Object.fromEntries(
-  Object.entries(files).map(([path, chart]) => [path.replace(/^\.\/|\.json$/g, ""), chart]),
-);
+/** Folder name of each chart, for checks. */
+export const CHART_FILES: Record<string, Chart> = Object.fromEntries(Object.entries(files).map(([path, chart]) => [folderOf(path), chart]));
 
 /** Problems with a chart, empty when it's fine. Styles are checked by the caller. */
 export function validateChart(chart: Chart): string[] {

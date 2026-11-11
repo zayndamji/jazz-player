@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { displayParts, isMinorKey, keyPitchClass, parseBar, parseChord, spellingPc, transposeSymbol } from "./chords";
-import type { Chart } from "../chart/types";
-import exampleTuneJson from "../charts/example-tune.json";
-
-const exampleTune = exampleTuneJson as Chart;
+import { FIXTURES } from "../fixtures";
 
 describe("parseChord", () => {
   it("reads roots, qualities and slash basses", () => {
@@ -22,8 +19,8 @@ describe("parseChord", () => {
     expect(parseChord("Bb7").root).toBe(10);
   });
 
-  it("reads every chord in Example Tune", () => {
-    const sections = [exampleTune.intro!, ...exampleTune.form, ...exampleTune.ending!];
+  it("reads every chord in the test charts", () => {
+    const sections = FIXTURES.flatMap((c) => [...(c.intro ? [c.intro] : []), ...c.form, ...(c.ending ?? [])]);
     for (const section of sections) {
       for (const bar of section.bars) {
         for (const slot of parseBar(bar, 4).chords) {

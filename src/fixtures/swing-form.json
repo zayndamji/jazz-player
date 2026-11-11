@@ -1,0 +1,16 @@
+{
+  "id": "swing-form",
+  "title": "Swing form (test fixture)",
+  "key": "C",
+  "tempo": 140,
+  "beatsPerBar": 4,
+  "style": "swing",
+  "intro": { "label": "Intro", "bars": ["Dm7 G7", "Dm7 G7", "Dm7 G7", "Dm7 G7"] },
+  "form": [
+    { "label": "A", "bars": ["C6", "A7", "D7", "%", "Dm7", "G7", "C6", "Dm7 G7"] },
+    { "label": "A", "bars": ["C6", "A7", "D7", "%", "Dm7", "G7", "C6", "Gm7 C7"] },
+    { "label": "B", "bars": ["F6", "%", "Fm7", "Bb7", "Em7", "A7", "Dm7", "G7"] },
+    { "label": "A", "bars": ["C6", "A7", "D7", "%", "Dm7", "G7", "C6", "Dm7 G7"] }
+  ],
+  "ending": [{ "label": "Coda", "bars": ["C6", "C6"] }]
+}

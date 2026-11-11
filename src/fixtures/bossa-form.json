@@ -1,0 +1,19 @@
+{
+  "id": "bossa-form",
+  "title": "Bossa form (test fixture)",
+  "key": "C",
+  "tempo": 150,
+  "beatsPerBar": 4,
+  "style": "bossa",
+  "intro": { "label": "Intro", "bars": ["Cmaj7", "Dm7/G G7", "Cmaj7", "Dm7/G G7"] },
+  "form": [
+    { "label": "A", "bars": ["Cmaj7", "Em7 A7", "Dm7", "%", "Fmaj7", "Bb7", "Em7 A7", "Dm7 G7"] },
+    { "label": "A", "bars": ["Cmaj7", "Em7 A7", "Dm7", "%", "Fmaj7", "Bb7", "Cmaj7", "%"] },
+    { "label": "B", "bars": ["Fm7", "Bb7", "Ebmaj7", "%", "Am7", "D7", "Dm7", "G7(#5)"] },
+    { "label": "A", "bars": ["Cmaj7", "Em7 A7", "Dm7", "%", "Fmaj7", "Bb7", "Cmaj7", "Dm7/G G7"] }
+  ],
+  "ending": [
+    { "label": "Tag", "bars": ["Dm7", "G7", "Cmaj7", "Dm7/G G7"], "repeat": 2, "sheetBar": 33 },
+    { "label": "End", "bars": ["C6/9"] }
+  ]
+}

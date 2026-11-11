@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseChord } from "../chart/chords";
 import { chordScale } from "../chart/scales";
-import type { Chart } from "../chart/types";
-import exampleTuneJson from "../charts/example-tune.json";
-
-const exampleTune = exampleTuneJson as Chart;
+import { bossaForm } from "../fixtures";
 import { bossa } from "../styles/bossa";
 import { buildSchedule } from "./schedule";
 import { buildTimeline, chartBars, navOrder, playOrder, stepBar, stepSection, type PlayItem } from "./timeline";
@@ -12,15 +9,15 @@ import { VOICING_HIGH, VOICING_LOW, voiceChord, voicingIntervals } from "./voici
 
 const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const pcs = (notes: number[]) => notes.map((n) => names[n % 12]);
-const chart = exampleTune;
+const chart = bossaForm;
 
 describe("timeline", () => {
   it("numbers bars like the sheet", () => {
     const bars = chartBars(chart);
     expect(bars.length).toBe(4 + 32 + 4 + 1);
-    expect(bars[4]).toMatchObject({ number: 5, text: "C", ref: { part: "form", section: 0, bar: 0 } });
+    expect(bars[4]).toMatchObject({ number: 5, text: "Cmaj7", ref: { part: "form", section: 0, bar: 0 } });
     expect(bars[20].number).toBe(21);
-    expect(bars[20].text).toBe("Gm7");
+    expect(bars[20].text).toBe("Fm7");
   });
 
   it("plays intro, each chorus, the tag twice and the final bar", () => {
@@ -33,13 +30,13 @@ describe("timeline", () => {
 
   it("carries a chord through a repeat bar without a new attack", () => {
     const bars = buildTimeline(chart, playOrder(chart, 1), 0, 0);
-    expect(bars[7].chords[0].chord.symbol).toBe("D7");
+    expect(bars[7].chords[0].chord.symbol).toBe("Dm7");
     expect(bars[7].chords[0].attack).toBe(false);
   });
 
   it("transposes chords", () => {
     const bars = buildTimeline(chart, playOrder(chart, 1), 2, 2);
-    expect(bars[5].chords[0].chord.symbol).toBe("B7(#5)");
+    expect(bars[5].chords[0].chord.symbol).toBe("F#m7");
   });
 });
 

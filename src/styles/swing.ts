@@ -7,7 +7,7 @@ import type { DrumSound, NoteEvent, Style } from "./types";
 
 /**
  * Medium swing, 4/4. Offbeat eighths fall two thirds of the way through the
- * beat (a 2:1 swing), measured from the reference track (context/style-swing.md).
+ * beat (a 2:1 swing), measured from a medium-swing reference track (context/style-swing.md).
  * - Bass: walks in quarter notes. Root on the chord's first beat, chord tones and
  *   scale steps in between, and a half-step approach into the next chord.
  * - Piano: rootless voicings on short syncopated figures (Charleston and its
@@ -104,7 +104,7 @@ export const isFormEnd = (bar: TimelineBar, next: TimelineBar | undefined) =>
 export const swing: Style = {
   id: "swing",
   name: "Medium swing",
-  // Balanced against the second tune reference (a fuller walking bass, the guitar felt more than
+  // Balanced against the reference track (a fuller walking bass, the guitar felt more than
   // heard), and 3 dB up overall to match the bossa band's loudness.
   mix: { bass: 7, guitar: -4, piano: 2, drums: 3 },
   generate(bars, seed) {

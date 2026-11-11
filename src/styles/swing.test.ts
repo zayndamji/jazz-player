@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getChart } from "../charts";
+import { swingForm } from "../fixtures";
 import { buildSchedule } from "../engine/schedule";
 import { swing } from "./swing";
 
-const chart = getChart("second-tune")!;
+const chart = swingForm;
 const schedule = buildSchedule(chart, swing, { choruses: 2, countIn: false, transpose: 0 });
 const inBar = (index: number, track: string) =>
   schedule.events.filter((e) => e.track === track && e.time >= index * 4 - 0.05 && e.time < index * 4 + 3.95);
@@ -14,7 +14,7 @@ describe("swing style", () => {
   });
 
   it("lands on the chord's bass note on its first beat", () => {
-    const bar = schedule.bars.find((b) => b.ref?.part === "form" && b.ref.bar === 2)!; // D7(#11)
+    const bar = schedule.bars.find((b) => b.ref?.part === "form" && b.ref.bar === 2)!; // D7
     const first = inBar(bar.index, "bass")[0];
     expect(first.notes![0] % 12).toBe(2);
   });

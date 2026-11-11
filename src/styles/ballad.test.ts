@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getChart } from "../charts";
+import { balladForm } from "../fixtures";
 import { buildSchedule } from "../engine/schedule";
 import { ballad } from "./ballad";
 
-const chart = getChart("third-tune")!;
+const chart = balladForm;
 const schedule = buildSchedule(chart, ballad, { choruses: 2, countIn: false, transpose: 0 });
 const inBar = (index: number, track: string) =>
   schedule.events.filter((e) => e.track === track && e.time >= index * 4 - 0.05 && e.time < index * 4 + 3.95);
@@ -24,7 +24,7 @@ describe("ballad style", () => {
   });
 
   it("rolls each chord change on the piano from the bottom up", () => {
-    const bar = formBar(1, 0, 1); // Bbm7 Eb7
+    const bar = formBar(1, 0, 1); // Gm7 C7
     const onThree = inBar(bar.index, "piano").filter((e) => Math.abs((e.time % 4) - 2) < 0.2);
     const notes = onThree.slice(0, 4).map((e) => e.notes![0]);
     expect(notes).toEqual([...notes].sort((a, b) => a - b));

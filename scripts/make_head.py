@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Turn a head (melody) typed in a short text format into MusicXML for the site.
 
-  python3 scripts/make_head.py local/heads/second-tune.head.txt
-  # writes local/heads/second-tune.musicxml next to it
+  python3 scripts/make_head.py tunes/<id>/head.txt
+  # writes tunes/<id>/head.musicxml next to it
 
 The text format, one directive or bar per line (a line starting with "#" is a comment):
 
@@ -170,7 +170,8 @@ def voice(text, num, v, stem, interval, in_alters, out_alters, tied):
 
 
 def build(src: Path) -> str:
-    key, interval, per_line, bars, title = "C", None, 4, [], src.stem.replace(".head", "")
+    title = src.parent.name if src.name == "head.txt" else src.stem.replace(".head", "")
+    key, interval, per_line, bars = "C", None, 4, []
     for raw in src.read_text().splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -237,7 +238,8 @@ def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     src = Path(sys.argv[1])
-    out = src.with_name(src.name.replace(".head.txt", "") + ".musicxml")
+    # tunes/<id>/head.txt becomes tunes/<id>/head.musicxml; <id>.head.txt becomes <id>.musicxml.
+    out = src.with_name(src.name.replace(".txt", "") + ".musicxml" if src.name == "head.txt" else src.name.replace(".head.txt", "") + ".musicxml")
     out.write_text(build(src))
     print(f"wrote {out}")
 

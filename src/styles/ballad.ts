@@ -6,7 +6,7 @@ import type { DrumSound, NoteEvent, Style } from "./types";
 
 /**
  * Jazz ballad, slow 4/4 (about 55 to 65 BPM), triplet feel. Modelled on three
- * Third Tune backing tracks (context/style-ballad.md):
+ * ballad backing tracks (context/style-ballad.md):
  * - Bass: half notes (root, then the fifth or an approach to the next chord) in
  *   the first chorus's A sections; walks in quarters in the bridge and later choruses.
  * - Piano: the only chord instrument. Rolled rootless voicings held through each

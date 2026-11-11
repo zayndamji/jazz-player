@@ -1,6 +1,6 @@
 # Jazz Player
 
-A website for practicing jazz tunes. It shows the chord chart, or the lead sheet with the melody, and plays a backing band (bass, guitar, piano, drums) that follows the chords. Styles so far: bossa nova, medium swing and ballad.
+A framework for practicing jazz tunes in the browser. You add your tunes as chord charts (and lead sheets, if you like); it shows the chart or the lead sheet and plays a backing band (bass, guitar, piano, drums) that follows the chords. Styles so far: bossa nova, medium swing and ballad. The repo holds the framework only: tunes are your own content, kept out of git, and one made-up example (a blues in F) ships with it.
 
 ## What it does
 
@@ -24,7 +24,7 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 
 ## How it works
 
-- A chart is one JSON file in `src/charts/`: key, tempo, style, and sections of bars written as chord symbols. The site collects every file in that folder; tests check each one.
+- A chart is one JSON file, `tunes/<id>/chart.json`: key, tempo, style, and sections of bars written as chord symbols. The site collects every tune in `tunes/` and the example in `examples/`; tests check each one.
 - The timeline lays it out in playing order: count-in, intro, choruses, tag, final bar. Looping plays the section or form twice and repeats the second copy, so playback can start on any bar.
 - A style turns the timeline into notes, and can set its own mix. Each style is modelled on a measured reference recording (`scripts/analyze_reference.py`).
 - Piano and guitar use rootless drop-2 voicings, each chord voice-led from the last.
@@ -37,7 +37,8 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 | Path | What it is |
 | --- | --- |
 | `src/chart/` | Chart types, chord parsing and transposing, scales, transposing instruments |
-| `src/charts/` | The tunes as JSON, the chart checks, and the loader for local lead sheets |
+| `src/charts/` | The loader for charts and lead sheets, and the chart checks |
+| `src/fixtures/` | Made-up charts the tests use |
 | `src/engine/` | Timeline, voicings, playback schedule |
 | `src/styles/` | Backing styles (bossa nova, medium swing, ballad) |
 | `src/audio/player.ts` | Tone.js playback, sampled and synthesized instruments, mixer |
@@ -45,7 +46,8 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 | `src/components/` | Chord chart, lead sheet, player bar, mixer |
 | `public/samples/` | Piano, bass, guitar and drum samples, each folder with its license |
 | `scripts/` | Repeatable jobs: fetching samples, turning typed heads into MusicXML, measuring reference recordings and the site's mix |
-| `local/heads/` | Your lead sheets as MusicXML (not in git) |
+| `tunes/<id>/` | Your tunes: `chart.json`, and optionally `head.txt` and `head.musicxml` (not in git) |
+| `examples/blues-in-f/` | A made-up example chart, so a fresh checkout has something to play |
 
 ## Run it
 
@@ -89,8 +91,9 @@ Measures a reference recording: tempo, swing, rhythm per frequency band, band ba
 
 ## Adding a tune, a lead sheet or a style
 
-- Tune: add `src/charts/<id>.json` with the `Chart` shape from `src/chart/types.ts` (copy an existing one). Bars are strings like `"Em7/A A7"` (chords split the bar evenly), `"Am7 / / Fmaj7"` (a `/` holds the chord for a beat, so Fmaj7 starts on beat 4) or `"%"` (same chord). Store every tune in its original concert key, never a transposed part's key: a B♭ part in D is a tune in C. Write minor keys with an `m` (`"key": "Em"`). `npm test` checks every chord and the style name.
-- Lead sheet: type the melody as `local/heads/<chart id>.head.txt` and run `python3 scripts/make_head.py local/heads/<chart id>.head.txt`, or save `local/heads/<chart id>.musicxml` from MuseScore. The text format (in the script's help) reads notes against the key signature like a printed part, and `transpose: -M2` turns a B♭ part into concert pitch. The Lead sheet view appears when the MusicXML is there. Lead sheets stay out of git because melodies are copyrighted; a build made on your machine includes yours.
+- Tune: add `tunes/<id>/chart.json` with the `Chart` shape from `src/chart/types.ts` (copy `examples/blues-in-f/chart.json`). The folder name is the tune's id. Bars are strings like `"Em7/A A7"` (chords split the bar evenly), `"Am7 / / Fmaj7"` (a `/` holds the chord for a beat, so Fmaj7 starts on beat 4) or `"%"` (same chord). Store every tune in its original concert key, never a transposed part's key: a B♭ part in D is a tune in C. Write minor keys with an `m` (`"key": "Em"`). `npm test` checks every chord and the style name.
+- Lead sheet: type the melody as `tunes/<id>/head.txt` and run `python3 scripts/make_head.py tunes/<id>/head.txt`, or save `tunes/<id>/head.musicxml` from MuseScore. The text format (in the script's help) reads notes against the key signature like a printed part, `transpose: -M2` turns a B♭ part into concert pitch, and `&&` splits a bar into two voices. The Lead sheet view appears when the MusicXML is there.
+- `tunes/` stays out of git: charts and melodies are content you add, and many are copyrighted. A build made on your machine includes your tunes.
 - Style: add a file in `src/styles/` that implements `Style` from `src/styles/types.ts`, and list it in `src/styles/index.ts`. Balance its `mix` against a reference recording.
 
 ## Tools and licenses

@@ -32,5 +32,8 @@ AGENTS.md
 # Local preview config for the Claude app
 .claude/launch.json
 
-# Personal copies of lead sheets (copyrighted), shown only on this machine
+# Your tunes (charts and heads): content you add, never part of the framework
+tunes/
+
+# Local working files (analyses, agent test runs, notes)
 local/
