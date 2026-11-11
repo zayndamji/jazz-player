@@ -8,11 +8,15 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  * Bossa nova, straight eighths, in a two-bar cycle. The patterns follow a
  * measured Band-in-a-Box bossa track (context/reference-backing-track.md):
  * - Bass: 1, and of 2, 3, and of 4. The eighths anticipate the next note.
- * - Guitar: the rhythmic engine, short syncopated chords on a two-bar figure.
+ * - Guitar: the rhythmic engine, short syncopated chords on a two-bar figure,
+ *   picked per cycle from a few variations.
  * - Piano: sparse, held chords on the changes, under the guitar.
+ * - Pushes: about half the chord changes are anticipated on the and of 4.
  * - Drums: eighths on the hi-hat with 2 and 4 accented, kick with the bass,
  *   cross-stick on the bossa clave, a fill at the end of each section and a
- *   bigger one at the end of the form, a soft crash where a section starts.
+ *   bigger one at the end of the form, a soft crash where a section starts,
+ *   the ride cymbal in the bridge from the second chorus.
+ * - Each chorus is a little stronger than the last.
  */
 
 const CLAVE: number[][] = [
@@ -20,21 +24,39 @@ const CLAVE: number[][] = [
   [1, 2.5],
 ];
 
-/** Guitar figure, bar one then bar two: beat, length, velocity. */
-const GUITAR: [number, number, number][][] = [
-  [
-    [0, 0.45, 0.75],
-    [1, 0.4, 0.85],
-    [2.5, 0.45, 0.8],
-    [3, 0.35, 0.55],
-  ],
-  [
-    [0.5, 0.4, 0.75],
-    [2, 0.45, 0.85],
-    [2.5, 0.4, 0.65],
-    [3, 0.5, 0.8],
-  ],
+type Hit = [beat: number, length: number, velocity: number];
+
+/**
+ * Guitar figures, two bars each. The first follows the reference track and is
+ * played most often; the others vary it so choruses don't repeat exactly.
+ */
+const GUITAR_FIGURES: { weight: number; bars: Hit[][] }[] = [
+  {
+    weight: 0.6,
+    bars: [
+      [[0, 0.45, 0.75], [1, 0.4, 0.85], [2.5, 0.45, 0.8], [3, 0.35, 0.55]],
+      [[0.5, 0.4, 0.75], [2, 0.45, 0.85], [2.5, 0.4, 0.65], [3, 0.5, 0.8]],
+    ],
+  },
+  {
+    weight: 0.25,
+    bars: [
+      [[0, 0.45, 0.8], [1.5, 0.4, 0.75], [2.5, 0.4, 0.75], [3.5, 0.35, 0.6]],
+      [[1, 0.4, 0.8], [2, 0.45, 0.85], [3, 0.5, 0.75]],
+    ],
+  },
+  {
+    weight: 0.15,
+    bars: [
+      [[0, 0.7, 0.75], [1.5, 0.4, 0.7], [3, 0.6, 0.7]],
+      [[1, 0.5, 0.7], [2.5, 0.9, 0.75]],
+    ],
+  },
 ];
+const SPARSE = 2; // the figure for the intro
+
+/** Chance that guitar and piano push a chord change to the and of 4. */
+const PUSH = 0.45;
 
 /** Hi-hat velocity on each eighth: 2 and 4 strongest, offbeats soft. */
 const HAT = [0.45, 0.26, 0.58, 0.28, 0.46, 0.33, 0.58, 0.26];
@@ -93,12 +115,22 @@ export const bossa: Style = {
 
     let piano: number[] | null = null;
     let guitar: number[] | null = null;
+    let figure = 0;
+    let pushedIn = false; // this bar's first chord was already played on the and of 4
     const music = bars.filter((b) => !b.countIn);
+    const pick = () => {
+      let r = random();
+      for (let f = 0; f < GUITAR_FIGURES.length; f++) if ((r -= GUITAR_FIGURES[f].weight) < 0) return f;
+      return 0;
+    };
     music.forEach((bar, i) => {
       const t = bar.startBeat;
       const cycle = i % 2;
       const next = music[i + 1];
       const prev = music[i - 1];
+      // Each chorus a little stronger than the last, up to the third.
+      const lift = bar.chorus <= 1 ? 0.92 : bar.chorus === 2 ? 1 : 1.06;
+      if (cycle === 0) figure = bar.ref?.part === "intro" ? SPARSE : pick();
 
       if (bar.final) {
         const chord = bar.chords[0]?.chord;
@@ -124,28 +156,48 @@ export const bossa: Style = {
         if (pickup !== null) events.push({ track: "bass", time: t + half * 2 + 1.5, duration: 0.45, velocity: human(0.65), notes: [pickup] });
       }
 
+      // Push: play the next bar's new chord early, on the and of 4, and skip its downbeat.
+      const nextChord = next?.chords[0];
+      const push = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord && random() < PUSH;
+
       // Guitar: the two-bar figure, re-voiced at each hit so changes land where they fall.
-      for (const [beat, length, velocity] of GUITAR[cycle]) {
+      for (const [beat, length, velocity] of GUITAR_FIGURES[figure].bars[cycle]) {
+        if (push && beat >= 3) continue;
+        if (pushedIn && beat < 1) continue;
         const slot = chordAt(bar, beat);
         if (!slot) continue;
         guitar = voiceChord(slot.chord, guitar, GUITAR_RANGE);
-        events.push({ track: "guitar", time: t + beat + nudge(8), duration: length, velocity: human(velocity * 0.7, 0.1), notes: guitar });
+        events.push({ track: "guitar", time: t + beat + nudge(8), duration: length, velocity: human(velocity * 0.7 * lift, 0.1), notes: guitar });
+      }
+      if (push) {
+        guitar = voiceChord(nextChord!.chord, guitar, GUITAR_RANGE);
+        events.push({ track: "guitar", time: t + 3.5 + nudge(8), duration: 0.9, velocity: human(0.6 * lift, 0.1), notes: guitar });
       }
 
-      // Piano: held chords where the harmony changes, soft, with a re-touch on beat 3 of long chords.
+      // Piano: held chords where the harmony changes, soft.
       for (const c of bar.chords) {
         // A chord held over a "%" bar is touched again at the start of a two-bar cycle.
         const retouch = !c.attack && c.beat === 0 && cycle === 0;
         if (!c.attack && !retouch) continue;
+        if (pushedIn && c.beat === 0) continue;
+        const length = push && c === bar.chords.at(-1) ? 3.5 - c.beat : Math.min(c.length, 4);
         piano = voiceChord(c.chord, piano);
-        events.push({ track: "piano", time: t + c.beat + nudge(12), duration: Math.min(c.length, 4) - 0.15, velocity: human(0.38, 0.1), notes: piano });
+        events.push({ track: "piano", time: t + c.beat + nudge(12), duration: length - 0.15, velocity: human(0.38 * lift, 0.1), notes: piano });
       }
+      if (push) {
+        piano = voiceChord(nextChord!.chord, piano);
+        events.push({ track: "piano", time: t + 3.5 + nudge(12), duration: Math.min(nextChord!.length, 4) + 0.35, velocity: human(0.36 * lift, 0.1), notes: piano });
+      }
+      pushedIn = push;
 
       // Drums
       const fill = endsSection(bar, next) && !next?.final;
       const bigFill = isFormEnd(bar, next) && !!next;
       const hatEnd = bigFill ? 4 : fill ? 6 : 8; // hats stop for the fill
-      for (let e = 0; e < hatEnd; e++) drum(t + e * 0.5, "hat", HAT[e]);
+      // The bridge moves to the ride cymbal from the second chorus, with the hi-hat foot on 2 and 4.
+      const ride = bar.contrast && bar.chorus >= 2;
+      for (let e = 0; e < hatEnd; e++) drum(t + e * 0.5, ride ? "ride" : "hat", HAT[e] * lift * (ride ? 0.9 : 1));
+      if (ride) [1, 3].forEach((b) => drum(t + b, "pedal", 0.45));
       for (const k of KICK) if (!(bigFill && k.beat >= 2)) drum(t + k.beat, "kick", k.velocity);
       for (const beat of CLAVE[cycle]) if (beat < (bigFill ? 2 : fill ? 3 : 4)) drum(t + beat, "rim", 0.65);
 

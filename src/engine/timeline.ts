@@ -26,6 +26,10 @@ export interface TimelineBar {
   ref: BarRef | null;
   /** 0 for count-in, intro and ending; 1 and up for each time through the form. */
   chorus: number;
+  /** Label of the bar's section ("A", "B", "Intro", "Tag"), empty for count-in. */
+  label: string;
+  /** True for form sections whose label differs from the first one (the bridge in AABA). */
+  contrast: boolean;
   chords: TimelineChord[];
   countIn: boolean;
   /** The last bar of the song: the style plays a final hit. */
@@ -63,9 +67,12 @@ export function chartBars(chart: Chart): ChartBar[] {
 export const sameRef = (a: BarRef | null | undefined, b: BarRef | null | undefined) =>
   !!a && !!b && a.part === b.part && a.section === b.section && a.bar === b.bar;
 
+function sectionOf(chart: Chart, ref: BarRef): Section | undefined {
+  return ref.part === "intro" ? chart.intro : ref.part === "ending" ? chart.ending?.[ref.section] : chart.form[ref.section];
+}
+
 function barText(chart: Chart, ref: BarRef): string {
-  const section = ref.part === "intro" ? chart.intro : ref.part === "ending" ? chart.ending?.[ref.section] : chart.form[ref.section];
-  return section?.bars[ref.bar] ?? "%";
+  return sectionOf(chart, ref)?.bars[ref.bar] ?? "%";
 }
 
 /** The order bars are played in: intro, the form a number of times, ending. */
@@ -106,7 +113,10 @@ export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number
         previous = chord;
       });
     }
-    return { index, startBeat: index * beats, ref: item.ref, chorus: item.chorus, chords, countIn: false, final: false };
+    const section = sectionOf(chart, item.ref);
+    const label = section?.label ?? "";
+    const contrast = item.ref.part === "form" && label !== chart.form[0].label;
+    return { index, startBeat: index * beats, ref: item.ref, chorus: item.chorus, label, contrast, chords, countIn: false, final: false };
   });
   const last = bars.at(-1);
   if (last && last.ref?.part === "ending") last.final = true;

@@ -71,6 +71,8 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     startBeat: i * beatsPerBar,
     ref: null,
     chorus: 0,
+    label: "",
+    contrast: false,
     chords: [],
     countIn: true,
     final: false,

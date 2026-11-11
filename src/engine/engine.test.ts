@@ -141,11 +141,32 @@ describe("bossa style", () => {
   });
 
   it("plays guitar on every bar and fills at section ends", () => {
-    expect(inBar(3, "guitar").length).toBe(4);
+    for (let b = 2; b < 2 + 36; b++) expect(inBar(b, "guitar").length).toBeGreaterThanOrEqual(2);
     const endOfA = 2 + 4 + 7; // last bar of the first A
     expect(inBar(endOfA, "drums").some((e) => e.drum === "snare")).toBe(true);
     const endOfForm = 2 + 4 + 31;
     expect(inBar(endOfForm, "drums").filter((e) => e.drum?.startsWith("tom")).length).toBe(4);
     expect(inBar(endOfA + 1, "drums").some((e) => e.drum === "crash")).toBe(true);
+  });
+
+  it("sometimes pushes a chord change to the and of 4", () => {
+    const pushes = schedule.events.filter((e) => e.track === "guitar" && Math.abs((e.time % 4) - 3.5) < 0.05);
+    expect(pushes.length).toBeGreaterThan(3);
+  });
+
+  it("varies the guitar figure between two-bar cycles", () => {
+    const shape = (b: number) => inBar(b, "guitar").map((e) => Math.round((e.time % 4) * 2) / 2).join(",");
+    const shapes = new Set(Array.from({ length: 16 }, (_, k) => shape(6 + k * 2)));
+    expect(shapes.size).toBeGreaterThan(1);
+  });
+
+  it("moves to the ride in the bridge from the second chorus", () => {
+    const two = buildSchedule(chart, bossa, { choruses: 2, countIn: false, transpose: 0 });
+    const bridge = (chorus: number) => two.bars.find((b) => b.chorus === chorus && b.contrast)!;
+    const cymbals = (bar: { startBeat: number }) =>
+      two.events.filter((e) => e.track === "drums" && e.time >= bar.startBeat - 0.1 && e.time < bar.startBeat + 3.9).map((e) => e.drum);
+    expect(cymbals(bridge(1))).toContain("hat");
+    expect(cymbals(bridge(2))).toContain("ride");
+    expect(cymbals(bridge(2))).toContain("pedal");
   });
 });
