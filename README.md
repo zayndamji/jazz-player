@@ -38,7 +38,7 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 | `src/pages/` | The library and the tune page |
 | `src/components/` | Chord chart, lead sheet, player bar, mixer |
 | `public/samples/` | Piano, bass, guitar and drum samples, each folder with its license |
-| `scripts/` | Repeatable jobs: fetching samples, measuring reference recordings and the site's mix |
+| `scripts/` | Repeatable jobs: fetching samples, turning typed heads into MusicXML, measuring reference recordings and the site's mix |
 | `local/heads/` | Your lead sheets as MusicXML (not in git) |
 
 ## Run it
@@ -84,7 +84,7 @@ Measures a reference recording: tempo, swing, rhythm per frequency band, band ba
 ## Adding a tune, a lead sheet or a style
 
 - Tune: add `src/charts/<id>.json` with the `Chart` shape from `src/chart/types.ts` (copy an existing one). Bars are strings like `"Em7/A A7"` (chords split the bar evenly) or `"%"` (same chord). Write the chords in concert pitch. `npm test` checks every chord and the style name.
-- Lead sheet: save the melody as `local/heads/<chart id>.musicxml` (MuseScore can export it). The Lead sheet view appears when the file is there. Lead sheets stay out of git because melodies are copyrighted; a build made on your machine includes yours.
+- Lead sheet: type the melody as `local/heads/<chart id>.head.txt` and run `python3 scripts/make_head.py local/heads/<chart id>.head.txt`, or save `local/heads/<chart id>.musicxml` from MuseScore. The text format (in the script's help) reads notes against the key signature like a printed part, and `transpose: -M2` turns a B♭ part into concert pitch. The Lead sheet view appears when the MusicXML is there. Lead sheets stay out of git because melodies are copyrighted; a build made on your machine includes yours.
 - Style: add a file in `src/styles/` that implements `Style` from `src/styles/types.ts`, and list it in `src/styles/index.ts`. Balance its `mix` against a reference recording.
 
 ## Tools and licenses
