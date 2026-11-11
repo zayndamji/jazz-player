@@ -289,11 +289,6 @@ export function TunePage({ chart }: { chart: Chart }) {
           ))}
         </select>
       </label>
-      <p className="hint">
-        {instrument.offset === 0
-          ? `Concert pitch: the music is written as the band sounds, in ${keyName(concertKeyPc)}.`
-          : `The band sounds in ${keyName(concertKeyPc)}; the music is written in ${keyName(printedKeyPc)} for ${instrument.name.split(" ")[0]} instruments.`}
-      </p>
       <label className="field">
         <span>Choruses</span>
         <select value={String(repeat)} disabled={playing} onChange={(e) => setRepeat(e.target.value === "loop" ? "loop" : Number(e.target.value))}>
