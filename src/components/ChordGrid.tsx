@@ -11,6 +11,8 @@ interface Props {
   /** Pitch class of the printed key, for spelling. */
   keyPc: number;
   active: BarRef | null;
+  /** The bar the band will start from when paused. */
+  cued: BarRef | null;
   showScales: boolean;
   loopSection: number | null;
   onBar: (ref: BarRef) => void;
@@ -32,13 +34,13 @@ function ChordSymbol({ symbol, showScale, keyPc }: { symbol: string; showScale: 
   );
 }
 
-export function ChordGrid({ chart, shift, keyPc, active, showScales, loopSection, onBar, onSection }: Props) {
+export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, loopSection, onBar, onSection }: Props) {
   const numbers = new Map(chartBars(chart).map((b) => [`${b.ref.part}${b.ref.section}.${b.ref.bar}`, b.number]));
   const activeEl = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     activeEl.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [active]);
+  }, [active, cued]);
 
   const sections: { part: BarRef["part"]; index: number; section: Section }[] = [
     ...(chart.intro ? [{ part: "intro" as const, index: 0, section: chart.intro }] : []),
@@ -78,12 +80,14 @@ export function ChordGrid({ chart, shift, keyPc, active, showScales, loopSection
                   const ref: BarRef = { part, section: index, bar };
                   const parsed = parseBar(text, chart.beatsPerBar);
                   const isActive = sameRef(active, ref);
+                  const isCued = !isActive && sameRef(cued, ref);
                   const number = numbers.get(`${part}${index}.${bar}`);
                   return (
                     <button
                       type="button"
-                      ref={isActive ? activeEl : undefined}
-                      className={`bar${isActive ? " active" : ""}${barTokens(text).length > 1 ? " split" : ""}${bar === section.bars.length - 1 ? " section-end" : ""}`}
+                      ref={isActive || isCued ? activeEl : undefined}
+                      aria-current={isActive || isCued ? "true" : undefined}
+                      className={`bar${isActive ? " active" : ""}${isCued ? " cued" : ""}${barTokens(text).length > 1 ? " split" : ""}${bar === section.bars.length - 1 ? " section-end" : ""}`}
                       key={bar}
                       onClick={() => onBar(ref)}
                       aria-label={`Bar ${number}: ${parsed.repeat ? "same chord" : parsed.chords.map((c) => c.symbol).join(", ")}. Play from here.`}

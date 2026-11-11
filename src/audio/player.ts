@@ -63,7 +63,8 @@ export class Player {
   metronomeOn = false;
   onPosition: (p: Position | null) => void = () => {};
   onLoop: () => void = () => {};
-  onEnd: () => void = () => {};
+  /** Called when playback stops: `finished` is true when the song ran to its end, false when stopped. */
+  onEnd: (finished: boolean) => void = () => {};
 
   /** Create instruments and load samples. Call after a user gesture. */
   load(): Promise<void> {
@@ -130,7 +131,7 @@ export class Player {
       // Tone's Draw queue: Draw drops callbacks when animation frames are throttled.
       this.endId = transport.schedule((time) => {
         const delay = Math.max(0, (time - Tone.now()) * 1000);
-        window.setTimeout(() => this.stop(), delay);
+        window.setTimeout(() => this.stop(true), delay);
       }, ticks(schedule.totalBeats + 2));
     }
   }
@@ -160,7 +161,7 @@ export class Player {
     return Tone.getTransport().state === "started";
   }
 
-  stop() {
+  stop(finished = false) {
     const transport = Tone.getTransport();
     transport.stop();
     transport.position = 0;
@@ -169,7 +170,7 @@ export class Player {
     this.bass?.releaseAll();
     this.guitar?.releaseAll();
     this.onPosition(null);
-    this.onEnd();
+    this.onEnd(finished);
   }
 
   setTempo(bpm: number) {

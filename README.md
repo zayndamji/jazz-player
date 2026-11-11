@@ -10,7 +10,7 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 - Bossa nova band: upright bass on 1 and 3 with anticipations, nylon guitar comping that varies between figures and pushes chord changes, soft held piano chords, and a sampled acoustic jazz kit with fills at section ends, a crash where a section starts and the ride in the bridge.
 - Medium swing band: walking bass with half-step approaches, swung piano comping, quiet four-to-the-bar guitar, ride cymbal with the hi-hat on 2 and 4, snare comping and fills.
 - Ballad band: bass in half notes that starts walking in the bridge and later choruses, rolled piano chords held through each change with soft triplet fills, and brushes (a sweep on 1 and 3, a stroke on 2 and 4) made from shaped noise, since the drum samples have no brushes.
-- Player bar at the bottom: play and stop (or the space bar), a progress line you can click to jump, tempo from 60 to 240 BPM, Loop, Metronome, Mute (remembered between visits; the band keeps playing silently), and More.
+- Player bar at the bottom: play and pause (or Space; pausing keeps your place, and Play counts you back in there; Home, 0 or "From the top" goes back to the start), a progress line you can click to jump, tempo from 60 to 240 BPM, Loop, Metronome, Mute (remembered between visits; the band keeps playing silently), and More.
 - Click any bar, in either view, to play from there.
 - Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section.
 - Every tune is stored in its original concert key. Two separate settings in More change it:

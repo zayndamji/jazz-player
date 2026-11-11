@@ -22,6 +22,8 @@ interface Props {
   onMetronome: (on: boolean) => void;
   muted: boolean;
   onMuted: (muted: boolean) => void;
+  /** Go back to the top; shown only while paused away from it. */
+  onFromTop: (() => void) | null;
   /** Everything that isn't needed while playing. */
   settings: ReactNode;
 }
@@ -69,9 +71,9 @@ export function ControlBar(p: Props) {
           onClick={p.onPlay}
           disabled={p.status === "loading"}
           aria-keyshortcuts="Space"
-          aria-label={playing ? "Stop" : "Play"}
+          aria-label={playing ? "Pause" : "Play"}
         >
-          <span className={`play-icon${playing ? " stop" : ""}`} aria-hidden="true" />
+          <span className={`play-icon${playing ? " pause" : ""}`} aria-hidden="true" />
         </button>
 
         <div className="position">
@@ -82,6 +84,11 @@ export function ControlBar(p: Props) {
               ))}
             </span>
             <span>{p.status === "loading" ? "Loading sounds…" : p.where || "Ready"}</span>
+            {p.onFromTop && (
+              <button type="button" className="from-top" onClick={p.onFromTop}>
+                From the top
+              </button>
+            )}
           </div>
           {p.detail && <div className="position-detail">{p.detail}</div>}
         </div>

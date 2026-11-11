@@ -10,7 +10,7 @@ import { ControlBar, type View } from "../components/ControlBar";
 import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { buildSchedule, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
-import { chartBars, chordAt, playOrder, sameRef, type BarRef } from "../engine/timeline";
+import { chartBars, chordAt, playOrder, sameRef, type BarRef, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
 import { keyLabel, keyWords } from "./format";
 
@@ -91,6 +91,8 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [position, setPosition] = useState<Position | null>(null);
   const [loops, setLoops] = useState(0);
   const [muted, setMuted] = useState(() => readMuted());
+  /** Where the band starts when Play is pressed: the bar it was paused on, or null for the top. */
+  const [cue, setCue] = useState<PlayItem | null>(null);
 
   useEffect(() => {
     sharedPlayer?.setMasterMute(muted);
@@ -111,9 +113,10 @@ export function TunePage({ chart }: { chart: Chart }) {
     const p = sharedPlayer;
     p.onPosition = setPosition;
     p.onLoop = () => setLoops((n) => n + 1);
-    p.onEnd = () => {
+    p.onEnd = (finished) => {
       setStatus("idle");
       current.current = null;
+      if (finished) setCue(null);
     };
     player.current = p;
     return p;
@@ -125,7 +128,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, []);
 
   const start = useCallback(
-    async (opts: Omit<PlaybackOptions, "choruses" | "transpose">) => {
+    async (opts: Omit<PlaybackOptions, "choruses" | "transpose">, chorusOffset = 0) => {
       const p = getPlayer();
       setError(null);
       setStatus("loading");
@@ -149,17 +152,13 @@ export function TunePage({ chart }: { chart: Chart }) {
       p.setTempo(tempo);
       p.setSchedule(schedule);
       p.play();
-      setLoops(0);
+      setLoops(chorusOffset);
+      setCue(null);
       setStatus("playing");
     },
     [chart, style, mix, repeat, transpose, metronome, tempo, muted],
   );
 
-  const stop = useCallback(() => player.current?.stop(), []);
-  const toggle = useCallback(() => {
-    if (status === "playing") stop();
-    else if (status === "idle") void start({ countIn, loopSection, start: loopSection !== null ? { ref: { part: "form", section: loopSection, bar: 0 }, chorus: 1 } : null });
-  }, [status, start, stop, countIn, loopSection]);
 
   // Changes that apply while playing.
   useEffect(() => player.current?.setTempo(tempo), [tempo]);
@@ -181,10 +180,54 @@ export function TunePage({ chart }: { chart: Chart }) {
     [chart, repeat, countIn],
   );
   const nowBar = position && schedule ? schedule.bars[position.bar] : null;
+  const looping = current.current?.opts.loopSection != null;
+  /** The chorus a bar is in, counting the repeats when the choruses go on until stopped. */
+  const realChorus = (chorus: number) => (repeat === "loop" && !looping && chorus > 0 ? chorus + loops : chorus);
+
+  /**
+   * Start the band at a bar (null: the top, or the looped section's first bar).
+   * When the choruses repeat until stopped the schedule holds only two, so a later
+   * chorus starts in the second and the readout counts on from there.
+   */
+  const begin = (item: PlayItem | null, withCountIn: boolean, loop: number | null) => {
+    let from = item ?? (loop !== null ? { ref: { part: "form" as const, section: loop, bar: 0 }, chorus: 1 } : null);
+    let offset = 0;
+    if (from && loop !== null) from = { ...from, chorus: from.ref.part === "form" ? 1 : 0 };
+    else if (from && repeat === "loop" && from.chorus > 2) {
+      offset = from.chorus - 2;
+      from = { ...from, chorus: 2 };
+    } else if (from && typeof repeat === "number" && from.chorus > repeat) from = { ...from, chorus: repeat };
+    void start({ countIn: withCountIn, loopSection: loop, start: from }, offset);
+  };
+
+  /** The bar that's playing (or that the count-in leads into), as a place to come back to. */
+  const placeNow = (): PlayItem | null => {
+    if (nowBar?.ref) return { ref: nowBar.ref, chorus: realChorus(nowBar.chorus) };
+    const target = current.current?.opts.start;
+    return target ? { ref: target.ref, chorus: target.chorus } : null;
+  };
+
+  /** Space: pause and keep the place, or play from it. */
+  const toggle = () => {
+    if (status === "loading") return;
+    if (status === "playing") {
+      setCue(placeNow());
+      player.current?.stop();
+      return;
+    }
+    const outside = loopSection !== null && cue && !(cue.ref.part === "form" && cue.ref.section === loopSection);
+    begin(outside ? null : cue, countIn, loopSection);
+  };
+
+  /** Home: stop and go back to the start (of the loop, when looping). */
+  const toStart = () => {
+    if (playing) player.current?.stop();
+    setCue(null);
+  };
 
   const playFrom = (ref: BarRef, loop: number | null) => {
-    const chorus = ref.part === "form" ? (playing && nowBar?.chorus ? nowBar.chorus : 1) : 0;
-    void start({ countIn: playing ? false : countIn, loopSection: loop, start: { ref, chorus } });
+    const chorus = ref.part === "form" ? (playing && nowBar ? realChorus(nowBar.chorus) : (cue?.chorus || 1)) : 0;
+    begin({ ref, chorus }, playing ? false : countIn, loop);
   };
 
   const onBar = (ref: BarRef) => {
@@ -196,11 +239,14 @@ export function TunePage({ chart }: { chart: Chart }) {
 
   /** Loop the section that's playing, or the one last clicked; again to stop looping. */
   const toggleLoop = (section?: number) => {
-    const here = nowBar?.ref ?? picked;
+    const here = nowBar?.ref ?? cue?.ref ?? picked;
     const target = section ?? (here?.part === "form" ? here.section : 0);
     const next = loopSection === target ? null : target;
     setLoopSection(next);
-    if (!playing) return;
+    if (!playing) {
+      if (next !== null && cue && !(cue.ref.part === "form" && cue.ref.section === next)) setCue(null);
+      return;
+    }
     const inSection = here?.part === "form" && here.section === target;
     playFrom(next !== null && !inSection ? { part: "form", section: target, bar: 0 } : (here ?? { part: "form", section: target, bar: 0 }), next);
   };
@@ -217,38 +263,50 @@ export function TunePage({ chart }: { chart: Chart }) {
     player.current?.setMute(track, state.mute);
   };
 
+  // Keys call the latest handlers through a ref, so the listener is added once.
+  const keys = useRef({ toggle, toStart });
+  keys.current = { toggle, toStart };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || (e.target as HTMLElement).closest("input, select, textarea, button")) return;
-      e.preventDefault();
-      toggle();
+      if ((e.target as HTMLElement).closest("input, select, textarea, button")) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (!e.repeat) keys.current.toggle();
+      } else if (e.code === "Home" || e.code === "Digit0" || e.code === "Numpad0") {
+        e.preventDefault();
+        keys.current.toStart();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggle]);
+  }, []);
 
-  // Where we are, in words.
-  const nowNumber = nowBar?.ref ? bars.find((b) => sameRef(b.ref, nowBar.ref)) : undefined;
+  // Where we are, in words: the bar that's playing, or the one the band will start from.
+  const shownRef = nowBar?.ref ?? (status === "idle" ? cue?.ref : null) ?? null;
+  const nowNumber = shownRef ? bars.find((b) => sameRef(b.ref, shownRef)) : undefined;
+  const describe = (ref: BarRef, chorus: number, inLoop: boolean) => {
+    const number = bars.find((b) => sameRef(b.ref, ref))?.number;
+    const part =
+      ref.part === "intro"
+        ? "Intro"
+        : ref.part === "ending"
+          ? chart.ending![ref.section].label
+          : inLoop
+            ? `${chart.form[ref.section].label} section`
+            : repeat === "loop"
+              ? `Chorus ${chorus}`
+              : `Chorus ${chorus} of ${repeat}`;
+    return `Bar ${number} · ${part}`;
+  };
   let where = "";
   if (nowBar?.countIn) where = "Count-in";
-  else if (nowBar?.ref && nowNumber) {
-    const part =
-      nowBar.ref.part === "intro"
-        ? "Intro"
-        : nowBar.ref.part === "ending"
-          ? chart.ending![nowBar.ref.section].label
-          : current.current?.opts.loopSection != null
-            ? `${chart.form[nowBar.ref.section].label} section`
-            : repeat === "loop"
-              ? `Chorus ${nowBar.chorus + loops}`
-              : `Chorus ${nowBar.chorus} of ${repeat}`;
-    where = `Bar ${nowNumber.number} · ${part}`;
-  }
+  else if (nowBar?.ref) where = describe(nowBar.ref, realChorus(nowBar.chorus), looping);
+  else if (status === "idle" && cue) where = `Paused · ${describe(cue.ref, cue.chorus, loopSection !== null)}`;
   if (!where && status === "idle") {
     const seconds = Math.round((totalBeats * 60) / tempo);
     where = repeat === "loop" ? "Repeats until stopped" : `${repeat} ${repeat === 1 ? "chorus" : "choruses"} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   }
-  const progress = nowNumber ? (bars.indexOf(nowNumber) + (position?.beat ?? 0) / chart.beatsPerBar) / bars.length : null;
+  const progress = nowNumber ? (bars.indexOf(nowNumber) + (nowBar ? (position?.beat ?? 0) : 0) / chart.beatsPerBar) / bars.length : null;
 
   const nowChord = useMemo(() => {
     if (!nowBar || !position || nowBar.countIn) return null;
@@ -259,7 +317,8 @@ export function TunePage({ chart }: { chart: Chart }) {
     return `${displayParts(symbol).root} ${scale.name.toLowerCase()}: ${scale.notes.join(" ")}`;
   }, [nowBar, position, instrument.offset, printedSpellPc]);
 
-  const sheetBar = nowNumber?.sheetNumber ?? null;
+  const sheetBar = nowBar?.ref ? (nowNumber?.sheetNumber ?? null) : null;
+  const cueSheetBar = !nowBar?.ref && nowNumber ? nowNumber.sheetNumber : null;
   const onSheetBar = (n: number) => {
     const b = bars.find((x) => x.ref.part !== "ending" && x.sheetNumber === n);
     if (b) onBar(b.ref);
@@ -346,6 +405,7 @@ export function TunePage({ chart }: { chart: Chart }) {
             chartId={chart.id}
             shift={shift}
             bar={sheetBar}
+            cue={cueSheetBar}
             loopBars={loopSection === null ? [] : bars.filter((b) => b.ref.part === "form" && b.ref.section === loopSection).map((b) => b.sheetNumber)}
             onBar={onSheetBar}
           />
@@ -355,6 +415,7 @@ export function TunePage({ chart }: { chart: Chart }) {
             shift={shift}
             keyPc={printedSpellPc}
             active={nowBar?.ref ?? null}
+            cued={status === "idle" ? (cue?.ref ?? null) : null}
             showScales={showScales}
             loopSection={loopSection}
             onBar={onBar}
@@ -382,6 +443,7 @@ export function TunePage({ chart }: { chart: Chart }) {
         onMetronome={setMetronome}
         muted={muted}
         onMuted={setMuted}
+        onFromTop={status === "idle" && cue ? toStart : null}
         settings={settings}
       />
     </div>

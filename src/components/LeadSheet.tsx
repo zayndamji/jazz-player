@@ -8,6 +8,8 @@ interface Props {
   shift: number;
   /** Printed bar to highlight, from 1, or null. */
   bar: number | null;
+  /** Printed bar the band will start from when paused, or null. */
+  cue: number | null;
   /** Printed bars of the section being looped. */
   loopBars: number[];
   /** Called with the printed bar number (from 1) when a bar is clicked. */
@@ -30,7 +32,7 @@ const zoomFor = (width: number) => (width < NARROW ? Math.min(0.75, width / 500)
  * Renders the head from MusicXML with OpenSheetMusicDisplay, in the page's
  * own colours and font, with the same current-bar and loop marks as the chord chart.
  */
-export function LeadSheet({ chartId, shift, bar, loopBars, onBar }: Props) {
+export function LeadSheet({ chartId, shift, bar, cue, loopBars, onBar }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const osmd = useRef<OpenSheetMusicDisplay | null>(null);
   const mark = useRef<HTMLDivElement>(null);
@@ -135,9 +137,10 @@ export function LeadSheet({ chartId, shift, bar, loopBars, onBar }: Props) {
   }, [ready]);
 
   const box = bar !== null ? boxes[bar - 1] : undefined;
+  const cueBox = bar === null && cue !== null ? boxes[cue - 1] : undefined;
   useEffect(() => {
     mark.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [box?.top]);
+  }, [box?.top, cueBox?.top]);
 
   const at = (b: Box) => ({ left: b.left, top: b.top, width: b.width, height: b.height });
   return (
@@ -146,6 +149,7 @@ export function LeadSheet({ chartId, shift, bar, loopBars, onBar }: Props) {
       <div className="lead-sheet-page">
         {loopBars.map((n) => boxes[n - 1] && <div key={n} className="sheet-loop" style={at(boxes[n - 1])} />)}
         {box && <div ref={mark} className="sheet-now" style={at(box)} />}
+        {cueBox && <div ref={mark} className="sheet-cued" style={at(cueBox)} />}
         <div ref={host} className="sheet-music" />
         {boxes.map((b, i) => (
           <button type="button" key={i} className="sheet-bar" style={at(b)} aria-label={`Bar ${i + 1}. Play from here.`} onClick={() => onBar(i + 1)} />
