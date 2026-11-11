@@ -469,7 +469,6 @@ input:disabled {
 }
 
 .from-top {
-  margin-left: 4px;
   padding: 0;
   border: 0;
   background: none;
@@ -491,6 +490,18 @@ input:disabled {
   gap: 10px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+/* Long readouts clip instead of running under the tempo control. */
+.where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.beats,
+.tempo {
+  flex: none;
 }
 
 .position-detail {

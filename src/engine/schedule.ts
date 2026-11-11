@@ -14,6 +14,10 @@ export interface PlaybackOptions {
   start?: { ref: BarRef; chorus: number } | null;
   /** Repeat only this form section until stopped. */
   loopSection?: number | null;
+  /** Tempo the band's feel is built for; the chart's tempo when left out. */
+  tempo?: number;
+  /** Play the intro and first chorus in two; the chart's `twoFeel` when left out. */
+  twoFeel?: boolean;
 }
 
 /** One beat on the clock, for the metronome and the playhead. */
@@ -96,5 +100,5 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const loop =
     loopFrom >= 0 ? { start: (loopFrom - startAt + countInBars) * beatsPerBar, end: totalBeats } : null;
 
-  return { bars, events: style.generate(bars, 7), beats, totalBeats, beatsPerBar, loop, mix: style.mix ?? {} };
+  return { bars, events: style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false }), beats, totalBeats, beatsPerBar, loop, mix: style.mix ?? {} };
 }

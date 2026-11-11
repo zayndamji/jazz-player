@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { swingForm } from "../fixtures";
 import { buildSchedule } from "../engine/schedule";
-import { swing } from "./swing";
+import { swing, swingRatio } from "./swing";
 
 const chart = swingForm;
 const schedule = buildSchedule(chart, swing, { choruses: 2, countIn: false, transpose: 0 });
@@ -40,5 +40,32 @@ describe("swing style", () => {
     expect(ride.some((t) => Math.abs(t - (1 + 2 / 3)) < 0.06)).toBe(true);
     const pedal = drums.filter((e) => e.drum === "pedal").map((e) => Math.round(e.time % 4));
     expect(pedal).toEqual([1, 3]);
+  });
+
+  it("swings harder when slow and straighter when fast", () => {
+    expect(swingRatio(140)).toBeCloseTo(2 / 3, 5);
+    expect(swingRatio(100)).toBeGreaterThan(swingRatio(140));
+    expect(swingRatio(260)).toBeLessThan(0.6);
+  });
+
+  it("thins out at up tempos: no guitar, straighter ride", () => {
+    const fast = buildSchedule(chart, swing, { choruses: 1, countIn: false, transpose: 0, tempo: 260 });
+    expect(fast.events.some((e) => e.track === "guitar")).toBe(false);
+    const skips = fast.events.filter((e) => e.drum === "ride" && Math.abs((e.time % 1) - swingRatio(260)) < 0.03);
+    expect(skips.length).toBeGreaterThan(20);
+    const comps = (s: typeof schedule) => s.events.filter((e) => e.track === "piano").length / s.bars.length;
+    expect(comps(fast)).toBeLessThan(comps(schedule));
+  });
+
+  it("plays the first chorus in two with cross-stick on 4, then walks", () => {
+    const two = buildSchedule(chart, swing, { choruses: 2, countIn: false, transpose: 0, twoFeel: true });
+    const bar = (chorus: number, section: number, n: number) =>
+      two.bars.find((b) => b.chorus === chorus && b.ref?.part === "form" && b.ref.section === section && b.ref.bar === n)!;
+    const notes = (index: number, track: string) => two.events.filter((e) => e.track === track && e.time >= index * 4 - 0.05 && e.time < index * 4 + 3.95);
+    const onBeats = (index: number) => notes(index, "bass").filter((e) => Math.abs(e.time - Math.round(e.time)) < 0.05).map((e) => Math.round(e.time) % 4);
+    expect(onBeats(bar(1, 0, 0).index)).toEqual([0, 2]);
+    expect(onBeats(bar(1, 3, 7).index).length).toBe(4); // the last bar walks into chorus 2
+    expect(notes(bar(2, 0, 0).index, "bass").length).toBe(4);
+    expect(notes(bar(1, 0, 1).index, "drums").some((e) => e.drum === "rim" && Math.round(e.time % 4) === 3)).toBe(true);
   });
 });

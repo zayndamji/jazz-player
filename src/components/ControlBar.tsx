@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { TEMPO } from "../chart/types";
 import { shortcut, withKey } from "../pages/shortcuts";
 
 export type View = "chords" | "sheet";
@@ -100,24 +101,26 @@ export function ControlBar(p: Props) {
                 <span key={i} className={`beat${p.beat === i ? " on" : ""}`} />
               ))}
             </span>
-            <span>{p.status === "loading" ? "Loading sounds…" : p.where || "Ready"}</span>
-            {p.onFromTop && (
+            <span className="where">{p.status === "loading" ? "Loading sounds…" : p.where || "Ready"}</span>
+          </div>
+          {p.detail && <div className="position-detail">{p.detail}</div>}
+          {p.onFromTop && (
+            <div className="position-detail">
               <button type="button" className="from-top" aria-keyshortcuts="Home" title={withKey("From the top", "start")} onClick={p.onFromTop}>
                 From the top
               </button>
-            )}
-          </div>
-          {p.detail && <div className="position-detail">{p.detail}</div>}
+            </div>
+          )}
         </div>
 
         <div className="tempo" aria-label="Tempo">
-          <button type="button" aria-label="Slower" aria-keyshortcuts={shortcut("slower").aria} title={withKey("Slower", "slower")} onClick={() => p.onTempo(Math.max(60, p.tempo - 5))}>
+          <button type="button" aria-label="Slower" aria-keyshortcuts={shortcut("slower").aria} title={withKey("Slower", "slower")} onClick={() => p.onTempo(Math.max(TEMPO.min, p.tempo - 5))}>
             −
           </button>
           <span className="tempo-value">
             <strong>{p.tempo}</strong> BPM
           </span>
-          <button type="button" aria-label="Faster" aria-keyshortcuts={shortcut("faster").aria} title={withKey("Faster", "faster")} onClick={() => p.onTempo(Math.min(240, p.tempo + 5))}>
+          <button type="button" aria-label="Faster" aria-keyshortcuts={shortcut("faster").aria} title={withKey("Faster", "faster")} onClick={() => p.onTempo(Math.min(TEMPO.max, p.tempo + 5))}>
             +
           </button>
         </div>

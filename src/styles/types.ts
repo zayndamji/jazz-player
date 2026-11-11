@@ -16,6 +16,14 @@ export interface NoteEvent {
   drum?: DrumSound;
 }
 
+/** How the band should play beyond the chords, set per playback. */
+export interface Feel {
+  /** Tempo in BPM the notes are generated for: styles straighten the swing and thin out the comping as it gets faster. */
+  tempo: number;
+  /** Play the intro and first chorus in two (half-note bass, lighter drums), then walk. Styles without a two-feel ignore it. */
+  twoFeel: boolean;
+}
+
 /**
  * A backing style turns the laid-out chart into notes. Styles only read the
  * timeline, so a new style is a new file and the engine stays the same.
@@ -23,7 +31,9 @@ export interface NoteEvent {
 export interface Style {
   id: string;
   name: string;
-  generate(bars: TimelineBar[], seed: number): NoteEvent[];
+  generate(bars: TimelineBar[], seed: number, feel: Feel): NoteEvent[];
+  /** True when the style honours `Feel.twoFeel`, so the page offers it. */
+  twoFeel?: boolean;
   /** Level changes in dB for this style's band, on top of the player's defaults. */
   mix?: Partial<Record<Track, number>>;
 }

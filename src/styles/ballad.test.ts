@@ -13,7 +13,7 @@ const formBar = (chorus: number, section: number, bar: number) =>
 describe("ballad style", () => {
   it("plays half notes in the first chorus's A sections and walks later", () => {
     const first = inBar(formBar(1, 0, 0).index, "bass"); // Ebmaj7, a whole bar
-    expect(first.map((e) => Math.round(e.time % 4))).toEqual([0, 2]);
+    expect(first.map((e) => Math.round(e.time % 4) % 4)).toEqual([0, 2]);
     expect(first[0].notes![0] % 12).toBe(3); // Eb
     expect(inBar(formBar(2, 0, 0).index, "bass").length).toBe(4);
     expect(inBar(formBar(1, 2, 0).index, "bass").length).toBe(4); // the bridge walks

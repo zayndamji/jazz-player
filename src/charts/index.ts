@@ -1,5 +1,5 @@
 import { BEAT, barTokens, parseBar, parseChord } from "../chart/chords";
-import type { Chart } from "../chart/types";
+import { TEMPO, type Chart } from "../chart/types";
 
 /**
  * Every chart, collected at build time: your tunes in tunes/<id>/chart.json
@@ -26,7 +26,7 @@ export function validateChart(chart: Chart): string[] {
   if (!chart.id || !/^[a-z0-9-]+$/.test(chart.id)) errors.push(`id "${chart.id}" must be lowercase letters, digits and dashes`);
   if (!chart.title) errors.push("missing title");
   if (!/^[A-G][b#]?m?$/.test(chart.key)) errors.push(`key "${chart.key}" must be a note like C, Bb or F#, with "m" for minor (Em)`);
-  if (!(chart.tempo >= 40 && chart.tempo <= 320)) errors.push(`tempo ${chart.tempo} out of range`);
+  if (!(chart.tempo >= TEMPO.min && chart.tempo <= TEMPO.max)) errors.push(`tempo ${chart.tempo} out of range`);
   if (chart.beatsPerBar !== 4) errors.push("only 4/4 is supported");
   if (!chart.form?.length) errors.push("form has no sections");
   const sections = [...(chart.intro ? [chart.intro] : []), ...(chart.form ?? []), ...(chart.ending ?? [])];

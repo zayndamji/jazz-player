@@ -2,6 +2,9 @@
  * A chord chart as the app stores it. Charts are plain data so any tune can be
  * added by writing one of these (or, later, by importing MusicXML or iReal Pro).
  */
+/** Tempos a chart and the player accept, in BPM. */
+export const TEMPO = { min: 40, max: 320 };
+
 export interface Chart {
   id: string;
   title: string;
@@ -16,6 +19,8 @@ export interface Chart {
   beatsPerBar: number;
   /** Id of the default backing style, e.g. "bossa". */
   style: string;
+  /** Start in two: the intro and first chorus with half-note bass, walking after (swing). Default false. */
+  twoFeel?: boolean;
   /** Played once before the first chorus. */
   intro?: Section;
   /** The repeating form, in playing order. */

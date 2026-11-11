@@ -3,7 +3,7 @@ import { Player, type Mixable, type Position } from "../audio/player";
 import { displayParts, isMinorKey, keyPitchClass, parseChord, spellingPc, transposeSymbol } from "../chart/chords";
 import { INSTRUMENTS } from "../chart/instruments";
 import { chordScale } from "../chart/scales";
-import type { Chart } from "../chart/types";
+import { TEMPO, type Chart } from "../chart/types";
 import { hasHead } from "../charts/heads";
 import { ChordGrid } from "../components/ChordGrid";
 import { ControlBar, type View } from "../components/ControlBar";
@@ -13,6 +13,7 @@ import { ShortcutHelp } from "../components/ShortcutHelp";
 import { buildSchedule, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
 import { chartBars, chordAt, navOrder, playOrder, sameRef, stepBar, stepSection, type BarRef, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
+import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
 import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
 
@@ -70,16 +71,19 @@ const initialMix: Record<Mixable, MixState> = {
 const REPEATS: Repeat[] = [1, 2, 3, 4, 5, 6, 8, "loop"];
 
 export function TunePage({ chart }: { chart: Chart }) {
-  const style = STYLES[chart.style];
+  /** The band's style: the chart's own by default, any other on request. */
+  const [styleId, setStyleId] = useState(chart.style);
+  const style = STYLES[styleId] ?? STYLES[chart.style];
   const chartKeyPc = keyPitchClass(chart.key);
   const minor = isMinorKey(chart.key);
   const bars = useMemo(() => chartBars(chart), [chart]);
   const headAvailable = hasHead(chart.id);
   const player = useRef<Player | null>(sharedPlayer);
-  const current = useRef<{ opts: PlaybackOptions; schedule: Schedule } | null>(null);
+  const current = useRef<{ opts: PlaybackOptions; schedule: Schedule; style: Style } | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [tempo, setTempo] = useState(chart.tempo);
+  const [twoFeel, setTwoFeel] = useState(chart.twoFeel ?? false);
   const [transpose, setTranspose] = useState(0);
   const [instrumentId, setInstrumentId] = useState(readInstrument);
   const [repeat, setRepeat] = useState<Repeat>(3);
@@ -148,7 +152,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, []);
 
   const start = useCallback(
-    async (opts: Omit<PlaybackOptions, "choruses" | "transpose">, chorusOffset = 0) => {
+    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel">, chorusOffset = 0) => {
       const p = getPlayer();
       setError(null);
       setStatus("loading");
@@ -164,9 +168,9 @@ export function TunePage({ chart }: { chart: Chart }) {
         p.setVolume(t, mix[t].level);
         p.setMute(t, mix[t].mute);
       });
-      const full: PlaybackOptions = { ...opts, choruses: repeat, transpose };
+      const full: PlaybackOptions = { ...opts, choruses: repeat, transpose, tempo, twoFeel };
       const schedule = buildSchedule(chart, style, full);
-      current.current = { opts: full, schedule };
+      current.current = { opts: full, schedule, style };
       p.metronomeOn = metronome;
       p.setMasterMute(muted);
       p.setTempo(tempo);
@@ -176,7 +180,7 @@ export function TunePage({ chart }: { chart: Chart }) {
       setCue(null);
       setStatus("playing");
     },
-    [chart, style, mix, repeat, transpose, metronome, tempo, muted],
+    [chart, style, mix, repeat, transpose, metronome, tempo, twoFeel, muted],
   );
 
 
@@ -185,14 +189,25 @@ export function TunePage({ chart }: { chart: Chart }) {
   useEffect(() => {
     if (player.current) player.current.metronomeOn = metronome;
   }, [metronome]);
+  // Key, style and feel changes rebuild the notes in place; the Transport keeps its position.
+  // A tempo change rebuilds once the presses settle, so the swing and comping fit the new tempo.
   useEffect(() => {
     const c = current.current;
-    if (!playing || !c || c.opts.transpose === transpose) return;
-    const opts = { ...c.opts, transpose };
-    const schedule = buildSchedule(chart, style, opts);
-    current.current = { opts, schedule };
-    player.current?.setSchedule(schedule);
-  }, [chart, style, transpose, playing]);
+    if (!playing || !c) return;
+    const sameShape = c.opts.transpose === transpose && c.style === style && c.opts.twoFeel === twoFeel;
+    if (sameShape && c.opts.tempo === tempo) return;
+    const rebuild = () => {
+      const now = current.current;
+      if (!now || !player.current?.playing) return;
+      const opts = { ...now.opts, transpose, tempo, twoFeel };
+      const schedule = buildSchedule(chart, style, opts);
+      current.current = { opts, schedule, style };
+      player.current.setSchedule(schedule);
+    };
+    if (!sameShape) return rebuild();
+    const id = window.setTimeout(rebuild, 400);
+    return () => window.clearTimeout(id);
+  }, [chart, style, transpose, tempo, twoFeel, playing]);
 
   const schedule = current.current?.schedule ?? null;
   const totalBeats = useMemo(
@@ -336,7 +351,7 @@ export function TunePage({ chart }: { chart: Chart }) {
     else if (id === "start") toStart();
     else if (id === "bar-back" || id === "bar-on") move(id === "bar-on" ? 1 : -1);
     else if (id === "section-back" || id === "section-on") moveSection(id === "section-on" ? 1 : -1);
-    else if (id === "slower" || id === "faster") setTempo((t) => Math.min(240, Math.max(60, t + (id === "faster" ? 5 : -5))));
+    else if (id === "slower" || id === "faster") setTempo((t) => Math.min(TEMPO.max, Math.max(TEMPO.min, t + (id === "faster" ? 5 : -5))));
     else if (id === "loop") toggleLoop();
     else if (id === "click") setMetronome((m) => !m);
     else if (id === "mute") setMuted((m) => !m);
@@ -420,6 +435,17 @@ export function TunePage({ chart }: { chart: Chart }) {
   const settings = (
     <div className="settings">
       <label className="field">
+        <span>Style</span>
+        <select value={styleId} onChange={(e) => setStyleId(e.target.value)}>
+          {Object.values(STYLES).map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+              {s.id === chart.style ? " (original)" : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="field">
         <span>Band plays in</span>
         <select value={transpose} onChange={(e) => setTranspose(Number(e.target.value))}>
           {Array.from({ length: 12 }, (_, i) => {
@@ -453,6 +479,12 @@ export function TunePage({ chart }: { chart: Chart }) {
           ))}
         </select>
       </label>
+      {style.twoFeel && (
+        <label className="check">
+          <input type="checkbox" checked={twoFeel} onChange={(e) => setTwoFeel(e.target.checked)} />
+          Two-feel first chorus
+        </label>
+      )}
       <label className="check">
         <input type="checkbox" checked={countIn} onChange={(e) => setCountIn(e.target.checked)} />
         Two-bar count-in

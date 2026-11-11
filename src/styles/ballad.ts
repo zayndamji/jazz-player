@@ -1,7 +1,7 @@
 import type { TimelineBar } from "../engine/timeline";
 import { voiceChord } from "../engine/voicing";
 import { seededRandom } from "./random";
-import { endsSection, isFormEnd, nearest, walk } from "./swing";
+import { endsSection, isFormEnd, nearest, twoBeat, walk } from "./swing";
 import type { DrumSound, NoteEvent, Style } from "./types";
 
 /**
@@ -63,17 +63,12 @@ export const ballad: Style = {
         const following = bar.chords[k + 1] ?? next?.chords[0];
         const target = following ? nearest(following.chord.bass, bassNote) : null;
         if (twoFeel) {
-          const root = nearest(c.chord.bass, bassNote);
-          events.push({ track: "bass", time: t + c.beat + nudge(4), duration: Math.min(c.length, 2) - 0.1, velocity: human(0.8), notes: [root] });
-          bassNote = root;
-          if (c.length >= 4) {
-            // Beat 3: a half step into the next chord, or the fifth.
-            const fifth = nearest((c.chord.root + 7) % 12, root);
-            const changing = target !== null && following!.chord !== c.chord;
-            const third = changing && random() < 0.5 ? (random() < 0.5 ? target! - 1 : target! + 1) : fifth;
-            events.push({ track: "bass", time: t + c.beat + 2 + nudge(4), duration: 1.9, velocity: human(0.72), notes: [third] });
-            bassNote = third;
-          }
+          const changing = target !== null && following!.chord !== c.chord;
+          const line = twoBeat(c.chord, c.length, bassNote, target, changing, random);
+          line.forEach(([beat, n], j) =>
+            events.push({ track: "bass", time: t + c.beat + beat + nudge(4), duration: j === 0 ? Math.min(c.length, 2) - 0.1 : 1.9, velocity: human(j === 0 ? 0.8 : 0.72), notes: [n] }),
+          );
+          bassNote = line.at(-1)![1];
           return;
         }
         const line = walk(c.chord, c.length, bassNote, target, random);
