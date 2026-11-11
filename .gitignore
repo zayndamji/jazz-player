@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+._*
+
+# Node
+node_modules/
+dist/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Reference material (sheet music, recordings) stays local
+resources/
+
+# Agent memory and instructions stay local to each checkout
+context/
+CLAUDE.md
+AGENTS.md
+
+# Each person's Claude Code settings
+.claude/settings.local.json
