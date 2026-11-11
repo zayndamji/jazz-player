@@ -10,7 +10,7 @@ import { ControlBar, type View } from "../components/ControlBar";
 import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { buildSchedule, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
-import { chartBars, chordAt, playOrder, sameRef, type BarRef, type PlayItem } from "../engine/timeline";
+import { chartBars, chordAt, navOrder, playOrder, sameRef, stepBar, stepSection, type BarRef, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
 import { keyLabel, keyWords } from "./format";
 
@@ -92,7 +92,20 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [loops, setLoops] = useState(0);
   const [muted, setMuted] = useState(() => readMuted());
   /** Where the band starts when Play is pressed: the bar it was paused on, or null for the top. */
-  const [cue, setCue] = useState<PlayItem | null>(null);
+  const [cueState, setCueState] = useState<PlayItem | null>(null);
+  /** The cue as of the last key press, which can be ahead of the rendered state. */
+  const cueNow = useRef<PlayItem | null>(null);
+  const cue = cueState;
+  const setCue = (item: PlayItem | null) => {
+    cueNow.current = item;
+    setCueState(item);
+  };
+  /** While playing, the bar the arrow keys are taking the band to, shown until it restarts there. */
+  const [jump, setJump] = useState<PlayItem | null>(null);
+  const pending = useRef<{ item: PlayItem; loop: number | null; countIn: boolean } | null>(null);
+  const pendingTimer = useRef<number | null>(null);
+  /** Read out to screen readers after a keyboard move. */
+  const [announce, setAnnounce] = useState("");
 
   useEffect(() => {
     sharedPlayer?.setMasterMute(muted);
@@ -225,6 +238,50 @@ export function TunePage({ chart }: { chart: Chart }) {
     setCue(null);
   };
 
+  /**
+   * Move to a bar from the keyboard. Stopped: move the cue. Playing: show it now and
+   * restart there once the keys have been quiet for 200 ms, so holding an arrow
+   * scrubs instead of restarting on every bar. During the count-in, count in again.
+   */
+  const go = (item: PlayItem, loop: number | null) => {
+    setAnnounce(describe(item.ref, item.chorus, loop !== null));
+    if (!playing) {
+      setCue(item);
+      return;
+    }
+    pending.current = { item, loop, countIn: !!nowBar?.countIn && countIn };
+    setJump(item);
+    if (pendingTimer.current !== null) window.clearTimeout(pendingTimer.current);
+    pendingTimer.current = window.setTimeout(() => {
+      const p = pending.current;
+      pending.current = null;
+      pendingTimer.current = null;
+      setJump(null);
+      if (p) keys.current.begin(p.item, p.countIn, p.loop);
+    }, 200);
+  };
+
+  const fromHere = (): PlayItem | null => pending.current?.item ?? (playing ? placeNow() : cueNow.current);
+
+  /** Left and Right: a bar back or on, in playing order; inside a loop they wrap. */
+  const move = (delta: number) => {
+    const from = fromHere();
+    const order = navOrder(chart, repeat, loopSection, from?.chorus ?? 1);
+    go(stepBar(order, from, delta, loopSection !== null), loopSection);
+  };
+
+  /** Shift with Left or Right: a section back or on; when looping, loop the next or previous section. */
+  const moveSection = (delta: number) => {
+    if (loopSection !== null) {
+      const next = Math.min(chart.form.length - 1, Math.max(0, loopSection + delta));
+      setLoopSection(next);
+      go({ ref: { part: "form", section: next, bar: 0 }, chorus: 1 }, next);
+      return;
+    }
+    const from = fromHere();
+    go(stepSection(navOrder(chart, repeat, null, from?.chorus ?? 1), from, delta), null);
+  };
+
   const playFrom = (ref: BarRef, loop: number | null) => {
     const chorus = ref.part === "form" ? (playing && nowBar ? realChorus(nowBar.chorus) : (cue?.chorus || 1)) : 0;
     begin({ ref, chorus }, playing ? false : countIn, loop);
@@ -264,8 +321,8 @@ export function TunePage({ chart }: { chart: Chart }) {
   };
 
   // Keys call the latest handlers through a ref, so the listener is added once.
-  const keys = useRef({ toggle, toStart });
-  keys.current = { toggle, toStart };
+  const keys = useRef({ toggle, toStart, move, moveSection, begin });
+  keys.current = { toggle, toStart, move, moveSection, begin };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).closest("input, select, textarea, button")) return;
@@ -275,6 +332,11 @@ export function TunePage({ chart }: { chart: Chart }) {
       } else if (e.code === "Home" || e.code === "Digit0" || e.code === "Numpad0") {
         e.preventDefault();
         keys.current.toStart();
+      } else if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
+        e.preventDefault();
+        const delta = e.code === "ArrowRight" ? 1 : -1;
+        if (e.shiftKey) keys.current.moveSection(delta);
+        else keys.current.move(delta);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -398,6 +460,9 @@ export function TunePage({ chart }: { chart: Chart }) {
       </header>
 
       {error && <p className="error">{error}</p>}
+      <p className="sr-only" aria-live="polite">
+        {announce}
+      </p>
 
       <main className={`view view-${view}`}>
         {view === "sheet" && headAvailable ? (
@@ -414,7 +479,7 @@ export function TunePage({ chart }: { chart: Chart }) {
             chart={chart}
             shift={shift}
             keyPc={printedSpellPc}
-            active={nowBar?.ref ?? null}
+            active={jump?.ref ?? nowBar?.ref ?? null}
             cued={status === "idle" ? (cue?.ref ?? null) : null}
             showScales={showScales}
             loopSection={loopSection}
