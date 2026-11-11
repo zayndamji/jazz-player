@@ -36,6 +36,11 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Keep the width steady when a scrollbar appears, so the lead sheet doesn't re-lay out. */
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -356,6 +361,7 @@ input:disabled {
 /* Lead sheet: drawn in the page's colours, marks behind the transparent notation. */
 .lead-sheet-page {
   position: relative;
+  overflow-x: auto;
 }
 
 .sheet-music {

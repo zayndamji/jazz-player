@@ -23,7 +23,8 @@ interface Box {
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-const zoomFor = (width: number) => Math.min(1, width / 820);
+const NARROW = 760; // matches the phone breakpoint in styles.css
+const zoomFor = (width: number) => (width < NARROW ? Math.min(0.75, width / 500) : Math.min(1, width / 820));
 
 /**
  * Renders the head from MusicXML with OpenSheetMusicDisplay, in the page's
@@ -41,8 +42,14 @@ export function LeadSheet({ chartId, shift, bar, loopBars, onBar }: Props) {
     const o = osmd.current;
     if (!o || !host.current) return;
     const ink = cssVar("--ink");
+    const width = host.current.clientWidth;
+    // Four bars per line as printed (the file's line breaks); on a phone OSMD fits
+    // as many bars as there's room for, so chords and notes don't collide.
     o.setOptions({ defaultColorMusic: ink, defaultColorLabel: ink, defaultColorTitle: ink });
-    o.zoom = zoomFor(host.current.clientWidth);
+    o.EngravingRules.NewSystemAtXMLNewSystemAttribute = width >= NARROW;
+    o.EngravingRules.ChordSymbolTextHeight = width >= NARROW ? 2.6 : 2.1;
+    o.zoom = zoomFor(width);
+    o.updateGraphic();
     o.render();
     const unit = 10 * o.zoom;
     setBoxes(
@@ -80,7 +87,9 @@ export function LeadSheet({ chartId, shift, bar, loopBars, onBar }: Props) {
       rules.ChordSymbolLabelTexts.setValue(ChordSymbolEnum.majorseventh, "Δ7");
       rules.ChordSymbolLabelTexts.setValue(ChordSymbolEnum.augmentedseventh, "7(♯5)");
       rules.ChordSymbolLabelTexts.setValue(ChordSymbolEnum.majorsixth, "6");
-      rules.ChordSymbolTextHeight = 2.6;
+      // Widen bars to fit their chord names, so long ones (Ab7(#5)/Gb) don't run together.
+      rules.ChordSymbolXSpacing = 3;
+      rules.ChordOverlapAllowedIntoNextMeasure = 0;
       rules.RenderMeasureNumbersOnlyAtSystemStart = true;
       rules.PageLeftMargin = 0.5;
       rules.PageRightMargin = 0.5;
@@ -93,6 +102,7 @@ export function LeadSheet({ chartId, shift, bar, loopBars, onBar }: Props) {
         return;
       }
       osmd.current = o;
+      if (import.meta.env.DEV) (window as unknown as { __osmd: unknown }).__osmd = o;
       setReady(true);
     })();
     return () => {
