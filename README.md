@@ -12,6 +12,7 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 - Ballad band: bass in half notes that starts walking in the bridge and later choruses, rolled piano chords held through each change with soft triplet fills, and brushes (a sweep on 1 and 3, a stroke on 2 and 4) made from shaped noise, since the drum samples have no brushes.
 - Player bar at the bottom: play and pause (or Space; pausing keeps your place, and Play counts you back in there; Home, 0 or "From the top" goes back to the start), a progress line you can click to jump, tempo from 60 to 240 BPM, Loop, Metronome, Mute (remembered between visits; the band keeps playing silently), and More.
 - Click any bar, in either view, to play from there.
+- Keyboard: Space plays and pauses, Home or 0 goes to the start, `-` and `=` change the tempo, L loops, C turns on the metronome, M mutes, V switches the view, and `?` lists every shortcut. The list has a switch to turn off the single-letter keys.
 - Left and Right arrows move a bar back or on, Shift with them a whole section; while playing the band jumps there, while paused the place moves. With Loop on they stay inside the loop, and Shift moves the loop to the next or previous section.
 - Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section.
 - Every tune is stored in its original concert key. Two separate settings in More change it:

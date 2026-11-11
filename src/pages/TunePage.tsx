@@ -9,13 +9,16 @@ import { ChordGrid } from "../components/ChordGrid";
 import { ControlBar, type View } from "../components/ControlBar";
 import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
+import { ShortcutHelp } from "../components/ShortcutHelp";
 import { buildSchedule, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
 import { chartBars, chordAt, navOrder, playOrder, sameRef, stepBar, stepSection, type BarRef, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
 import { keyLabel, keyWords } from "./format";
+import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
 
 const MUTE_KEY = "jazz-player.muted";
 const INSTRUMENT_KEY = "jazz-player.instrument";
+const SHORTCUTS_KEY = "jazz-player.shortcuts";
 /** A stored setting, falling back to its name from when the site was called Jazz Teacher. */
 const readStored = (key: string) => {
   try {
@@ -91,6 +94,9 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [position, setPosition] = useState<Position | null>(null);
   const [loops, setLoops] = useState(0);
   const [muted, setMuted] = useState(() => readMuted());
+  /** Letter, digit and punctuation shortcuts; off for people who type by voice or switch (WCAG 2.1.4). */
+  const [singleKeys, setSingleKeys] = useState(() => readStored(SHORTCUTS_KEY) !== "0");
+  const [helpOpen, setHelpOpen] = useState(false);
   /** Where the band starts when Play is pressed: the bar it was paused on, or null for the top. */
   const [cueState, setCueState] = useState<PlayItem | null>(null);
   /** The cue as of the last key press, which can be ahead of the rendered state. */
@@ -112,6 +118,7 @@ export function TunePage({ chart }: { chart: Chart }) {
     store(MUTE_KEY, muted ? "1" : "0");
   }, [muted]);
   useEffect(() => store(INSTRUMENT_KEY, instrumentId), [instrumentId]);
+  useEffect(() => store(SHORTCUTS_KEY, singleKeys ? "1" : "0"), [singleKeys]);
 
   const instrument = INSTRUMENTS.find((i) => i.id === instrumentId)!;
   const shift = fold(transpose + instrument.offset);
@@ -320,27 +327,49 @@ export function TunePage({ chart }: { chart: Chart }) {
     player.current?.setMute(track, state.mute);
   };
 
+  /** What each shortcut does (keys in `./shortcuts.ts`). */
+  const run = (id: ShortcutId, repeated: boolean) => {
+    // Toggles ignore a held key, so holding one doesn't flicker; arrows and tempo repeat.
+    const toggles: ShortcutId[] = ["play", "start", "loop", "click", "mute", "view", "help"];
+    if (repeated && toggles.includes(id)) return;
+    if (id === "play") toggle();
+    else if (id === "start") toStart();
+    else if (id === "bar-back" || id === "bar-on") move(id === "bar-on" ? 1 : -1);
+    else if (id === "section-back" || id === "section-on") moveSection(id === "section-on" ? 1 : -1);
+    else if (id === "slower" || id === "faster") setTempo((t) => Math.min(240, Math.max(60, t + (id === "faster" ? 5 : -5))));
+    else if (id === "loop") toggleLoop();
+    else if (id === "click") setMetronome((m) => !m);
+    else if (id === "mute") setMuted((m) => !m);
+    else if (id === "view" && headAvailable) setView((v) => (v === "chords" ? "sheet" : "chords"));
+    else if (id === "help") setHelpOpen((o) => !o);
+  };
+
   // Keys call the latest handlers through a ref, so the listener is added once.
-  const keys = useRef({ toggle, toStart, move, moveSection, begin });
-  keys.current = { toggle, toStart, move, moveSection, begin };
+  const keys = useRef({ run, begin, singleKeys });
+  keys.current = { run, begin, singleKeys };
   useEffect(() => {
+    let tookSpace = false;
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest("input, select, textarea, button")) return;
-      if (e.code === "Space") {
+      if (leaveAlone(e)) return;
+      const id = shortcutFor(e, keys.current.singleKeys);
+      if (!id) return;
+      e.preventDefault();
+      if (id === "play") tookSpace = true;
+      keys.current.run(id, e.repeat);
+    };
+    // Buttons click on Space's keyup, so a clicked-then-focused button needs it stopped too.
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space" && tookSpace) {
         e.preventDefault();
-        if (!e.repeat) keys.current.toggle();
-      } else if (e.code === "Home" || e.code === "Digit0" || e.code === "Numpad0") {
-        e.preventDefault();
-        keys.current.toStart();
-      } else if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
-        e.preventDefault();
-        const delta = e.code === "ArrowRight" ? 1 : -1;
-        if (e.shiftKey) keys.current.moveSection(delta);
-        else keys.current.move(delta);
+        tookSpace = false;
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+    };
   }, []);
 
   // Where we are, in words: the bar that's playing, or the one the band will start from.
@@ -510,7 +539,9 @@ export function TunePage({ chart }: { chart: Chart }) {
         onMuted={setMuted}
         onFromTop={status === "idle" && cue ? toStart : null}
         settings={settings}
+        onHelp={() => setHelpOpen(true)}
       />
+      <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} singleKeys={singleKeys} onSingleKeys={setSingleKeys} />
     </div>
   );
 }
