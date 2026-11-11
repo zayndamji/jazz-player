@@ -29,3 +29,6 @@ AGENTS.md
 
 # Local preview config for the Claude app
 .claude/launch.json
+
+# Personal copies of lead sheets (copyrighted), shown only on this machine
+local/

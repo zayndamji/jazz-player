@@ -3,9 +3,11 @@ import { Player, type Mixable, type Position } from "./audio/player";
 import { displayParts, keyName as plainKeyName, keyPitchClass, parseChord, transposeSymbol } from "./chart/chords";
 import { INSTRUMENTS } from "./chart/instruments";
 import { chordScale } from "./chart/scales";
+import { hasHead } from "./charts/heads";
 import { exampleTune } from "./charts/example-tune";
 import { ChordGrid } from "./components/ChordGrid";
-import { ControlBar } from "./components/ControlBar";
+import { ControlBar, type View } from "./components/ControlBar";
+import { LeadSheet } from "./components/LeadSheet";
 import { Mixer, type MixState } from "./components/Mixer";
 import { buildSchedule, type PlaybackOptions, type Repeat, type Schedule } from "./engine/schedule";
 import { chartBars, chordAt, playOrder, sameRef, type BarRef } from "./engine/timeline";
@@ -15,6 +17,7 @@ const chart = exampleTune;
 const style = STYLES[chart.style];
 const chartKeyPc = keyPitchClass(chart.key);
 const bars = chartBars(chart);
+const headAvailable = hasHead(chart.id);
 const keyName = (pc: number) => plainKeyName(pc).replace("b", "♭").replace("#", "♯");
 
 /** "A2" for the second A section, "B" when there's only one B. */
@@ -51,6 +54,7 @@ export default function App() {
   const [countIn, setCountIn] = useState(true);
   const [metronome, setMetronome] = useState(false);
   const [showScales, setShowScales] = useState(false);
+  const [view, setView] = useState<View>("chords");
   const [loopSection, setLoopSection] = useState<number | null>(null);
   /** The last bar the user clicked, so Loop knows which section they mean. */
   const [picked, setPicked] = useState<BarRef | null>(null);
@@ -212,6 +216,12 @@ export default function App() {
     return `${displayParts(symbol).root} ${scale.name.toLowerCase()}: ${scale.notes.join(" ")}`;
   }, [nowBar, position, instrument.offset, printedKeyPc]);
 
+  const sheetBar = nowNumber?.sheetNumber ?? null;
+  const onSheetBar = (n: number) => {
+    const b = bars.find((x) => x.ref.part !== "ending" && x.sheetNumber === n);
+    if (b) onBar(b.ref);
+  };
+
   const loopLabel = loopSection !== null ? sectionName(loopSection) : null;
 
   const settings = (
@@ -278,8 +288,17 @@ export default function App() {
 
       {error && <p className="error">{error}</p>}
 
-      <main className="view">
-        <ChordGrid
+      <main className={`view view-${view}`}>
+        {view === "sheet" && headAvailable ? (
+          <LeadSheet
+            chartId={chart.id}
+            shift={shift}
+            bar={sheetBar}
+            loopBars={loopSection === null ? [] : bars.filter((b) => b.ref.part === "form" && b.ref.section === loopSection).map((b) => b.sheetNumber)}
+            onBar={onSheetBar}
+          />
+        ) : (
+          <ChordGrid
             chart={chart}
             shift={shift}
             keyPc={printedKeyPc}
@@ -289,6 +308,7 @@ export default function App() {
             onBar={onBar}
             onSection={(s) => toggleLoop(s)}
           />
+        )}
       </main>
 
       <ControlBar
@@ -302,8 +322,8 @@ export default function App() {
         onSeek={onSeek}
         beat={position?.beat ?? null}
         beats={chart.beatsPerBar}
-        view="chords"
-        onView={null}
+        view={view}
+        onView={headAvailable ? setView : null}
         loopLabel={loopLabel}
         onLoop={() => toggleLoop()}
         metronome={metronome}

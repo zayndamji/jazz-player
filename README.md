@@ -1,13 +1,14 @@
 # Jazz Teacher
 
-A website for practicing jazz tunes. It shows the chord chart and plays a backing band (bass, guitar, piano, drums) that follows the chords. The first tune is "Example Tune".
+A website for practicing jazz tunes. It shows the chord chart, or the lead sheet with the melody, and plays a backing band (bass, guitar, piano, drums) that follows the chords. The first tune is "Example Tune".
 
 ## What it does
 
 - Chord chart view: four bars per line, rehearsal letters, bar numbers, repeat bars, double barlines at section ends. The bar that's playing is highlighted.
+- Lead sheet view: the melody in notation with the chords above it, drawn in the same colours and font as the chart, with the same highlight. Same band, same controls.
 - Bossa nova band: upright bass on 1 and 3 with anticipations, nylon guitar comping, soft held piano chords, drums with fills at section ends and a soft crash where a section starts. Ends with a tag (the last four bars twice) and a final chord.
 - Player bar at the bottom: play and stop (or the space bar), a progress line you can click to jump, tempo from 60 to 240 BPM, Loop, Metronome, and More.
-- Click any bar to play from there.
+- Click any bar, in either view, to play from there.
 - Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section.
 - More: key (all 12), instrument (concert, B♭, E♭, F parts), number of choruses or until stopped, a two-bar count-in, scale names under each chord, and a mixer with volume and mute for each part.
 - While playing, the player bar shows the bar, chorus, and a scale for the current chord with its notes.
@@ -20,6 +21,7 @@ A website for practicing jazz tunes. It shows the chord chart and plays a backin
 - A style turns the timeline into notes. The bossa style is modelled on a measured Band-in-a-Box bossa track.
 - Piano and guitar use rootless drop-2 voicings, each chord voice-led from the last.
 - The player schedules everything on the Tone.js clock in beats, so tempo and key changes apply while playing.
+- The lead sheet is a MusicXML file rendered by OpenSheetMusicDisplay, transposed with the chart.
 - Everything runs in the browser. There is no server.
 
 ## Repository layout
@@ -27,12 +29,13 @@ A website for practicing jazz tunes. It shows the chord chart and plays a backin
 | Path | What it is |
 | --- | --- |
 | `src/chart/` | Chart types, chord parsing and transposing, scales, transposing instruments |
-| `src/charts/` | The tunes |
+| `src/charts/` | The tunes, and the loader for local lead sheets |
 | `src/engine/` | Timeline, voicings, playback schedule |
 | `src/styles/` | Backing styles (bossa nova) |
 | `src/audio/player.ts` | Tone.js playback, sampled and synthesized instruments, mixer |
-| `src/components/` | Chord chart, player bar, mixer |
+| `src/components/` | Chord chart, lead sheet, player bar, mixer |
 | `public/samples/` | Piano, bass and guitar samples, each folder with its license |
+| `local/heads/` | Your lead sheets as MusicXML (not in git) |
 
 ## Run it
 
@@ -60,15 +63,17 @@ npm run build
 
 Type-checks and builds the static site into `dist/`.
 
-## Adding a tune or a style
+## Adding a tune, a lead sheet or a style
 
 - Tune: add a file in `src/charts/` with the `Chart` shape from `src/chart/types.ts`. Bars are strings like `"Em7/A A7"` (chords split the bar evenly) or `"%"` (same chord).
+- Lead sheet: save the melody as `local/heads/<chart id>.musicxml` (MuseScore can export it). The Lead sheet view appears when the file is there. Lead sheets stay out of git because melodies are copyrighted; a build made on your machine includes yours.
 - Style: add a file in `src/styles/` that implements `Style` from `src/styles/types.ts`, and list it in `src/styles/index.ts`.
 
 ## Tools and licenses
 
 - [Tone.js](https://github.com/Tonejs/Tone.js), MIT: audio clock, sampler, synthesized drums
 - [tonal](https://github.com/tonaljs/tonal), MIT: chord and scale theory
+- [OpenSheetMusicDisplay](https://github.com/opensheetmusicdisplay/opensheetmusicdisplay), BSD-3-Clause: lead sheet rendering (uses VexFlow, MIT)
 - [React](https://github.com/facebook/react), MIT: interface
 - [Vite](https://github.com/vitejs/vite) and [Vitest](https://github.com/vitest-dev/vitest), MIT: dev server, build, tests
 - [TypeScript](https://github.com/microsoft/TypeScript), Apache-2.0: type checking
