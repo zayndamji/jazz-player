@@ -100,5 +100,6 @@ Measures a reference recording: tempo, swing, rhythm per frequency band, band ba
 - [Vite](https://github.com/vitejs/vite) and [Vitest](https://github.com/vitest-dev/vitest), MIT: dev server, build, tests
 - [TypeScript](https://github.com/microsoft/TypeScript), Apache-2.0: type checking
 - [Salamander Grand Piano](https://archive.org/details/SalamanderGrandPianoV3) by Alexander Holm, CC BY 3.0: piano samples
-- Fluid R3 GM SoundFont by Frank Wen, MIT: bass and nylon guitar samples, via [midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts)
+- Fluid R3 GM SoundFont by Frank Wen, MIT: bass and nylon guitar samples, rendered to MP3 by Benjamin Gleitzman in [midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) (renderings CC BY 3.0)
 - [Virtuosity Drums](https://github.com/sfzinstruments/virtuosity_drums) by Versilian Studios and Karoryfer Samples, CC0: drum samples
+- Brush sweep and stroke: synthesized in `src/audio/drumkit.ts`, no samples
