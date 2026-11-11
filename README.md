@@ -1,6 +1,6 @@
 # Jazz Teacher
 
-A website for practicing jazz tunes. It shows the chord chart, or the lead sheet with the melody, and plays a backing band (bass, guitar, piano, drums) that follows the chords. Tunes so far: "Third Tune" (ballad), "Example Tune" (bossa nova) and "Second Tune" (medium swing).
+A website for practicing jazz tunes. It shows the chord chart, or the lead sheet with the melody, and plays a backing band (bass, guitar, piano, drums) that follows the chords. Tunes so far: "Third Tune" (ballad), "Fourth Tune" (medium swing), "Example Tune" (bossa nova) and "Second Tune" (medium swing).
 
 ## What it does
 
