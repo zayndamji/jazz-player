@@ -56,6 +56,8 @@ export class Player {
   private loaded: Promise<void> | null = null;
 
   private styleMix: Partial<Record<Track, number>> = {};
+  private master: Tone.Gain | null = null;
+  private muted = false;
   private levels: Record<Mixable, number> = { bass: 1, piano: 1, guitar: 1, drums: 1, metronome: 1 };
 
   metronomeOn = false;
@@ -68,7 +70,10 @@ export class Player {
     if (this.loaded) return this.loaded;
     this.loaded = (async () => {
       await Tone.start();
-      const out = new Tone.Compressor({ threshold: -16, ratio: 2.5, attack: 0.01, release: 0.2 }).toDestination();
+      // Master mute is the last stage, so tools can still listen just before it.
+      this.master = new Tone.Gain(this.muted ? 0 : 1).toDestination();
+      const out = new Tone.Compressor({ threshold: -16, ratio: 2.5, attack: 0.01, release: 0.2 }).connect(this.master);
+      if (import.meta.env.DEV) (window as unknown as { __jazzTeacher: unknown }).__jazzTeacher = { preMute: out, Tone };
       const room = new Tone.Reverb({ decay: 1.4, preDelay: 0.01, wet: 0.16 }).connect(out);
       const channels = {} as Record<Mixable, Tone.Channel>;
       for (const [name, c] of Object.entries(CHANNELS)) channels[name as Mixable] = new Tone.Channel(c).connect(room);
@@ -176,6 +181,12 @@ export class Player {
     if (!this.channels) return;
     const style = track === "metronome" ? 0 : (this.styleMix[track] ?? 0);
     this.channels[track].volume.value = level <= 0 ? -Infinity : CHANNELS[track].volume + style + Tone.gainToDb(level);
+  }
+
+  /** Silence everything without stopping (the band keeps its place). */
+  setMasterMute(mute: boolean) {
+    this.muted = mute;
+    if (this.master) this.master.gain.value = mute ? 0 : 1;
   }
 
   setMute(track: Mixable, mute: boolean) {

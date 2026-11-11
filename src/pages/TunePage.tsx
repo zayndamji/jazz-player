@@ -14,6 +14,15 @@ import { chartBars, chordAt, playOrder, sameRef, type BarRef } from "../engine/t
 import { STYLES } from "../styles";
 import { keyName } from "./format";
 
+const MUTE_KEY = "jazz-teacher.muted";
+const readMuted = () => {
+  try {
+    return localStorage.getItem(MUTE_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+
 /** One player for the whole site, so samples load once even when switching tunes. */
 let sharedPlayer: Player | null = null;
 
@@ -62,6 +71,16 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [mix, setMix] = useState(initialMix);
   const [position, setPosition] = useState<Position | null>(null);
   const [loops, setLoops] = useState(0);
+  const [muted, setMuted] = useState(() => readMuted());
+
+  useEffect(() => {
+    sharedPlayer?.setMasterMute(muted);
+    try {
+      localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
+    } catch {
+      // Storage can be unavailable (private windows); the button still works for this visit.
+    }
+  }, [muted]);
 
   const instrument = INSTRUMENTS.find((i) => i.id === instrumentId)!;
   const shift = fold(transpose + instrument.offset);
@@ -108,13 +127,14 @@ export function TunePage({ chart }: { chart: Chart }) {
       const schedule = buildSchedule(chart, style, full);
       current.current = { opts: full, schedule };
       p.metronomeOn = metronome;
+      p.setMasterMute(muted);
       p.setTempo(tempo);
       p.setSchedule(schedule);
       p.play();
       setLoops(0);
       setStatus("playing");
     },
-    [chart, style, mix, repeat, transpose, metronome, tempo],
+    [chart, style, mix, repeat, transpose, metronome, tempo, muted],
   );
 
   const stop = useCallback(() => player.current?.stop(), []);
@@ -336,6 +356,8 @@ export function TunePage({ chart }: { chart: Chart }) {
         onLoop={() => toggleLoop()}
         metronome={metronome}
         onMetronome={setMetronome}
+        muted={muted}
+        onMuted={setMuted}
         settings={settings}
       />
     </div>

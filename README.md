@@ -9,7 +9,7 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 - Lead sheet view: the melody in notation with the chords above it, drawn in the same colours and font as the chart, with the same highlight. Same band, same controls.
 - Bossa nova band: upright bass on 1 and 3 with anticipations, nylon guitar comping that varies between figures and pushes chord changes, soft held piano chords, and a sampled acoustic jazz kit with fills at section ends, a crash where a section starts and the ride in the bridge.
 - Medium swing band: walking bass with half-step approaches, swung piano comping, quiet four-to-the-bar guitar, ride cymbal with the hi-hat on 2 and 4, snare comping and fills.
-- Player bar at the bottom: play and stop (or the space bar), a progress line you can click to jump, tempo from 60 to 240 BPM, Loop, Metronome, and More.
+- Player bar at the bottom: play and stop (or the space bar), a progress line you can click to jump, tempo from 60 to 240 BPM, Loop, Metronome, Mute (remembered between visits; the band keeps playing silently), and More.
 - Click any bar, in either view, to play from there.
 - Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section.
 - More: key (all 12), instrument (concert, B♭, E♭, F parts), number of choruses or until stopped, a two-bar count-in, scale names under each chord, and a mixer with volume and mute for each part.
@@ -38,7 +38,7 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 | `src/pages/` | The library and the tune page |
 | `src/components/` | Chord chart, lead sheet, player bar, mixer |
 | `public/samples/` | Piano, bass, guitar and drum samples, each folder with its license |
-| `scripts/` | Repeatable jobs: fetching samples, measuring reference recordings |
+| `scripts/` | Repeatable jobs: fetching samples, measuring reference recordings and the site's mix |
 | `local/heads/` | Your lead sheets as MusicXML (not in git) |
 
 ## Run it
@@ -78,6 +78,8 @@ python3 scripts/analyze_reference.py TRACK.m4a --form 32
 ```
 
 Measures a reference recording: tempo, swing, rhythm per frequency band, band balance, loudness per form bar (needs ffmpeg and numpy).
+
+`scripts/mix-meter.js` is the matching check for the site: start playback on the dev server, paste it into the browser console, and it returns the same band balance for what the site plays. It listens before Mute, so it works muted.
 
 ## Adding a tune, a lead sheet or a style
 

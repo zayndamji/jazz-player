@@ -20,6 +20,8 @@ interface Props {
   onLoop: () => void;
   metronome: boolean;
   onMetronome: (on: boolean) => void;
+  muted: boolean;
+  onMuted: (muted: boolean) => void;
   /** Everything that isn't needed while playing. */
   settings: ReactNode;
 }
@@ -114,6 +116,10 @@ export function ControlBar(p: Props) {
         <button type="button" className="toggle" aria-pressed={p.metronome} onClick={() => p.onMetronome(!p.metronome)}>
           <span className="long">Metronome</span>
           <span className="short">Click</span>
+        </button>
+
+        <button type="button" className="toggle" aria-pressed={p.muted} onClick={() => p.onMuted(!p.muted)}>
+          {p.muted ? "Muted" : "Mute"}
         </button>
 
         <div className="more" ref={panel}>
