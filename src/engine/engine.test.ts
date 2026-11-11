@@ -7,7 +7,7 @@ import exampleTuneJson from "../charts/example-tune.json";
 const exampleTune = exampleTuneJson as Chart;
 import { bossa } from "../styles/bossa";
 import { buildSchedule } from "./schedule";
-import { buildTimeline, chartBars, playOrder } from "./timeline";
+import { buildTimeline, chartBars, navOrder, playOrder, stepBar, stepSection, type PlayItem } from "./timeline";
 import { VOICING_HIGH, VOICING_LOW, voiceChord, voicingIntervals } from "./voicing";
 
 const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -171,5 +171,35 @@ describe("bossa style", () => {
     expect(cymbals(bridge(1))).toContain("hat");
     expect(cymbals(bridge(2))).toContain("ride");
     expect(cymbals(bridge(2))).toContain("pedal");
+  });
+});
+
+describe("stepping with the arrow keys", () => {
+  const order = navOrder(chart, 2, null);
+  const at = (part: PlayItem["ref"]["part"], section: number, bar: number, chorus: number): PlayItem => ({ ref: { part, section, bar }, chorus });
+
+  it("walks bars in playing order across choruses and stops at the ends", () => {
+    expect(stepBar(order, null, 1)).toEqual(at("intro", 0, 1, 0));
+    expect(stepBar(order, at("form", 3, 7, 1), 1)).toEqual(at("form", 0, 0, 2));
+    expect(stepBar(order, null, -1)).toEqual(at("intro", 0, 0, 0));
+    expect(stepBar(order, order.at(-1)!, 1)).toEqual(order.at(-1));
+  });
+
+  it("goes to the start of this section, then the previous one", () => {
+    expect(stepSection(order, at("form", 1, 3, 1), -1)).toEqual(at("form", 1, 0, 1));
+    expect(stepSection(order, at("form", 1, 0, 1), -1)).toEqual(at("form", 0, 0, 1));
+    expect(stepSection(order, at("form", 0, 0, 1), -1)).toEqual(at("intro", 0, 0, 0));
+    expect(stepSection(order, at("form", 3, 2, 1), 1)).toEqual(at("form", 0, 0, 2));
+    expect(stepSection(order, at("form", 3, 2, 2), 1)).toEqual(at("ending", 0, 0, 0));
+  });
+
+  it("wraps inside a looped section", () => {
+    const loop = navOrder(chart, 2, 2);
+    expect(stepBar(loop, at("form", 2, 7, 1), 1, true)).toEqual(at("form", 2, 0, 1));
+    expect(stepBar(loop, at("form", 2, 0, 1), -1, true)).toEqual(at("form", 2, 7, 1));
+  });
+
+  it("keeps counting choruses when they repeat until stopped", () => {
+    expect(stepBar(navOrder(chart, "loop", null, 5), at("form", 3, 7, 5), 1)).toEqual(at("form", 0, 0, 6));
   });
 });

@@ -129,3 +129,49 @@ export function chordAt(bar: TimelineBar, beat: number): TimelineChord | undefin
   for (const c of bar.chords) if (c.beat <= beat + 1e-6) found = c;
   return found;
 }
+
+/**
+ * The bars the arrow keys step through, in playing order: one form section when
+ * looping it, intro and form when the choruses repeat until stopped (stepping
+ * past the end goes on to the next chorus), else intro, every chorus, ending.
+ */
+export function navOrder(chart: Chart, choruses: number | "loop", loopSection: number | null, atChorus = 1): PlayItem[] {
+  if (loopSection !== null) return sectionOrder(chart, loopSection, 1);
+  if (choruses === "loop") return playOrder(chart, Math.max(2, atChorus + 1), true, false);
+  return playOrder(chart, choruses);
+}
+
+function indexIn(order: PlayItem[], from: PlayItem | null): number {
+  if (!from) return 0;
+  const exact = order.findIndex((i) => sameRef(i.ref, from.ref) && i.chorus === from.chorus);
+  return exact >= 0 ? exact : Math.max(0, order.findIndex((i) => sameRef(i.ref, from.ref)));
+}
+
+/** One bar on or back from `from` (null is the top). Stops at the ends, or wraps around when `wrap`. */
+export function stepBar(order: PlayItem[], from: PlayItem | null, delta: number, wrap = false): PlayItem {
+  const i = indexIn(order, from) + delta;
+  if (wrap) return order[((i % order.length) + order.length) % order.length];
+  return order[Math.min(order.length - 1, Math.max(0, i))];
+}
+
+/**
+ * The first bar of the next section, or going back, of this section (or the
+ * previous one when already on its first bar), like "previous track" on a player.
+ * A section is a run of bars with the same part, section and chorus.
+ */
+export function stepSection(order: PlayItem[], from: PlayItem | null, delta: number): PlayItem {
+  const same = (a: PlayItem, b: PlayItem) => a.ref.part === b.ref.part && a.ref.section === b.ref.section && a.chorus === b.chorus;
+  const i = indexIn(order, from);
+  let start = i;
+  while (start > 0 && same(order[start - 1], order[i])) start--;
+  if (delta > 0) {
+    let next = i;
+    while (next < order.length && same(order[next], order[i])) next++;
+    return order[Math.min(next, order.length - 1)];
+  }
+  if (i > start) return order[start];
+  if (start === 0) return order[0];
+  let prev = start - 1;
+  while (prev > 0 && same(order[prev - 1], order[start - 1])) prev--;
+  return order[prev];
+}
