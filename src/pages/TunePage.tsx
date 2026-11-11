@@ -14,11 +14,12 @@ import { chartBars, chordAt, playOrder, sameRef, type BarRef } from "../engine/t
 import { STYLES } from "../styles";
 import { keyLabel, keyWords } from "./format";
 
-const MUTE_KEY = "jazz-teacher.muted";
-const INSTRUMENT_KEY = "jazz-teacher.instrument";
+const MUTE_KEY = "jazz-player.muted";
+const INSTRUMENT_KEY = "jazz-player.instrument";
+/** A stored setting, falling back to its name from when the site was called Jazz Teacher. */
 const readStored = (key: string) => {
   try {
-    return localStorage.getItem(key);
+    return localStorage.getItem(key) ?? localStorage.getItem(key.replace("jazz-player.", "jazz-teacher."));
   } catch {
     return null;
   }

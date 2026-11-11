@@ -1,4 +1,4 @@
-# Jazz Teacher
+# Jazz Player
 
 A website for practicing jazz tunes. It shows the chord chart, or the lead sheet with the melody, and plays a backing band (bass, guitar, piano, drums) that follows the chords. Styles so far: bossa nova, medium swing and ballad.
 

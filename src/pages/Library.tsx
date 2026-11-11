@@ -17,7 +17,7 @@ export function Library() {
   return (
     <div className="app library">
       <header className="head">
-        <h1>Jazz Teacher</h1>
+        <h1>Jazz Player</h1>
         <p className="meta">
           <span>
             {CHARTS.length} {CHARTS.length === 1 ? "tune" : "tunes"}

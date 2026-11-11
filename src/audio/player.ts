@@ -73,7 +73,7 @@ export class Player {
       // Master mute is the last stage, so tools can still listen just before it.
       this.master = new Tone.Gain(this.muted ? 0 : 1).toDestination();
       const out = new Tone.Compressor({ threshold: -16, ratio: 2.5, attack: 0.01, release: 0.2 }).connect(this.master);
-      if (import.meta.env.DEV) (window as unknown as { __jazzTeacher: unknown }).__jazzTeacher = { preMute: out, Tone };
+      if (import.meta.env.DEV) (window as unknown as { __jazzPlayer: unknown }).__jazzPlayer = { preMute: out, Tone };
       const room = new Tone.Reverb({ decay: 1.4, preDelay: 0.01, wet: 0.16 }).connect(out);
       const channels = {} as Record<Mixable, Tone.Channel>;
       for (const [name, c] of Object.entries(CHANNELS)) channels[name as Mixable] = new Tone.Channel(c).connect(room);

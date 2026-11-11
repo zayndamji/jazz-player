@@ -22,7 +22,7 @@ export default function App() {
   const id = /^#\/tune\/([a-z0-9-]+)/.exec(hash)?.[1];
   const chart = id ? getChart(id) : undefined;
   useEffect(() => {
-    document.title = chart ? `${chart.title} · Jazz Teacher` : "Jazz Teacher";
+    document.title = chart ? `${chart.title} · Jazz Player` : "Jazz Player";
   }, [chart]);
   return chart ? <TunePage key={chart.id} chart={chart} /> : <Library />;
 }
