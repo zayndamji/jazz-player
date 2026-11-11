@@ -35,7 +35,7 @@ const BASS_LOW = 28; // E1
 const BASS_HIGH = 50; // D3
 
 /** The MIDI note of a pitch class nearest to `near`, inside the bass range. */
-function nearest(pc: number, near: number): number {
+export function nearest(pc: number, near: number): number {
   let best = BASS_LOW + ((pc - BASS_LOW + 120) % 12);
   for (let n = best; n <= BASS_HIGH; n += 12) if (Math.abs(n - near) < Math.abs(best - near)) best = n;
   return best;
@@ -63,7 +63,7 @@ function scalePcs(chord: ParsedChord): number[] {
  * Walking line for `beats` beats of one chord, from `from` (the previous note)
  * toward `target` (the next chord's bass note). Returns MIDI notes.
  */
-function walk(chord: ParsedChord, beats: number, from: number, target: number | null, random: () => number): number[] {
+export function walk(chord: ParsedChord, beats: number, from: number, target: number | null, random: () => number): number[] {
   const root = nearest(chord.bass, from);
   const notes = [root];
   const tones = chord.intervals.map((i) => (chord.root + i) % 12);
@@ -92,13 +92,13 @@ function walk(chord: ParsedChord, beats: number, from: number, target: number | 
   return notes;
 }
 
-function endsSection(bar: TimelineBar, next: TimelineBar | undefined): boolean {
+export function endsSection(bar: TimelineBar, next: TimelineBar | undefined): boolean {
   if (!bar.ref) return false;
   if (!next?.ref) return true;
   return next.ref.part !== bar.ref.part || next.ref.section !== bar.ref.section || next.ref.bar === 0;
 }
 
-const isFormEnd = (bar: TimelineBar, next: TimelineBar | undefined) =>
+export const isFormEnd = (bar: TimelineBar, next: TimelineBar | undefined) =>
   bar.ref?.part === "form" && (!next?.ref || next.ref.part !== "form" || next.chorus !== bar.chorus || sameRef(next.ref, { part: "form", section: 0, bar: 0 }));
 
 export const swing: Style = {
