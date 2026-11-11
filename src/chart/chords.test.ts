@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayParts, parseBar, parseChord, transposeSymbol } from "./chords";
+import { displayParts, isMinorKey, keyPitchClass, parseBar, parseChord, spellingPc, transposeSymbol } from "./chords";
 import type { Chart } from "../chart/types";
 import exampleTuneJson from "../charts/example-tune.json";
 
@@ -58,5 +58,21 @@ describe("displayParts", () => {
     expect(displayParts("B7(#5)")).toEqual({ root: "B", quality: "7(♯5)", bass: "" });
     expect(displayParts("Dmaj7")).toEqual({ root: "D", quality: "Δ7", bass: "" });
     expect(displayParts("Bbm7/Eb")).toEqual({ root: "B♭", quality: "m7", bass: "E♭" });
+  });
+});
+
+describe("bars and keys", () => {
+  it("holds a chord through slash beats", () => {
+    expect(parseBar("Am7 / / Fmaj7", 4)).toEqual({ repeat: false, chords: [{ symbol: "Am7", beat: 0 }, { symbol: "Fmaj7", beat: 3 }] });
+    expect(parseBar("Emaj7 / / Em", 4).chords.map((c) => c.beat)).toEqual([0, 3]);
+  });
+
+  it("reads minor keys and spells them like the relative major", () => {
+    expect(keyPitchClass("Em")).toBe(4);
+    expect(keyPitchClass("Bbm")).toBe(10);
+    expect(isMinorKey("Em")).toBe(true);
+    expect(isMinorKey("Eb")).toBe(false);
+    expect(spellingPc(4, true)).toBe(7); // E minor is spelled like G major
+    expect(transposeSymbol("B7", 2, spellingPc(6, true))).toBe("C#7"); // a B-flat part in F# minor
   });
 });

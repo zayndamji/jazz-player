@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Player, type Mixable, type Position } from "../audio/player";
-import { displayParts, keyPitchClass, parseChord, transposeSymbol } from "../chart/chords";
+import { displayParts, isMinorKey, keyPitchClass, parseChord, spellingPc, transposeSymbol } from "../chart/chords";
 import { INSTRUMENTS } from "../chart/instruments";
 import { chordScale } from "../chart/scales";
 import type { Chart } from "../chart/types";
@@ -12,7 +12,7 @@ import { Mixer, type MixState } from "../components/Mixer";
 import { buildSchedule, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
 import { chartBars, chordAt, playOrder, sameRef, type BarRef } from "../engine/timeline";
 import { STYLES } from "../styles";
-import { keyName } from "./format";
+import { keyLabel, keyWords } from "./format";
 
 const MUTE_KEY = "jazz-teacher.muted";
 const INSTRUMENT_KEY = "jazz-teacher.instrument";
@@ -68,6 +68,7 @@ const REPEATS: Repeat[] = [1, 2, 3, 4, 5, 6, 8, "loop"];
 export function TunePage({ chart }: { chart: Chart }) {
   const style = STYLES[chart.style];
   const chartKeyPc = keyPitchClass(chart.key);
+  const minor = isMinorKey(chart.key);
   const bars = useMemo(() => chartBars(chart), [chart]);
   const headAvailable = hasHead(chart.id);
   const player = useRef<Player | null>(sharedPlayer);
@@ -99,6 +100,8 @@ export function TunePage({ chart }: { chart: Chart }) {
   const instrument = INSTRUMENTS.find((i) => i.id === instrumentId)!;
   const shift = fold(transpose + instrument.offset);
   const printedKeyPc = (chartKeyPc + shift + 12) % 12;
+  /** The major key the printed chords are spelled in (the relative major for a minor tune). */
+  const printedSpellPc = spellingPc(printedKeyPc, minor);
   const concertKeyPc = (chartKeyPc + transpose + 12) % 12;
   const playing = status === "playing";
 
@@ -250,10 +253,10 @@ export function TunePage({ chart }: { chart: Chart }) {
     if (!nowBar || !position || nowBar.countIn) return null;
     const slot = chordAt(nowBar, position.beat);
     if (!slot) return null;
-    const symbol = transposeSymbol(slot.chord.symbol, fold(instrument.offset), printedKeyPc);
-    const scale = chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], printedKeyPc);
+    const symbol = transposeSymbol(slot.chord.symbol, fold(instrument.offset), printedSpellPc);
+    const scale = chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], printedSpellPc);
     return `${displayParts(symbol).root} ${scale.name.toLowerCase()}: ${scale.notes.join(" ")}`;
-  }, [nowBar, position, instrument.offset, printedKeyPc]);
+  }, [nowBar, position, instrument.offset, printedSpellPc]);
 
   const sheetBar = nowNumber?.sheetNumber ?? null;
   const onSheetBar = (n: number) => {
@@ -273,7 +276,7 @@ export function TunePage({ chart }: { chart: Chart }) {
             const pc = (chartKeyPc + n + 12) % 12;
             return (
               <option key={n} value={n}>
-                {keyName(pc)} {n === 0 ? "(original)" : `(${steps(n)})`}
+                {keyLabel(pc, minor)} {n === 0 ? "(original)" : `(${steps(n)})`}
               </option>
             );
           })}
@@ -322,12 +325,13 @@ export function TunePage({ chart }: { chart: Chart }) {
         <p className="meta">
           <span>{style.name}</span>
           <span>
-            {keyName(concertKeyPc)} major{transpose !== 0 && `, ${steps(transpose)} from ${keyName(chartKeyPc)}`}
+            {keyWords(concertKeyPc, minor)}
+            {transpose !== 0 && `, ${steps(transpose)} from ${keyLabel(chartKeyPc, minor)}`}
           </span>
           <span>{chart.beatsPerBar}/4</span>
           {instrument.offset !== 0 && (
             <span className="part">
-              {instrument.name.split(" ")[0]} part, written in {keyName(printedKeyPc)}
+              {instrument.name.split(" ")[0]} part, written in {keyLabel(printedKeyPc, minor)}
             </span>
           )}
         </p>
@@ -348,7 +352,7 @@ export function TunePage({ chart }: { chart: Chart }) {
           <ChordGrid
             chart={chart}
             shift={shift}
-            keyPc={printedKeyPc}
+            keyPc={printedSpellPc}
             active={nowBar?.ref ?? null}
             showScales={showScales}
             loopSection={loopSection}

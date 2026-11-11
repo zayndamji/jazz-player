@@ -5,7 +5,10 @@
 export interface Chart {
   id: string;
   title: string;
-  /** Concert key of the chart as written, e.g. "D" or "Bb". */
+  /**
+   * Original concert key, as the composer published it, never a transposed
+   * part's key: "C", "Bb", or "Em" for minor. Charts are always stored in it.
+   */
   key: string;
   /** Default tempo in quarter notes per minute. */
   tempo: number;
@@ -26,8 +29,9 @@ export interface Section {
   label: string;
   /**
    * One string per bar. Chords are separated by spaces and split the bar
-   * evenly ("Em7/A A7" is two beats each). "%" repeats the previous chord
-   * without a new attack.
+   * evenly ("Em7/A A7" is two beats each). "/" holds the chord before it for
+   * one slot ("Am7 / / Fmaj7" changes on beat 4). "%" alone repeats the
+   * previous chord without a new attack.
    */
   bars: string[];
   /** Times the section is played in a row (a tag played twice). Default 1. */

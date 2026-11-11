@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { displayParts, parseBar, parseChord, transposeSymbol } from "../chart/chords";
+import { BEAT, barTokens, displayParts, parseBar, parseChord, transposeSymbol } from "../chart/chords";
 import { chordScale } from "../chart/scales";
 import type { Chart, Section } from "../chart/types";
 import { chartBars, sameRef, type BarRef } from "../engine/timeline";
@@ -83,7 +83,7 @@ export function ChordGrid({ chart, shift, keyPc, active, showScales, loopSection
                     <button
                       type="button"
                       ref={isActive ? activeEl : undefined}
-                      className={`bar${isActive ? " active" : ""}${parsed.chords.length > 1 ? " split" : ""}${bar === section.bars.length - 1 ? " section-end" : ""}`}
+                      className={`bar${isActive ? " active" : ""}${barTokens(text).length > 1 ? " split" : ""}${bar === section.bars.length - 1 ? " section-end" : ""}`}
                       key={bar}
                       onClick={() => onBar(ref)}
                       aria-label={`Bar ${number}: ${parsed.repeat ? "same chord" : parsed.chords.map((c) => c.symbol).join(", ")}. Play from here.`}
@@ -96,9 +96,16 @@ export function ChordGrid({ chart, shift, keyPc, active, showScales, loopSection
                           <circle cx="17" cy="17" r="2" />
                         </svg>
                       ) : (
-                        parsed.chords.map((slot) => (
-                          <ChordSymbol key={slot.beat} symbol={transposeSymbol(slot.symbol, shift, keyPc)} showScale={showScales} keyPc={keyPc} />
-                        ))
+                        // Chords in order, with a slash for each beat that holds the chord before it.
+                        barTokens(text).map((token, k) =>
+                          token === BEAT ? (
+                            <span key={k} className="beat-slash" aria-hidden="true">
+                              /
+                            </span>
+                          ) : (
+                            <ChordSymbol key={k} symbol={transposeSymbol(token, shift, keyPc)} showScale={showScales} keyPc={keyPc} />
+                          ),
+                        )
                       )}
                     </button>
                   );

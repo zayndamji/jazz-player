@@ -1,4 +1,4 @@
-import { parseBar, parseChord } from "../chart/chords";
+import { BEAT, barTokens, parseBar, parseChord } from "../chart/chords";
 import type { Chart } from "../chart/types";
 
 /**
@@ -23,7 +23,7 @@ export function validateChart(chart: Chart): string[] {
   const errors: string[] = [];
   if (!chart.id || !/^[a-z0-9-]+$/.test(chart.id)) errors.push(`id "${chart.id}" must be lowercase letters, digits and dashes`);
   if (!chart.title) errors.push("missing title");
-  if (!/^[A-G][b#]?$/.test(chart.key)) errors.push(`key "${chart.key}" must be a note like C, Bb or F#`);
+  if (!/^[A-G][b#]?m?$/.test(chart.key)) errors.push(`key "${chart.key}" must be a note like C, Bb or F#, with "m" for minor (Em)`);
   if (!(chart.tempo >= 40 && chart.tempo <= 320)) errors.push(`tempo ${chart.tempo} out of range`);
   if (chart.beatsPerBar !== 4) errors.push("only 4/4 is supported");
   if (!chart.form?.length) errors.push("form has no sections");
@@ -34,6 +34,9 @@ export function validateChart(chart: Chart): string[] {
     section.bars?.forEach((text, i) => {
       const bar = parseBar(text, chart.beatsPerBar);
       if (bar.repeat && first) errors.push(`section ${section.label} bar ${i + 1}: "%" with no chord before it`);
+      const tokens = barTokens(text);
+      if (tokens[0] === BEAT && first) errors.push(`section ${section.label} bar ${i + 1}: "/" with no chord before it`);
+      if (tokens.length > 1 && tokens.includes("%")) errors.push(`section ${section.label} bar ${i + 1}: "%" must be the whole bar; use "/" to hold a chord for a beat`);
       for (const slot of bar.chords) {
         try {
           parseChord(slot.symbol);

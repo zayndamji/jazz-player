@@ -59,15 +59,29 @@ export function parseChord(symbol: string): ParsedChord {
   };
 }
 
-/** Parse one bar string from a chart ("D", "Em7/A A7", "%"). */
+/** Holds the chord before it for one slot, as lead sheets write "Am7 / / Fmaj7". */
+export const BEAT = "/";
+
+/**
+ * Parse one bar string from a chart ("D", "Em7/A A7", "Am7 / / Fmaj7", "%").
+ * Tokens split the bar evenly; a "/" token takes a slot without a new chord.
+ */
 export function parseBar(text: string, beatsPerBar: number): ParsedBar {
-  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  const tokens = barTokens(text);
   if (tokens.length === 0 || (tokens.length === 1 && tokens[0] === "%")) {
     return { chords: [], repeat: true };
   }
   const step = beatsPerBar / tokens.length;
-  const chords: ChordSlot[] = tokens.map((symbol, i) => ({ symbol, beat: i * step }));
+  const chords: ChordSlot[] = [];
+  tokens.forEach((symbol, i) => {
+    if (symbol !== BEAT) chords.push({ symbol, beat: i * step });
+  });
   return { chords, repeat: false };
+}
+
+/** The tokens of a bar string, chords and "/" placeholders, in order. */
+export function barTokens(text: string): string[] {
+  return text.trim().split(/\s+/).filter(Boolean);
 }
 
 export function prefersFlats(keyPc: number): boolean {
@@ -82,9 +96,26 @@ export function keyName(pc: number): string {
   return KEY_NAMES[((pc % 12) + 12) % 12];
 }
 
-/** Pitch class of a key name like "D" or "Bb". */
+/** Pitch class of a key's tonic, from a name like "D", "Bb" or "Em" (minor). */
 export function keyPitchClass(key: string): number {
-  return pitchClass(key[0], key.slice(1, 2));
+  const accidental = key.slice(1, 2);
+  return pitchClass(key[0], accidental === "b" || accidental === "#" ? accidental : "");
+}
+
+/** True for minor keys, written with a trailing "m" ("Em", "F#m"). */
+export const isMinorKey = (key: string) => key.endsWith("m");
+
+/**
+ * The major key whose spelling a key uses: the key itself, or the relative
+ * major for a minor key (E minor is spelled like G major, with sharps).
+ */
+export const spellingPc = (tonicPc: number, minor: boolean) => (tonicPc + (minor ? 3 : 0)) % 12;
+
+const MINOR_KEY_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
+
+/** Name of a minor key's tonic, spelled as minor keys usually are (C#, not Db). */
+export function minorKeyName(pc: number): string {
+  return MINOR_KEY_NAMES[((pc % 12) + 12) % 12];
 }
 
 /** Transpose a chord symbol by semitones, spelling roots for the target key. */

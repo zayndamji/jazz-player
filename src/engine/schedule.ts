@@ -1,4 +1,4 @@
-import { keyPitchClass } from "../chart/chords";
+import { isMinorKey, keyPitchClass, spellingPc } from "../chart/chords";
 import type { Chart } from "../chart/types";
 import type { NoteEvent, Style, Track } from "../styles/types";
 import { buildTimeline, playOrder, sameRef, sectionOrder, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
@@ -43,7 +43,8 @@ export interface Schedule {
  * and repeats the second copy, so playback can start anywhere in the first.
  */
 export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions): Schedule {
-  const keyPc = (keyPitchClass(chart.key) + opts.transpose + 120) % 12;
+  // Chords are spelled in the major key, or the relative major of a minor key.
+  const keyPc = spellingPc((keyPitchClass(chart.key) + opts.transpose + 120) % 12, isMinorKey(chart.key));
   const beatsPerBar = chart.beatsPerBar;
 
   let items: PlayItem[];

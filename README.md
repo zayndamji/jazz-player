@@ -87,7 +87,7 @@ Measures a reference recording: tempo, swing, rhythm per frequency band, band ba
 
 ## Adding a tune, a lead sheet or a style
 
-- Tune: add `src/charts/<id>.json` with the `Chart` shape from `src/chart/types.ts` (copy an existing one). Bars are strings like `"Em7/A A7"` (chords split the bar evenly) or `"%"` (same chord). Write the chords in concert pitch. `npm test` checks every chord and the style name.
+- Tune: add `src/charts/<id>.json` with the `Chart` shape from `src/chart/types.ts` (copy an existing one). Bars are strings like `"Em7/A A7"` (chords split the bar evenly), `"Am7 / / Fmaj7"` (a `/` holds the chord for a beat, so Fmaj7 starts on beat 4) or `"%"` (same chord). Store every tune in its original concert key, never a transposed part's key: a B♭ part in D is a tune in C. Write minor keys with an `m` (`"key": "Em"`). `npm test` checks every chord and the style name.
 - Lead sheet: type the melody as `local/heads/<chart id>.head.txt` and run `python3 scripts/make_head.py local/heads/<chart id>.head.txt`, or save `local/heads/<chart id>.musicxml` from MuseScore. The text format (in the script's help) reads notes against the key signature like a printed part, and `transpose: -M2` turns a B♭ part into concert pitch. The Lead sheet view appears when the MusicXML is there. Lead sheets stay out of git because melodies are copyrighted; a build made on your machine includes yours.
 - Style: add a file in `src/styles/` that implements `Style` from `src/styles/types.ts`, and list it in `src/styles/index.ts`. Balance its `mix` against a reference recording.
 

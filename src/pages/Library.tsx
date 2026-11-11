@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { keyPitchClass } from "../chart/chords";
+import { isMinorKey, keyPitchClass } from "../chart/chords";
 import { CHARTS } from "../charts";
 import { STYLES } from "../styles";
-import { keyName } from "./format";
+import { keyLabel } from "./format";
 
 /** The list of tunes, searchable by title and filterable by style. */
 export function Library() {
@@ -41,7 +41,7 @@ export function Library() {
             <a href={`#/tune/${c.id}`}>
               <span className="tune-title">{c.title}</span>
               <span className="tune-meta">
-                {STYLES[c.style]?.name ?? c.style} · {keyName(keyPitchClass(c.key))} · {c.tempo} BPM
+                {STYLES[c.style]?.name ?? c.style} · {keyLabel(keyPitchClass(c.key), isMinorKey(c.key))} · {c.tempo} BPM
               </span>
             </a>
           </li>
