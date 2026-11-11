@@ -19,6 +19,12 @@ describe("parseChord", () => {
     expect(parseChord("Bb7").root).toBe(10);
   });
 
+  it("reads minor-major and flat-13 chords", () => {
+    expect(parseChord("AmMaj7").intervals).toEqual([0, 3, 7, 11]);
+    expect(parseChord("E7(b13)").intervals).toContain(20);
+    expect(parseChord("E7b13").intervals).toContain(20);
+  });
+
   it("reads every chord in the test charts", () => {
     const sections = FIXTURES.flatMap((c) => [...(c.intro ? [c.intro] : []), ...c.form, ...(c.ending ?? [])]);
     for (const section of sections) {

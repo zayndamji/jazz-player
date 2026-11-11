@@ -75,11 +75,15 @@ function bassNote(pc: number): number {
   return BASS_LOW + ((pc - (BASS_LOW % 12) + 12) % 12);
 }
 
-/** The second note of the bar: the fifth, or the root an octave up on altered fifths. */
+/**
+ * The second note of the bar: the fifth; the flat fifth on half-diminished and
+ * diminished chords (Dm7b5 plays D then Ab); the root an octave up on a raised fifth.
+ */
 function fifthNote(chord: ParsedChord): number {
   const bass = bassNote(chord.bass);
   if (chord.bass !== chord.root) return bass + 7;
-  if (chord.intervalNames.includes("5A") || chord.intervalNames.includes("5d")) return bass + 12;
+  if (chord.intervalNames.includes("5A")) return bass + 12;
+  if (chord.intervalNames.includes("5d")) return bass + 6;
   return bass + 7;
 }
 

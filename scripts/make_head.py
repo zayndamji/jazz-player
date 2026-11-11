@@ -47,7 +47,13 @@ KINDS = {
     "7(#11)": ("dominant", [(11, 1, "add")]), "9(#11)": ("dominant-ninth", [(11, 1, "add")]),
     "m7b5": ("half-diminished", []), "dim7": ("diminished-seventh", []), "dim": ("diminished", []),
     "sus4": ("suspended-fourth", []), "7sus4": ("dominant", [(4, 0, "add"), (3, 0, "subtract")]),
+    "7(b13)": ("dominant", [(13, -1, "add")]), "7(b9b13)": ("dominant", [(9, -1, "add"), (13, -1, "add")]),
+    "7(#5#9)": ("augmented-seventh", [(9, 1, "add")]), "7(b5)": ("dominant", [(5, -1, "alter")]),
+    "13(b9)": ("dominant-13th", [(9, -1, "alter")]), "maj7(#11)": ("major-seventh", [(11, 1, "add")]),
+    "mMaj7": ("major-minor", []), "m(maj7)": ("major-minor", []), "m11": ("minor-11th", []),
 }
+# The same qualities typed without parentheses, as the charts write them ("G7b9").
+KINDS.update({q.replace("(", "").replace(")", ""): v for q, v in list(KINDS.items()) if "(" in q})
 
 
 def key_alters(key):

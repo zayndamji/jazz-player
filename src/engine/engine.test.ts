@@ -132,6 +132,13 @@ describe("bossa style", () => {
     expect(pcs(bass.map((e) => e.notes![0]))).toEqual(["C", "G", "G", "G"]); // next bar is Dm7/G
   });
 
+  it("plays the flat fifth under a half-diminished chord", () => {
+    const minor = { ...chart, key: "Cm", intro: undefined, ending: undefined, form: [{ label: "A", bars: ["Dm7b5", "G7(b9)", "Cm7", "%"] }] };
+    const s = buildSchedule(minor, bossa, { choruses: 1, countIn: false, transpose: 0 });
+    const bass = s.events.filter((e) => e.track === "bass" && e.time < 3.9);
+    expect(pcs(bass.slice(0, 2).map((e) => e.notes![0]))).toEqual(["D", "G#"]); // Ab
+  });
+
   it("plays eight hi-hats, 2 and 4 accented, and the clave", () => {
     const drums = inBar(3, "drums");
     const hats = drums.filter((e) => e.drum === "hat");
