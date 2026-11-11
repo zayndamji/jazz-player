@@ -75,12 +75,22 @@ function barText(chart: Chart, ref: BarRef): string {
   return sectionOf(chart, ref)?.bars[ref.bar] ?? "%";
 }
 
-/** The order bars are played in: intro, the form a number of times, ending. */
+/** True when a form section plays in a head chorus (`head`) or a solo chorus. */
+export const playsIn = (section: Section, head: boolean) => !section.play || (section.play === "head") === head;
+
+/**
+ * The order bars are played in: intro, the form a number of times, ending.
+ * The first chorus is the head, and so is the last when the song ends; the
+ * choruses between are solos (it matters only for sections marked `play`).
+ */
 export function playOrder(chart: Chart, choruses: number, withIntro = true, withEnding = true): PlayItem[] {
   const items: PlayItem[] = [];
   const bars = chartBars(chart);
   if (withIntro) bars.filter((b) => b.ref.part === "intro").forEach((b) => items.push({ ref: b.ref, chorus: 0 }));
-  for (let c = 1; c <= choruses; c++) bars.filter((b) => b.ref.part === "form").forEach((b) => items.push({ ref: b.ref, chorus: c }));
+  for (let c = 1; c <= choruses; c++) {
+    const head = c === 1 || (withEnding && c === choruses);
+    bars.filter((b) => b.ref.part === "form" && playsIn(chart.form[b.ref.section], head)).forEach((b) => items.push({ ref: b.ref, chorus: c }));
+  }
   if (withEnding) {
     chart.ending?.forEach((section, i) => {
       for (let r = 0; r < (section.repeat ?? 1); r++) section.bars.forEach((_, bar) => items.push({ ref: { part: "ending", section: i, bar }, chorus: 0 }));
@@ -100,6 +110,9 @@ export function sectionOrder(chart: Chart, section: number, times: number): Play
 export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number, keyPc: number): TimelineBar[] {
   const beats = chart.beatsPerBar;
   let previous: ParsedChord | null = null;
+  // Contrast is against the first section played in the same chorus (solo choruses may start elsewhere).
+  const firstLabel = new Map<number, string>();
+  for (const item of items) if (item.ref.part === "form" && !firstLabel.has(item.chorus)) firstLabel.set(item.chorus, chart.form[item.ref.section].label);
   const bars = items.map((item, index): TimelineBar => {
     const parsed = parseBar(barText(chart, item.ref), beats);
     const chords: TimelineChord[] = [];
@@ -115,7 +128,7 @@ export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number
     }
     const section = sectionOf(chart, item.ref);
     const label = section?.label ?? "";
-    const contrast = item.ref.part === "form" && label !== chart.form[0].label;
+    const contrast = item.ref.part === "form" && label !== (firstLabel.get(item.chorus) ?? chart.form[0].label);
     return { index, startBeat: index * beats, ref: item.ref, chorus: item.chorus, label, contrast, chords, countIn: false, final: false };
   });
   const last = bars.at(-1);

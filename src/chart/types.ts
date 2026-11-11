@@ -19,6 +19,8 @@ export interface Chart {
   beatsPerBar: number;
   /** Id of the default backing style, e.g. "bossa". */
   style: string;
+  /** Parts that start muted, for a band without them (a pianoless trio: ["piano", "guitar"]). The mixer turns them back on. */
+  mute?: ("bass" | "guitar" | "piano" | "drums")[];
   /** Start in two: the intro and first chorus with half-note bass, walking after (swing). Default false. */
   twoFeel?: boolean;
   /** Played once before the first chorus. */
@@ -41,8 +43,13 @@ export interface Section {
   bars: string[];
   /** Times the section is played in a row (a tag played twice). Default 1. */
   repeat?: number;
-  /** Printed bar on the lead sheet where this section's first bar is, when it repeats earlier bars (a tag). */
+  /** Printed bar on the lead sheet where this section's first bar is, when it repeats earlier bars (a tag, solo changes). */
   sheetBar?: number;
+  /**
+   * Form sections only: "head" plays in head choruses (the first and the last), "solos" in
+   * the choruses between, for tunes whose solo changes differ from the head. Default: every chorus.
+   */
+  play?: "head" | "solos";
 }
 
 /** One chord placed in a bar. */

@@ -74,6 +74,7 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, loopS
                     ) : (
                       <span className="section-label static">{label}</span>
                     ))}
+                  {r === 0 && section.play && <span className="section-role">{section.play === "head" ? "head" : "solos"}</span>}
                 </div>
                 {row.map((text, i) => {
                   const bar = r * 4 + i;

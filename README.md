@@ -6,6 +6,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 
 - Library: every tune in a list you can search by title and filter by style. Each tune has its own address (`#/tune/<id>`).
 - Chord chart view: four bars per line, rehearsal letters, bar numbers, repeat bars, double barlines at section ends. The bar that's playing is highlighted.
+- Head and solo choruses: a tune whose solo changes differ from the head plays the head in the first and last chorus and the solo changes in between; the chart marks those sections "head" and "solos".
 - Lead sheet view: the melody in notation with the chords above it, drawn in the same colours and font as the chart, with the same highlight. Same band, same controls.
 - Bossa nova band: upright bass on 1 and 3 with anticipations, nylon guitar comping that varies between figures and pushes chord changes, soft held piano chords, and a sampled acoustic jazz kit with fills at section ends, a crash where a section starts and the ride in the bridge.
 - Swing band: walking bass with half-step approaches, swung piano comping, quiet four-to-the-bar guitar, ride cymbal with the hi-hat on 2 and 4, snare comping and fills. It follows the tempo: the swing straightens and the comping thins out as it gets faster, and above about 200 BPM the guitar drops out and fills move to eighth notes. A two-feel option plays the intro and first chorus with half-note bass and cross-stick on 4, then walks.
@@ -24,7 +25,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 
 ## How it works
 
-- A chart is one JSON file, `tunes/<id>/chart.json`: key, tempo, style, optionally `twoFeel`, and sections of bars written as chord symbols. The site collects every tune in `tunes/` and the example in `examples/`; tests check each one.
+- A chart is one JSON file, `tunes/<id>/chart.json`: key, tempo, style, optionally `twoFeel` and `mute` (parts that start muted, such as a pianoless trio), and sections of bars written as chord symbols. A form section with `"play": "head"` or `"play": "solos"` plays only in head or only in solo choruses. The site collects every tune in `tunes/` and the example in `examples/`; tests check each one.
 - The timeline lays it out in playing order: count-in, intro, choruses, tag, final bar. Looping plays the section or form twice and repeats the second copy, so playback can start on any bar.
 - A style turns the timeline into notes for a tempo and feel, and can set its own mix. Tempo changes regenerate the notes in place once the presses settle. Each style is modelled on a measured reference recording (`scripts/analyze_reference.py`).
 - Piano and guitar use rootless drop-2 voicings, each chord voice-led from the last.

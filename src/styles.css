@@ -208,6 +208,7 @@ input:disabled {
 
 .gutter {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
   padding-top: 6px;
 }
@@ -221,6 +222,14 @@ input:disabled {
   font-weight: 700;
   font-size: 14px;
   line-height: 1.35;
+}
+
+/* Under a rehearsal letter: the section plays only in the head or only in solos. */
+.section-role {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .section-label:hover {

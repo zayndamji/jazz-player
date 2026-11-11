@@ -4,12 +4,56 @@ import { chordScale } from "../chart/scales";
 import { bossaForm } from "../fixtures";
 import { bossa } from "../styles/bossa";
 import { buildSchedule } from "./schedule";
+import { validateChart } from "../charts";
+import type { Chart } from "../chart/types";
 import { buildTimeline, chartBars, navOrder, playOrder, stepBar, stepSection, type PlayItem } from "./timeline";
 import { VOICING_HIGH, VOICING_LOW, voiceChord, voicingIntervals } from "./voicing";
 
 const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const pcs = (notes: number[]) => notes.map((n) => names[n % 12]);
 const chart = bossaForm;
+
+/** A made-up blues whose head ends on a different chord from the solo choruses. */
+const headAndSolos: Chart = {
+  id: "head-and-solos",
+  title: "Head and solos (test)",
+  key: "F",
+  tempo: 120,
+  beatsPerBar: 4,
+  style: "swing",
+  form: [
+    { label: "A", play: "head", bars: ["F7", "Bb7", "F7", "%", "Bb7", "%", "F7", "%", "C7", "Bb7", "Db7", "%"] },
+    { label: "A", play: "solos", sheetBar: 1, bars: ["F7", "Bb7", "F7", "%", "Bb7", "%", "F7", "%", "C7", "Bb7", "F7", "C7"] },
+  ],
+  ending: [{ label: "End", bars: ["F7"] }],
+};
+
+describe("head and solo sections", () => {
+  const sectionsIn = (order: PlayItem[], chorus: number) => [...new Set(order.filter((i) => i.chorus === chorus).map((i) => i.ref.section))];
+
+  it("plays the head first and last, solo changes between", () => {
+    const order = playOrder(headAndSolos, 3);
+    expect([1, 2, 3].map((c) => sectionsIn(order, c))).toEqual([[0], [1], [0]]);
+    expect(order.length).toBe(36 + 1);
+    expect(sectionsIn(playOrder(headAndSolos, 1), 1)).toEqual([0]);
+  });
+
+  it("goes on with solos when the choruses repeat until stopped", () => {
+    const order = playOrder(headAndSolos, 2, true, false);
+    expect(sectionsIn(order, 2)).toEqual([1]);
+  });
+
+  it("starts a solo bar in a solo chorus", () => {
+    const s = buildSchedule(headAndSolos, bossa, { choruses: 3, countIn: false, transpose: 0, start: { ref: { part: "form", section: 1, bar: 0 }, chorus: 1 } });
+    expect(s.bars[0].chorus).toBe(2);
+    expect(s.bars[0].contrast).toBe(false);
+  });
+
+  it("checks the play values", () => {
+    expect(validateChart(headAndSolos)).toEqual([]);
+    expect(validateChart({ ...headAndSolos, form: [headAndSolos.form[0]] })).not.toEqual([]);
+  });
+});
 
 describe("timeline", () => {
   it("numbers bars like the sheet", () => {

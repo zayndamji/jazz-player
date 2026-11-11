@@ -49,6 +49,8 @@ export function LeadSheet({ chartId, shift, bar, cue, loopBars, onBar }: Props) 
     // as many bars as there's room for, so chords and notes don't collide.
     o.setOptions({ defaultColorMusic: ink, defaultColorLabel: ink, defaultColorTitle: ink });
     o.EngravingRules.NewSystemAtXMLNewSystemAttribute = width >= NARROW;
+    // One drawn bar per chart bar, so the highlight lines up (no multi-bar rests for an intro).
+    o.EngravingRules.RenderMultipleRestMeasures = false;
     o.EngravingRules.ChordSymbolTextHeight = width >= NARROW ? 2.6 : 2.1;
     o.zoom = zoomFor(width);
     o.updateGraphic();
@@ -56,6 +58,8 @@ export function LeadSheet({ chartId, shift, bar, cue, loopBars, onBar }: Props) 
     const unit = 10 * o.zoom;
     setBoxes(
       o.GraphicSheet.MeasureList.map((staves) => {
+        // OSMD can leave a measure without a laid-out staff; keep its slot so the bars stay numbered.
+        if (!staves[0]) return { left: 0, top: 0, width: 0, height: 0 };
         const p = staves[0].PositionAndShape.AbsolutePosition;
         const s = staves[0].PositionAndShape.Size;
         return { left: p.x * unit, top: (p.y - 6) * unit, width: s.width * unit, height: 12 * unit };

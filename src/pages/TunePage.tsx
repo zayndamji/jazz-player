@@ -94,7 +94,11 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [loopSection, setLoopSection] = useState<number | null>(null);
   /** The last bar the user clicked, so Loop knows which section they mean. */
   const [picked, setPicked] = useState<BarRef | null>(null);
-  const [mix, setMix] = useState(initialMix);
+  const [mix, setMix] = useState(() => {
+    const m = { ...initialMix };
+    for (const track of chart.mute ?? []) m[track] = { ...m[track], mute: true };
+    return m;
+  });
   const [position, setPosition] = useState<Position | null>(null);
   const [loops, setLoops] = useState(0);
   const [muted, setMuted] = useState(() => readMuted());
