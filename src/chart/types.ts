@@ -19,8 +19,8 @@ export interface Chart {
   intro?: Section;
   /** The repeating form, in playing order. */
   form: Section[];
-  /** Played once after the last chorus. */
-  ending?: Section;
+  /** Played after the last chorus, in order (a tag, then the final bar). */
+  ending?: Section[];
 }
 
 export interface Section {
@@ -32,6 +32,10 @@ export interface Section {
    * without a new attack.
    */
   bars: string[];
+  /** Times the section is played in a row (a tag played twice). Default 1. */
+  repeat?: number;
+  /** Printed bar on the lead sheet where this section's first bar is, when it repeats earlier bars (a tag). */
+  sheetBar?: number;
 }
 
 /** One chord placed in a bar. */

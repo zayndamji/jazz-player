@@ -20,7 +20,7 @@ describe("parseChord", () => {
   });
 
   it("reads every chord in Example Tune", () => {
-    const sections = [exampleTune.intro!, ...exampleTune.form, exampleTune.ending!];
+    const sections = [exampleTune.intro!, ...exampleTune.form, ...exampleTune.ending!];
     for (const section of sections) {
       for (const bar of section.bars) {
         for (const slot of parseBar(bar, 4).chords) {
