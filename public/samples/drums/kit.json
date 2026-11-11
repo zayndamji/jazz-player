@@ -1,0 +1,118 @@
+{
+ "kick": [
+  [
+   "kick-v1-r1.mp3",
+   "kick-v1-r2.mp3"
+  ],
+  [
+   "kick-v2-r1.mp3",
+   "kick-v2-r2.mp3"
+  ],
+  [
+   "kick-v3-r1.mp3",
+   "kick-v3-r2.mp3"
+  ],
+  [
+   "kick-v4-r1.mp3",
+   "kick-v4-r2.mp3"
+  ]
+ ],
+ "rim": [
+  [
+   "rim-v4.mp3"
+  ],
+  [
+   "rim-v8.mp3"
+  ],
+  [
+   "rim-v12.mp3"
+  ],
+  [
+   "rim-v16.mp3"
+  ]
+ ],
+ "snare": [
+  [
+   "snare-v6.mp3"
+  ],
+  [
+   "snare-v14.mp3"
+  ],
+  [
+   "snare-v22.mp3"
+  ],
+  [
+   "snare-v30.mp3"
+  ]
+ ],
+ "hat": [
+  [
+   "hat-v1-r1.mp3",
+   "hat-v1-r2.mp3"
+  ],
+  [
+   "hat-v2-r1.mp3",
+   "hat-v2-r2.mp3"
+  ],
+  [
+   "hat-v3-r1.mp3",
+   "hat-v3-r2.mp3"
+  ],
+  [
+   "hat-v4-r1.mp3",
+   "hat-v4-r2.mp3"
+  ]
+ ],
+ "pedal": [
+  [
+   "pedal-v1-r1.mp3"
+  ],
+  [
+   "pedal-v2-r1.mp3"
+  ],
+  [
+   "pedal-v3-r1.mp3"
+  ]
+ ],
+ "ride": [
+  [
+   "ride-v1-r1.mp3",
+   "ride-v1-r2.mp3"
+  ],
+  [
+   "ride-v2-r1.mp3",
+   "ride-v2-r2.mp3"
+  ],
+  [
+   "ride-v3-r1.mp3",
+   "ride-v3-r2.mp3"
+  ]
+ ],
+ "crash": [
+  [
+   "crash-v1-r1.mp3"
+  ],
+  [
+   "crash-v2-r1.mp3"
+  ],
+  [
+   "crash-v3-r1.mp3"
+  ]
+ ],
+ "tomHigh": [
+  [
+   "tomHigh-v6.mp3"
+  ],
+  [
+   "tomHigh-v12.mp3"
+  ]
+ ],
+ "tomLow": [
+  [
+   "tomLow-v6.mp3"
+  ],
+  [
+   "tomLow-v12.mp3"
+  ]
+ ]
+}

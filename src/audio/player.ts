@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import type { BeatMark, Schedule } from "../engine/schedule";
-import type { DrumSound, NoteEvent, Track } from "../styles/types";
+import type { NoteEvent, Track } from "../styles/types";
+import { DrumKit } from "./drumkit";
 
 const BASE = import.meta.env.BASE_URL + "samples/";
 
@@ -32,7 +33,7 @@ const CHANNELS: Record<Mixable, { volume: number; pan: number }> = {
   bass: { volume: -6, pan: 0 },
   piano: { volume: -8, pan: -0.25 },
   guitar: { volume: -3.5, pan: 0.35 },
-  drums: { volume: -6, pan: 0.05 },
+  drums: { volume: -4, pan: 0 },
   metronome: { volume: -8, pan: 0 },
 };
 
@@ -47,7 +48,7 @@ export class Player {
   private piano!: Tone.Sampler;
   private bass!: Tone.Sampler;
   private guitar!: Tone.Sampler;
-  private drums!: Record<DrumSound, (time: number, velocity: number) => void>;
+  private drums!: DrumKit;
   private click!: Tone.Synth;
   private notes: Tone.Part<[string, NoteEvent]> | null = null;
   private clock: Tone.Part<[string, BeatMark]> | null = null;
@@ -75,7 +76,8 @@ export class Player {
       // A treble lift gives the nylon guitar the presence of the reference recording.
       const guitarTone = new Tone.Filter({ type: "highshelf", frequency: 2500, gain: 5 }).connect(channels.guitar);
       this.guitar = new Tone.Sampler({ urls: GUITAR_SAMPLES, baseUrl: BASE + "guitar/", release: 0.12 }).connect(guitarTone);
-      this.drums = makeDrums(channels.drums);
+      this.drums = new DrumKit(channels.drums);
+      await this.drums.load(BASE + "drums/");
       this.click = new Tone.Synth({
         oscillator: { type: "triangle" },
         envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.02 },
@@ -125,7 +127,7 @@ export class Player {
 
   private playNote(time: number, e: NoteEvent) {
     const duration = ticks(e.duration);
-    if (e.track === "drums" && e.drum) this.drums[e.drum](time, e.velocity);
+    if (e.track === "drums" && e.drum) this.drums.play(e.drum, time, e.velocity);
     else if (e.notes) {
       const names = e.notes.map((n) => Tone.Frequency(n, "midi").toNote());
       const instrument = e.track === "piano" ? this.piano : e.track === "guitar" ? this.guitar : this.bass;
@@ -172,54 +174,4 @@ export class Player {
   setMute(track: Mixable, mute: boolean) {
     if (this.channels) this.channels[track].mute = mute;
   }
-}
-
-/** Synthesized kit: soft kick, cross-stick, shaker-like hi-hat, brush-like snare, toms, a soft crash. */
-function makeDrums(output: Tone.ToneAudioNode): Record<DrumSound, (time: number, velocity: number) => void> {
-  const kick = new Tone.MembraneSynth({
-    pitchDecay: 0.03,
-    octaves: 5,
-    envelope: { attack: 0.001, decay: 0.35, sustain: 0, release: 0.1 },
-  }).connect(output);
-
-  const rimFilter = new Tone.Filter({ type: "bandpass", frequency: 1900, Q: 1.2 }).connect(output);
-  const rimNoise = new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.03, sustain: 0 } }).connect(rimFilter);
-  const rimTone = new Tone.MembraneSynth({
-    pitchDecay: 0.004,
-    octaves: 1.5,
-    envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.02 },
-  }).connect(output);
-
-  const hatPan = new Tone.Panner(0.2).connect(output);
-  const hatFilter = new Tone.Filter({ type: "highpass", frequency: 7500 }).connect(hatPan);
-  const hat = new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.002, decay: 0.045, sustain: 0 } }).connect(hatFilter);
-  hat.volume.value = -3;
-
-  const snareFilter = new Tone.Filter({ type: "bandpass", frequency: 2500, Q: 0.7 }).connect(output);
-  const snare = new Tone.NoiseSynth({ noise: { type: "pink" }, envelope: { attack: 0.004, decay: 0.12, sustain: 0 } }).connect(snareFilter);
-  snare.volume.value = -2;
-
-  const tom = new Tone.MembraneSynth({
-    pitchDecay: 0.05,
-    octaves: 2,
-    envelope: { attack: 0.002, decay: 0.3, sustain: 0, release: 0.1 },
-  }).connect(output);
-  tom.volume.value = -8;
-
-  const crashFilter = new Tone.Filter({ type: "highpass", frequency: 4000 }).connect(output);
-  const crash = new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.003, decay: 1.6, sustain: 0 } }).connect(crashFilter);
-  crash.volume.value = -14;
-
-  return {
-    kick: (time, v) => kick.triggerAttackRelease("A0", 0.3, time, v),
-    rim: (time, v) => {
-      rimTone.triggerAttackRelease("E5", 0.05, time, v * 0.6);
-      rimNoise.triggerAttackRelease(0.03, time, Math.min(1, v * 1.4));
-    },
-    hat: (time, v) => hat.triggerAttackRelease(0.04, time, v),
-    snare: (time, v) => snare.triggerAttackRelease(0.1, time, v),
-    tomHigh: (time, v) => tom.triggerAttackRelease("D3", 0.25, time, v),
-    tomLow: (time, v) => tom.triggerAttackRelease("A2", 0.3, time, v),
-    crash: (time, v) => crash.triggerAttackRelease(1.5, time, v),
-  };
 }

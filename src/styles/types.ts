@@ -1,7 +1,7 @@
 import type { TimelineBar } from "../engine/timeline";
 
 export type Track = "bass" | "piano" | "guitar" | "drums";
-export type DrumSound = "kick" | "rim" | "hat" | "snare" | "tomHigh" | "tomLow" | "crash";
+export type DrumSound = "kick" | "rim" | "hat" | "pedal" | "ride" | "snare" | "tomHigh" | "tomLow" | "crash";
 
 /** One note or drum hit, timed in beats from the start of playback. */
 export interface NoteEvent {

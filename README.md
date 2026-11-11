@@ -6,7 +6,7 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 
 - Chord chart view: four bars per line, rehearsal letters, bar numbers, repeat bars, double barlines at section ends. The bar that's playing is highlighted.
 - Lead sheet view: the melody in notation with the chords above it, drawn in the same colours and font as the chart, with the same highlight. Same band, same controls.
-- Bossa nova band: upright bass on 1 and 3 with anticipations, nylon guitar comping, soft held piano chords, drums with fills at section ends and a soft crash where a section starts. Ends with a tag (the last four bars twice) and a final chord.
+- Bossa nova band: upright bass on 1 and 3 with anticipations, nylon guitar comping, soft held piano chords, and a sampled acoustic jazz kit with fills at section ends and a soft crash where a section starts. Ends with a tag (the last four bars twice) and a final chord.
 - Player bar at the bottom: play and stop (or the space bar), a progress line you can click to jump, tempo from 60 to 240 BPM, Loop, Metronome, and More.
 - Click any bar, in either view, to play from there.
 - Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section.
@@ -34,7 +34,8 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 | `src/styles/` | Backing styles (bossa nova) |
 | `src/audio/player.ts` | Tone.js playback, sampled and synthesized instruments, mixer |
 | `src/components/` | Chord chart, lead sheet, player bar, mixer |
-| `public/samples/` | Piano, bass and guitar samples, each folder with its license |
+| `public/samples/` | Piano, bass, guitar and drum samples, each folder with its license |
+| `scripts/` | Repeatable jobs: fetching and converting samples |
 | `local/heads/` | Your lead sheets as MusicXML (not in git) |
 
 ## Run it
@@ -63,6 +64,12 @@ npm run build
 
 Type-checks and builds the static site into `dist/`.
 
+```bash
+python3 scripts/fetch_drum_samples.py
+```
+
+Downloads and converts the drum kit into `public/samples/drums/` (needs ffmpeg). The samples are already committed; run it only to change the kit.
+
 ## Adding a tune, a lead sheet or a style
 
 - Tune: add a file in `src/charts/` with the `Chart` shape from `src/chart/types.ts`. Bars are strings like `"Em7/A A7"` (chords split the bar evenly) or `"%"` (same chord).
@@ -79,3 +86,4 @@ Type-checks and builds the static site into `dist/`.
 - [TypeScript](https://github.com/microsoft/TypeScript), Apache-2.0: type checking
 - [Salamander Grand Piano](https://archive.org/details/SalamanderGrandPianoV3) by Alexander Holm, CC BY 3.0: piano samples
 - Fluid R3 GM SoundFont by Frank Wen, MIT: bass and nylon guitar samples, via [midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts)
+- [Virtuosity Drums](https://github.com/sfzinstruments/virtuosity_drums) by Versilian Studios and Karoryfer Samples, CC0: drum samples
