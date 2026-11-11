@@ -46,7 +46,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 | `src/components/` | Chord chart, lead sheet, player bar, mixer |
 | `public/samples/` | Piano, bass, guitar and drum samples, each folder with its license |
 | `scripts/` | Repeatable jobs: fetching samples, turning typed heads into MusicXML, measuring reference recordings and the site's mix |
-| `tunes/<id>/` | Your tunes: `chart.json`, and optionally `head.txt` and `head.musicxml` (not in git) |
+| `tunes/<id>/` | Your tunes, one folder each (not in git): `chart.json`, optionally `head.txt` and `head.musicxml`, and anything you keep about the tune (reference sheets, recordings, notes) |
 | `examples/blues-in-f/` | A made-up example chart, so a fresh checkout has something to play |
 
 ## Run it

@@ -16,11 +16,6 @@ __pycache__/
 .env.*
 !.env.example
 
-# Reference material (sheet music, recordings) stays local
-resources/
-# Where each tune's sheets and recordings came from, one file per tune
-sources/
-
 # Agent memory and instructions stay local to each checkout
 context/
 CLAUDE.md
@@ -32,8 +27,9 @@ AGENTS.md
 # Local preview config for the Claude app
 .claude/launch.json
 
-# Your tunes (charts and heads): content you add, never part of the framework
+# Your tunes: one folder each with the chart, head, notes, source list, reference sheets,
+# recordings and measurements. Content you add, never part of the framework.
 tunes/
 
-# Local working files (analyses, agent test runs, notes)
+# Local working files (the source-gathering brief and tools, backups, drafts)
 local/
