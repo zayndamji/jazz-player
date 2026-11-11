@@ -14,7 +14,7 @@ A website for practicing jazz tunes. It shows the chord chart, or the lead sheet
 - Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section.
 - More: key (all 12), instrument (concert, B♭, E♭, F parts), number of choruses or until stopped, a two-bar count-in, scale names under each chord, and a mixer with volume and mute for each part.
 - While playing, the player bar shows the bar, chorus, and a scale for the current chord with its notes.
-- Light and dark themes follow the system setting. Works on phones.
+- Light theme only, like printed music. Works on phones.
 
 ## How it works
 

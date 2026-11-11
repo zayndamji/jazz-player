@@ -2,7 +2,7 @@
  * Design rules: the music fills the page, one control bar at the bottom.
  * Monochrome chart like a printed one; a single accent colour marks only
  * state you can change (playing, toggles, loop, progress).
- * Spacing scale: 4 8 12 16 24 32 48.
+ * Light only, like printed music. Spacing scale: 4 8 12 16 24 32 48.
  */
 :root {
   --bg: #ffffff;
@@ -14,10 +14,10 @@
   --bar-line: #2a2a2e;
   --accent: #1e5bb8;
   --accent-ink: #ffffff;
-  --bar-bg: #1c1c20;
-  --bar-ink: #f2f2f2;
-  --bar-muted: #a8a8b0;
-  --bar-control: #2d2d33;
+  --bar-bg: #f6f6f4;
+  --bar-ink: #18181b;
+  --bar-muted: #6e6e75;
+  --bar-control: #e6e6e2;
   /* Shared by both views: the bar playing now, and a looped section. */
   --now-bg: rgba(30, 91, 184, 0.13);
   --now-line: var(--accent);
@@ -29,26 +29,7 @@
   color: var(--ink);
   background: var(--bg);
   accent-color: var(--accent);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #131315;
-    --surface: #1c1c1f;
-    --ink: #ededee;
-    --muted: #9d9da5;
-    --faint: #6a6a72;
-    --line: #2f2f34;
-    --bar-line: #cfcfd2;
-    --accent: #79a6ee;
-    --accent-ink: #0d1626;
-    --bar-bg: #1f1f23;
-    --bar-ink: #ededee;
-    --bar-muted: #9d9da5;
-    --bar-control: #2f2f35;
-    --now-bg: rgba(121, 166, 238, 0.2);
-    --loop-bg: #1b1b1f;
-  }
+  color-scheme: light;
 }
 
 * {
@@ -413,6 +394,7 @@ input:disabled {
   z-index: 3;
   background: var(--bar-bg);
   color: var(--bar-ink);
+  border-top: 1px solid var(--line);
 }
 
 .progress {
@@ -442,8 +424,8 @@ input:disabled {
   height: 44px;
   border: 0;
   border-radius: 50%;
-  background: var(--bar-ink);
-  color: var(--bar-bg);
+  background: var(--ink);
+  color: #fff;
   display: grid;
   place-items: center;
 }
@@ -501,7 +483,7 @@ input:disabled {
 }
 
 .beat.on {
-  background: var(--bar-ink);
+  background: var(--ink);
 }
 
 .tempo {
@@ -548,8 +530,9 @@ input:disabled {
 }
 
 .segmented button[aria-pressed="true"] {
-  background: var(--bar-ink);
-  color: var(--bar-bg);
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 .toggle {

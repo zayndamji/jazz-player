@@ -110,7 +110,7 @@ export function LeadSheet({ chartId, shift, bar, loopBars, onBar }: Props) {
     draw();
   }, [ready, shift]);
 
-  // Redraw on width or colour scheme changes.
+  // Redraw when the width changes.
   useEffect(() => {
     if (!ready || !host.current) return;
     let width = host.current.clientWidth;
@@ -121,12 +121,7 @@ export function LeadSheet({ chartId, shift, bar, loopBars, onBar }: Props) {
       draw();
     });
     observer.observe(host.current);
-    const scheme = window.matchMedia("(prefers-color-scheme: dark)");
-    scheme.addEventListener("change", draw);
-    return () => {
-      observer.disconnect();
-      scheme.removeEventListener("change", draw);
-    };
+    return () => observer.disconnect();
   }, [ready]);
 
   const box = bar !== null ? boxes[bar - 1] : undefined;
