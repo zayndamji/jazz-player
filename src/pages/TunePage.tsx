@@ -15,26 +15,13 @@ import { chartBars, chordAt, navOrder, playOrder, sameRef, stepBar, stepSection,
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
+import { clearSettings, defaultSettings, loadSettings, REPEATS, saveSettings } from "./settings";
 import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
+import { readStored, store } from "./storage";
 
 const MUTE_KEY = "jazz-player.muted";
 const INSTRUMENT_KEY = "jazz-player.instrument";
 const SHORTCUTS_KEY = "jazz-player.shortcuts";
-/** A stored setting, falling back to its name from when the site was called Jazz Teacher. */
-const readStored = (key: string) => {
-  try {
-    return localStorage.getItem(key) ?? localStorage.getItem(key.replace("jazz-player.", "jazz-teacher."));
-  } catch {
-    return null;
-  }
-};
-const store = (key: string, value: string) => {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Storage can be unavailable (private windows); the setting still works for this visit.
-  }
-};
 const readMuted = () => readStored(MUTE_KEY) === "1";
 /** The player's instrument, kept between tunes and visits. */
 const readInstrument = () => {
@@ -60,19 +47,10 @@ const fold = (n: number) => ((((n + 6) % 12) + 12) % 12) - 6;
 
 type Status = "idle" | "loading" | "playing";
 
-const initialMix: Record<Mixable, MixState> = {
-  bass: { level: 1, mute: false },
-  guitar: { level: 1, mute: false },
-  piano: { level: 1, mute: false },
-  drums: { level: 1, mute: false },
-  metronome: { level: 1, mute: false },
-};
-
-const REPEATS: Repeat[] = [1, 2, 3, 4, 5, 6, 8, "loop"];
-
 export function TunePage({ chart }: { chart: Chart }) {
   /** The band's style: the chart's own by default, any other on request. */
-  const [styleId, setStyleId] = useState(chart.style);
+  const initial = useMemo(() => loadSettings(chart), [chart]);
+  const [styleId, setStyleId] = useState(initial.style);
   const style = STYLES[styleId] ?? STYLES[chart.style];
   const chartKeyPc = keyPitchClass(chart.key);
   const minor = isMinorKey(chart.key);
@@ -82,19 +60,19 @@ export function TunePage({ chart }: { chart: Chart }) {
   const current = useRef<{ opts: PlaybackOptions; schedule: Schedule; style: Style } | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [tempo, setTempo] = useState(chart.tempo);
-  const [twoFeel, setTwoFeel] = useState(chart.twoFeel ?? false);
-  const [transpose, setTranspose] = useState(0);
+  const [tempo, setTempo] = useState(initial.tempo);
+  const [twoFeel, setTwoFeel] = useState(initial.twoFeel);
+  const [transpose, setTranspose] = useState(initial.transpose);
   const [instrumentId, setInstrumentId] = useState(readInstrument);
-  const [repeat, setRepeat] = useState<Repeat>(3);
-  const [countIn, setCountIn] = useState(true);
+  const [repeat, setRepeat] = useState<Repeat>(initial.choruses);
+  const [countIn, setCountIn] = useState(initial.countIn);
   const [metronome, setMetronome] = useState(false);
-  const [showScales, setShowScales] = useState(false);
-  const [view, setView] = useState<View>("chords");
+  const [showScales, setShowScales] = useState(initial.showScales);
+  const [view, setView] = useState<View>(initial.view);
   const [loopSection, setLoopSection] = useState<number | null>(null);
   /** The last bar the user clicked, so Loop knows which section they mean. */
   const [picked, setPicked] = useState<BarRef | null>(null);
-  const [mix, setMix] = useState(initialMix);
+  const [mix, setMix] = useState(initial.mix);
   const [position, setPosition] = useState<Position | null>(null);
   const [loops, setLoops] = useState(0);
   const [muted, setMuted] = useState(() => readMuted());
@@ -121,6 +99,10 @@ export function TunePage({ chart }: { chart: Chart }) {
     sharedPlayer?.setMasterMute(muted);
     store(MUTE_KEY, muted ? "1" : "0");
   }, [muted]);
+  // Each tune remembers its own settings.
+  useEffect(() => {
+    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn, twoFeel, view, showScales, mix });
+  }, [chart, tempo, transpose, styleId, repeat, countIn, twoFeel, view, showScales, mix]);
   useEffect(() => store(INSTRUMENT_KEY, instrumentId), [instrumentId]);
   useEffect(() => store(SHORTCUTS_KEY, singleKeys ? "1" : "0"), [singleKeys]);
 
@@ -336,10 +318,28 @@ export function TunePage({ chart }: { chart: Chart }) {
     onBar(b.ref);
   };
 
-  const changeMix = (track: Mixable, state: MixState) => {
-    setMix((m) => ({ ...m, [track]: state }));
-    player.current?.setVolume(track, state.level);
-    player.current?.setMute(track, state.mute);
+  const changeMix = (track: Mixable, state: MixState) => setMix((m) => ({ ...m, [track]: state }));
+  // The mixer's state goes to the player as it changes, even while playing.
+  useEffect(() => {
+    (Object.keys(mix) as Mixable[]).forEach((t) => {
+      player.current?.setVolume(t, mix[t].level);
+      player.current?.setMute(t, mix[t].mute);
+    });
+  }, [mix]);
+
+  /** Put every setting of this tune back to the chart's own and forget the stored entry. */
+  const resetSettings = () => {
+    const d = defaultSettings(chart);
+    setTempo(d.tempo);
+    setTranspose(d.transpose);
+    setStyleId(d.style);
+    setRepeat(d.choruses);
+    setCountIn(d.countIn);
+    setTwoFeel(d.twoFeel);
+    setView(d.view);
+    setShowScales(d.showScales);
+    setMix(d.mix);
+    clearSettings(chart.id);
   };
 
   /** What each shortcut does (keys in `./shortcuts.ts`). */
@@ -493,6 +493,9 @@ export function TunePage({ chart }: { chart: Chart }) {
         <input type="checkbox" checked={showScales} onChange={(e) => setShowScales(e.target.checked)} />
         Show scales on the chart
       </label>
+      <button type="button" className="quiet" onClick={resetSettings}>
+        Reset to original
+      </button>
       <h3>Mix</h3>
       <Mixer mix={mix} onChange={changeMix} band={bandFor(chart, style)} />
     </div>

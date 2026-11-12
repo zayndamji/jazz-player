@@ -868,6 +868,11 @@ kbd {
   text-align: center;
 }
 
+.settings .quiet {
+  align-self: flex-start;
+}
+
+.quiet,
 .shortcuts-button {
   margin-top: 4px;
   padding: 0;
