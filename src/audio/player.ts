@@ -2,22 +2,10 @@ import * as Tone from "tone";
 import type { BeatMark, Schedule } from "../engine/schedule";
 import type { NoteEvent, Track } from "../styles/types";
 import { DrumKit } from "./drumkit";
+import { SpriteSampler, loadSprite } from "./sprite";
+import sprites from "./sprites.json";
 
 const BASE = import.meta.env.BASE_URL + "samples/";
-
-/** Note name to file for samples taken every minor third. */
-function sampleMap(notes: string[]): Record<string, string> {
-  const files: Record<string, string> = {};
-  for (const n of notes) {
-    const file = n.replace("D#", "Ds").replace("F#", "Fs").replace("A#", "Bb").replace("C#", "Db");
-    files[n] = file + ".mp3";
-  }
-  return files;
-}
-
-const PIANO_SAMPLES = sampleMap(["A2", "C3", "D#3", "F#3", "A3", "C4", "D#4", "F#4", "A4", "C5", "D#5", "F#5", "A5"]);
-const BASS_SAMPLES = sampleMap(["E1", "G1", "A#1", "C#2", "E2", "G2", "A#2", "C#3", "E3"]);
-const GUITAR_SAMPLES = sampleMap(["E2", "G2", "A#2", "C#3", "E3", "G3", "A#3", "C#4", "E4", "G4", "A#4", "C#5", "E5"]);
 
 export interface Position {
   bar: number;
@@ -46,9 +34,9 @@ const ticks = (beats: number) => `${Math.round(beats * Tone.getTransport().PPQ)}
  */
 export class Player {
   private channels!: Record<Mixable, Tone.Channel>;
-  private piano!: Tone.Sampler;
-  private bass!: Tone.Sampler;
-  private guitar!: Tone.Sampler;
+  private piano!: SpriteSampler;
+  private bass!: SpriteSampler;
+  private guitar!: SpriteSampler;
   private drums!: DrumKit;
   private click!: Tone.Synth;
   private notes: Tone.Part<[string, NoteEvent]> | null = null;
@@ -81,13 +69,17 @@ export class Player {
       for (const [name, c] of Object.entries(CHANNELS)) channels[name as Mixable] = new Tone.Channel(c).connect(room);
       this.channels = channels;
 
-      this.piano = new Tone.Sampler({ urls: PIANO_SAMPLES, baseUrl: BASE + "piano/", release: 0.9 }).connect(channels.piano);
-      this.bass = new Tone.Sampler({ urls: BASS_SAMPLES, baseUrl: BASE + "bass/", release: 0.25 }).connect(channels.bass);
+      // One file per instrument, loaded in parallel and shared by every voice.
+      const [piano, bass, guitar, drums] = await Promise.all(
+        (["piano", "bass", "guitar", "drums"] as const).map((name) => loadSprite(BASE + sprites[name].file)),
+      );
+      this.piano = new SpriteSampler({ buffer: piano, regions: sprites.piano.regions, release: 0.9, brightness: { low: 3500, high: 16000 } }).connect(channels.piano);
+      this.bass = new SpriteSampler({ buffer: bass, regions: sprites.bass.regions, release: 0.25 }).connect(channels.bass);
       // A treble lift gives the nylon guitar the presence of the reference recording.
       const guitarTone = new Tone.Filter({ type: "highshelf", frequency: 2500, gain: 5 }).connect(channels.guitar);
-      this.guitar = new Tone.Sampler({ urls: GUITAR_SAMPLES, baseUrl: BASE + "guitar/", release: 0.12 }).connect(guitarTone);
+      this.guitar = new SpriteSampler({ buffer: guitar, regions: sprites.guitar.regions, release: 0.12 }).connect(guitarTone);
       this.drums = new DrumKit(channels.drums);
-      await this.drums.load(BASE + "drums/");
+      this.drums.load(drums, sprites.drums.regions, sprites.drums.kit);
       this.click = new Tone.Synth({
         oscillator: { type: "triangle" },
         envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.02 },
@@ -142,15 +134,16 @@ export class Player {
   }
 
   private playNote(time: number, e: NoteEvent) {
-    const duration = ticks(e.duration);
     if (e.track === "drums" && e.drum) this.drums.play(e.drum, time, e.velocity);
     else if (e.notes) {
-      const names = e.notes.map((n) => Tone.Frequency(n, "midi").toNote());
+      const duration = Tone.Time(ticks(e.duration)).toSeconds();
       const instrument = e.track === "piano" ? this.piano : e.track === "guitar" ? this.guitar : this.bass;
-      if (e.track === "guitar") {
-        // Strum: low string first, a few milliseconds apart.
-        names.forEach((n, i) => instrument.triggerAttackRelease(n, duration, time + i * 0.008, e.velocity * (1 - i * 0.04)));
-      } else instrument.triggerAttackRelease(names, duration, time, e.velocity);
+      e.notes.forEach((n, i) => {
+        // Guitar strum: low string first, a few milliseconds apart, on top of any chord offsets.
+        const strum = e.track === "guitar" ? i * 0.008 : 0;
+        const velocity = e.velocity * (e.levels?.[i] ?? 1) * (e.track === "guitar" ? 1 - i * 0.04 : 1);
+        instrument.triggerAttackRelease(n, duration, time + (e.offsets?.[i] ?? 0) + strum, velocity);
+      });
     }
   }
 

@@ -12,6 +12,10 @@ export interface NoteEvent {
   velocity: number;
   /** MIDI notes for bass, piano and guitar. */
   notes?: number[];
+  /** Seconds added to `time` for each note of `notes` (a rolled or spread chord). */
+  offsets?: number[];
+  /** Velocity factor for each note of `notes` (voicing: the top note louder). */
+  levels?: number[];
   /** Which drum for the drums track. */
   drum?: DrumSound;
 }

@@ -45,7 +45,8 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 | `src/audio/player.ts` | Tone.js playback, sampled and synthesized instruments, mixer |
 | `src/pages/` | The library and the tune page |
 | `src/components/` | Chord chart, lead sheet, player bar, mixer |
-| `public/samples/` | Piano, bass, guitar and drum samples, each folder with its license |
+| `public/samples/` | One MP3 per instrument (piano, bass, guitar, drums) plus its license; this is all the site loads |
+| `assets/` | Source samples, one file per note or drum hit, and their licenses (not shipped) |
 | `scripts/` | Repeatable jobs: fetching samples, turning typed heads into MusicXML, measuring reference recordings and the site's mix |
 | `tunes/<id>/` | Your tunes, one folder each (not in git): `chart.json`, optionally `head.txt` and `head.musicxml`, and anything you keep about the tune (reference sheets, recordings, notes) |
 | `examples/blues-in-f/` | A made-up example chart, so a fresh checkout has something to play |
@@ -80,7 +81,13 @@ Type-checks and builds the static site into `dist/`.
 python3 scripts/fetch_drum_samples.py
 ```
 
-Downloads and converts the drum kit into `public/samples/drums/` (needs ffmpeg). The samples are already committed; run it only to change the kit.
+Downloads and converts the drum kit into `assets/samples/drums/` (needs ffmpeg). The samples are already committed; run it only to change the kit, then run `make_sprites.py`.
+
+```bash
+python3 scripts/make_sprites.py
+```
+
+Rebuilds the per-instrument files in `public/samples/` and `src/audio/sprites.json` from `assets/samples/` (needs ffmpeg and numpy).
 
 ```bash
 python3 scripts/analyze_reference.py TRACK.m4a --form 32

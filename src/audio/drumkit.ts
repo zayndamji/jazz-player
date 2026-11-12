@@ -1,13 +1,24 @@
 import * as Tone from "tone";
 import type { DrumSound } from "../styles/types";
+import type { Regions } from "./sprite";
 
 /**
- * Sampled acoustic kit (Virtuosity Drums, CC0). public/samples/drums/kit.json,
- * written by scripts/fetch_drum_samples.py, lists each sound's files by velocity
- * layer (soft to hard), each layer with one or more round-robin takes.
+ * Sampled acoustic kit (Virtuosity Drums, CC0), all in one file. The kit table in
+ * src/audio/sprites.json (from scripts/make_sprites.py) lists each sound's regions
+ * by velocity layer (soft to hard), each layer with one or more round-robin takes.
  * The kit has no brushes, so the brush sweep and tap are made from shaped noise.
  */
-type Manifest = Record<string, string[][]>;
+type Kit = Record<string, string[][]>;
+
+/** One hit: a region of the shared buffer, or a whole synthesized buffer. */
+interface Take {
+  buffer: Tone.ToneAudioBuffer;
+  offset: number;
+  length?: number;
+}
+
+/** Velocity jitter, so hits near a layer boundary mix the layers. */
+const JITTER = 0.06;
 
 /** Level of each sound relative to the others, so a style's velocities mean the same thing everywhere. */
 const TRIM: Record<DrumSound, number> = {
@@ -81,21 +92,22 @@ function brushTap(rate: number, seed: number): Float32Array {
 }
 
 export class DrumKit {
-  private layers = new Map<DrumSound, Tone.ToneAudioBuffer[][]>();
-  private turn = new Map<DrumSound, number>();
+  private layers = new Map<DrumSound, Take[][]>();
+  private last = new Map<DrumSound, number>();
 
   constructor(private output: Tone.ToneAudioNode) {}
 
-  async load(base: string) {
-    const manifest: Manifest = await (await fetch(base + "kit.json")).json();
-    for (const [sound, layers] of Object.entries(manifest)) {
+  load(sprite: Tone.ToneAudioBuffer, regions: Regions, kit: Kit) {
+    for (const [sound, layers] of Object.entries(kit)) {
       this.layers.set(
         sound as DrumSound,
-        layers.map((takes) => takes.map((file) => new Tone.ToneAudioBuffer(base + file))),
+        layers.map((takes) => takes.map((name) => ({ buffer: sprite, offset: regions[name][0], length: regions[name][1] - regions[name][0] }))),
       );
     }
     const rate = Tone.getContext().sampleRate;
-    const made = (make: (rate: number, seed: number) => Float32Array) => [[1, 2, 3].map((seed) => Tone.ToneAudioBuffer.fromArray(make(rate, seed)))];
+    const made = (make: (rate: number, seed: number) => Float32Array) => [
+      [1, 2, 3].map((seed) => ({ buffer: Tone.ToneAudioBuffer.fromArray(make(rate, seed)), offset: 0 })),
+    ];
     this.layers.set("brush", made(brushSweep));
     this.layers.set("brushTap", made(brushTap));
   }
@@ -105,13 +117,16 @@ export class DrumKit {
     const layers = this.layers.get(sound);
     if (!layers?.length) return;
     const v = Math.min(1, Math.max(0, velocity));
-    const takes = layers[Math.min(layers.length - 1, Math.floor(v * layers.length))];
-    const n = this.turn.get(sound) ?? 0;
-    this.turn.set(sound, n + 1);
-    const buffer = takes[n % takes.length];
-    if (!buffer.loaded) return;
-    const source = new Tone.ToneBufferSource(buffer).connect(this.output);
+    const j = Math.min(1, Math.max(0, v + (Math.random() * 2 - 1) * JITTER));
+    const takes = layers[Math.min(layers.length - 1, Math.floor(j * layers.length))];
+    // A random take, never the same one twice in a row.
+    const prev = this.last.get(sound) ?? -1;
+    let n = Math.floor(Math.random() * takes.length);
+    if (takes.length > 1 && n === prev) n = (n + 1 + Math.floor(Math.random() * (takes.length - 1))) % takes.length;
+    this.last.set(sound, n);
+    const take = takes[n];
+    const source = new Tone.ToneBufferSource(take.buffer).connect(this.output);
     source.onended = () => source.dispose();
-    source.start(time, 0, undefined, TRIM[sound] * (0.45 + 0.55 * v));
+    source.start(time, take.offset, take.length, TRIM[sound] * (0.45 + 0.55 * v));
   }
 }

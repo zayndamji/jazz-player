@@ -3,7 +3,8 @@
 
 Downloads only the takes listed in KIT from github.com/sfzinstruments/virtuosity_drums,
 trims each to a short one-shot, converts to MP3 with ffmpeg, and writes
-public/samples/drums/kit.json, which the player reads.
+assets/samples/drums/kit.json. Run scripts/make_sprites.py afterwards to
+build the file the site loads.
 
   python3 scripts/fetch_drum_samples.py            # fetch and convert
   python3 scripts/fetch_drum_samples.py --dry-run  # list what it would fetch
@@ -21,7 +22,7 @@ import urllib.request
 from pathlib import Path
 
 REPO = "https://raw.githubusercontent.com/sfzinstruments/virtuosity_drums/master/Samples"
-OUT = Path(__file__).resolve().parents[1] / "public" / "samples" / "drums"
+OUT = Path(__file__).resolve().parents[1] / "assets" / "samples" / "drums"
 
 # sound: (mic, folder, articulation, velocity layers soft to hard, round robins, seconds, mono)
 KIT = {
@@ -103,6 +104,7 @@ def main():
     (OUT / "kit.json").write_text(json.dumps(manifest, indent=1) + "\n")
     (OUT / "LICENSE.md").write_text(LICENSE)
     print(f"{len(jobs)} samples in {OUT}")
+    print("now run: python3 scripts/make_sprites.py")
 
 
 if __name__ == "__main__":
