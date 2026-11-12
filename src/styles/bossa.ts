@@ -3,7 +3,7 @@ import { chordAt, sameRef, type TimelineBar } from "../engine/timeline";
 import { GUITAR_RANGE, PIANO_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
 import { gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
-import { shapeBars, weighted } from "./shape";
+import { shapeBars, steadyBars, weighted } from "./shape";
 import type { DrumSound, NoteEvent, Style } from "./types";
 
 /**
@@ -27,6 +27,8 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  * - The piano's register and figures move with the chorus, and it sometimes recalls
  *   what it played at the same place in the form.
  * - Time: each part in its own pocket with a shared slow drift (feel.ts `timing`).
+ * - Straight (`Feel.variation`): the first guitar, piano and hat figures every cycle, no
+ *   pushes, one level and register; a short fill and a crash only at the end of the form.
  */
 
 const CLAVE: number[][] = [
@@ -172,12 +174,13 @@ export const bossa: Style = {
     let pianoFigure = PIANO_FIGURES[0].value;
     let pushedIn = false; // this bar's first chord was already played on the and of 4
     const music = bars.filter((b) => !b.countIn);
+    const straight = feel?.variation === "straight";
     const pick = () => {
       let r = random();
       for (let f = 0; f < GUITAR_FIGURES.length; f++) if ((r -= GUITAR_FIGURES[f].weight) < 0) return f;
       return 0;
     };
-    const shapes = shapeBars(music, random, true);
+    const shapes = straight ? steadyBars(music) : shapeBars(music, random, true);
     // The hats' home figure per chorus; the piano's figures by place in the form.
     const hatHome = new Map<number, number>();
     const memory = new Map<string, Hit[][]>();
@@ -193,7 +196,11 @@ export const bossa: Style = {
       const { intensity: lift, plan, shout } = shapes[i];
       clock.bar();
       const solos = plan.role === "solo" || plan.role === "peak";
-      if (cycle === 0) {
+      if (cycle === 0 && straight) {
+        figure = bar.ref?.part === "intro" ? SPARSE : 0;
+        pianoFigure = PIANO_FIGURES[bar.ref?.part === "intro" ? 1 : 0].value;
+        hatFigure = 0;
+      } else if (cycle === 0) {
         figure = bar.ref?.part === "intro" ? SPARSE : pick();
         const place = bar.ref ? `${bar.ref.part}.${bar.ref.section}.${bar.ref.bar}` : "";
         const recalled = bar.chorus >= 2 ? memory.get(place) : undefined;
@@ -213,14 +220,14 @@ export const bossa: Style = {
       // references spread it 3.2 to 4.7 dB bar to bar); its level holds, swells or falls back
       // over each four bars (their mid band varies 3.2 to 4.5 dB).
       const inPhrase = (bar.ref?.bar ?? i) % 4;
-      if (inPhrase === 0) {
+      if (!straight && inPhrase === 0) {
         if ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5)
           registerDrift = weighted([{ weight: 0.5, value: -3 }, { weight: 0.8, value: -1 }, { weight: 1.2, value: 0 }, { weight: 1, value: 2 }, { weight: 0.6, value: 4 }], random, registerDrift);
         phraseDb = gauss(random) * 1.1;
         phraseSlope = weighted([{ weight: 0.4, value: 0 }, { weight: 0.35, value: 1.1 }, { weight: 0.25, value: -1.1 }], random);
       }
-      const shift = Math.max(-3, Math.min(7, plan.register + registerDrift + weighted([{ weight: 0.25, value: -2 }, { weight: 0.5, value: 0 }, { weight: 0.25, value: 2 }], random)));
-      const pianoGain = 10 ** ((phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 1.1) / 20);
+      const shift = straight ? 0 : Math.max(-3, Math.min(7, plan.register + registerDrift + weighted([{ weight: 0.25, value: -2 }, { weight: 0.5, value: 0 }, { weight: 0.25, value: 2 }], random)));
+      const pianoGain = straight ? 1 : 10 ** ((phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 1.1) / 20);
       const range: VoicingRange = { ...PIANO_RANGE, low: PIANO_RANGE.low + shift, high: PIANO_RANGE.high + shift, center: PIANO_RANGE.center + shift };
 
       if (bar.final) {
@@ -247,13 +254,13 @@ export const bossa: Style = {
         if (pickup === null) continue;
         // In the solos, now and then a half step into a new chord instead of anticipating it.
         const newChord = half === 1 && nextMains[0] !== null && nextMains[0] !== mains[0];
-        const into = newChord && solos && random() < 0.2 ? pickup + (random() < 0.5 ? -1 : 1) : pickup;
+        const into = newChord && solos && !straight && random() < 0.2 ? pickup + (random() < 0.5 ? -1 : 1) : pickup;
         events.push({ track: "bass", time: t + half * 2 + 1.5 + clock.at("bass"), duration: 0.45, velocity: human(0.65 * (0.94 + 0.06 * lift), 0.1), notes: [into] });
       }
 
       // Push: play the next bar's new chord early, on the and of 4, and skip its downbeat.
       const nextChord = next?.chords[0];
-      const push = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord && random() < PUSH;
+      const push = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord && !straight && random() < PUSH;
 
       // Guitar: the two-bar figure, re-voiced at each hit so changes land where they fall.
       for (const [beat, length, velocity] of GUITAR_FIGURES[figure].bars[cycle]) {
@@ -282,7 +289,7 @@ export const bossa: Style = {
         const until = bar.chords.find((c) => c.beat > beat + 0.01)?.beat ?? (push ? 3.5 : 4.5);
         piano = voiceChord(slot.chord, piano, range);
         const duration = Math.max(0.4, Math.min(length, until - beat) - 0.1);
-        events.push({ track: "piano", time: t + beat + clock.at("piano"), duration, velocity: human(velocity * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random, duration >= 2 && random() < 0.3) });
+        events.push({ track: "piano", time: t + beat + clock.at("piano"), duration, velocity: human(velocity * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random, !straight && duration >= 2 && random() < 0.3) });
       }
       if (push) {
         piano = voiceChord(nextChord!.chord, piano, range);
@@ -292,12 +299,12 @@ export const bossa: Style = {
 
       // Drums: light throughout.
       const fillChance = shout ? 0.9 : plan.role === "peak" ? 0.8 : solos ? 0.6 : 0.5;
-      const fill = endsSection(bar, next) && !next?.final && (isFormEnd(bar, next) || random() < fillChance);
+      const fill = endsSection(bar, next) && !next?.final && (isFormEnd(bar, next) || (!straight && random() < fillChance));
       const bigFill = isFormEnd(bar, next) && !!next;
       const hatEnd = bigFill ? 6 : fill ? 7 : 8; // hats stop for the fill
       // The bridge moves to the ride cymbal from the second chorus, and the whole peak chorus
       // is on the ride, with the hi-hat foot on 2 and 4.
-      const ride = (bar.contrast && bar.chorus >= 2) || plan.role === "peak";
+      const ride = !straight && ((bar.contrast && bar.chorus >= 2) || plan.role === "peak");
       const hats = ride ? HAT : HAT_FIGURES[hatFigure].bars[cycle];
       const hatLevel = plan.role === "head" || plan.role === "outhead" || plan.role === "intro" ? 0.94 : 1;
       for (let e = 0; e < hatEnd; e++) if (hats[e] > 0) drum(t + e * 0.5, ride ? "ride" : "hat", hats[e] * lift * hatLevel * (ride ? 0.85 : 1), 0.16);
@@ -306,11 +313,11 @@ export const bossa: Style = {
       for (const beat of CLAVE[cycle]) if (beat < (bigFill ? 3 : fill ? 3.5 : 4)) drum(t + beat, "rim", 0.5 * lift);
 
       // A soft crash at the top of each chorus, sometimes at other sections.
-      if (i > 0 && prev && endsSection(prev, bar) && (bigFillBefore(prev, bar) || random() < (solos ? 0.5 : 0.35))) drum(t, "crash", bigFillBefore(prev, bar) ? 0.6 : 0.46, 0.05);
+      if (i > 0 && prev && endsSection(prev, bar) && (bigFillBefore(prev, bar) || (!straight && random() < (solos ? 0.5 : 0.35)))) drum(t, "crash", bigFillBefore(prev, bar) ? 0.6 : 0.46, 0.05);
 
       if (bigFill) {
         // Beat 4: soft sixteenths, snare to toms (two variants).
-        const sounds: DrumSound[] = random() < 0.5 ? ["snare", "snare", "tomHigh", "tomLow"] : ["rim", "snare", "snare", "tomLow"];
+        const sounds: DrumSound[] = straight || random() < 0.5 ? ["snare", "snare", "tomHigh", "tomLow"] : ["rim", "snare", "snare", "tomLow"];
         sounds.forEach((sd, k) => drum(t + 3 + k * 0.25, sd, 0.28 + k * 0.05));
       } else if (fill) {
         // The and of 4: one or two light snare notes, or a short rim-to-snare pickup.
@@ -318,7 +325,7 @@ export const bossa: Style = {
         if (r < 0.4) drum(t + 3.5, "snare", 0.24);
         else if (r < 0.8) [3.5, 3.75].forEach((b, k) => drum(t + b, "snare", 0.22 + k * 0.06));
         else [3, 3.5, 3.75].forEach((b, k) => drum(t + b, k ? "snare" : "rim", 0.24 + k * 0.04));
-      } else if (shapes[i].phraseEnd && solos && random() < 0.3) {
+      } else if (!straight && shapes[i].phraseEnd && solos && random() < 0.3) {
         drum(t + 3.5, "snare", 0.18); // a light note into the next phrase
       }
     });

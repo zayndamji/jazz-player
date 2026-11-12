@@ -7,6 +7,7 @@ import { MELODY_MODES, type MelodyMode } from "../engine/melody";
 import { TRADE_MODES, type TradeMode } from "../engine/trading";
 import { KEY_STEPS, type KeyStep } from "../engine/timeline";
 import { STYLES, playableStyle } from "../styles";
+import { VARIATIONS, type Variation } from "../styles/types";
 import { forget, readStored, store } from "./storage";
 
 /** The numbers of choruses the Choruses setting offers. */
@@ -44,6 +45,8 @@ export interface TuneSettings {
   /** Bars of count-in. */
   countIn: 0 | 1 | 2;
   twoFeel: boolean;
+  /** The band develops ("varied") or keeps one groove ("straight"). */
+  variation: Variation;
   intro: boolean;
   ending: boolean;
   view: View;
@@ -70,6 +73,7 @@ export function defaultSettings(chart: Chart): TuneSettings {
     choruses: 3,
     countIn: 2,
     twoFeel: chart.twoFeel ?? false,
+    variation: "varied",
     intro: true,
     ending: true,
     view: "chords",
@@ -128,6 +132,7 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   // Entries from before the count-in had a length.
   else if (isBool(raw.countIn)) out.countIn = raw.countIn ? 2 : 0;
   if (isBool(raw.twoFeel)) out.twoFeel = raw.twoFeel;
+  if (VARIATIONS.includes(raw.variation as Variation)) out.variation = raw.variation as Variation;
   if (isBool(raw.intro)) out.intro = raw.intro;
   if (isBool(raw.ending)) out.ending = raw.ending;
   if (raw.view === "chords" || raw.view === "sheet") out.view = raw.view;

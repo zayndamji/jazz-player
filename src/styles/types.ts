@@ -28,7 +28,16 @@ export interface Feel {
   twoFeel: boolean;
   /** The chart's comping colour (swing reads it; other styles ignore it). */
   comp?: "sparse" | "busy" | "blues";
+  /**
+   * "varied" (the default): the band develops over the performance, as a live band does.
+   * "straight": the same groove every bar, one comping figure, steady dynamics; only the
+   * end of the form is marked (a short fill and a crash), so the form can still be followed.
+   */
+  variation?: Variation;
 }
+
+export type Variation = "varied" | "straight";
+export const VARIATIONS: Variation[] = ["varied", "straight"];
 
 /**
  * A backing style turns the laid-out chart into notes. Styles only read the

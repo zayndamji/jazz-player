@@ -19,6 +19,8 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  *   timing pocket (feel.ts), the top of each rolled chord voiced louder, the piano's
  *   register and level moving with the phrase, the bass picking up into some bars, and
  *   a few comping and brush variations, so no two bars are the same.
+ * - Straight (`Feel.variation`): rolled chords on each change and brushes, nothing added,
+ *   one level and register.
  */
 
 /** Offbeats fall on the third triplet of the beat. */
@@ -51,6 +53,7 @@ export const ballad: Style = {
       );
     };
 
+    const straight = feel?.variation === "straight";
     let piano: number[] | null = null;
     let bassNote = 39; // Eb2
     let register = 0;
@@ -64,12 +67,12 @@ export const ballad: Style = {
       // The phrase breathes: each four bars hold, swell or fall back a little, and the
       // piano's hand moves up or down now and then.
       const inPhrase = (bar.ref?.bar ?? i) % 4;
-      if (inPhrase === 0) {
+      if (!straight && inPhrase === 0) {
         phraseDb = gauss(random) * 0.7;
         slope = weighted([{ weight: 0.45, value: 0 }, { weight: 0.35, value: 0.6 }, { weight: 0.2, value: -0.6 }], random);
         if (random() < 0.5) register = weighted([{ weight: 0.6, value: -3 }, { weight: 1, value: 0 }, { weight: 0.8, value: 3 }, { weight: 0.3, value: 5 }], random, register);
       }
-      const lift = (bar.chorus <= 1 ? 0.94 : 1.04) * 10 ** ((phraseDb + slope * (inPhrase - 1.5) + gauss(random) * 0.5) / 20);
+      const lift = straight ? 1 : (bar.chorus <= 1 ? 0.94 : 1.04) * 10 ** ((phraseDb + slope * (inPhrase - 1.5) + gauss(random) * 0.5) / 20);
       const range: VoicingRange = { ...PIANO_RANGE, low: PIANO_RANGE.low + register, high: PIANO_RANGE.high + register, center: PIANO_RANGE.center + register };
 
       if (bar.final) {
@@ -92,7 +95,7 @@ export const ballad: Style = {
           const changing = target !== null && following!.chord !== c.chord;
           const line = twoBeat(c.chord, c.length, bassNote, target, changing, random);
           // Now and then a pickup into the next chord on the last triplet of 4, the second half note shortened for it.
-          const pickup = changing && target !== null && c.length >= 4 && line.length === 2 && random() < 0.22;
+          const pickup = !straight && changing && target !== null && c.length >= 4 && line.length === 2 && random() < 0.22;
           line.forEach(([beat, n], j) =>
             events.push({ track: "bass", time: place(t + c.beat + beat, "bass"), duration: j === 0 ? Math.min(c.length, 2) - 0.1 : pickup ? 1.55 : 1.9, velocity: human(j === 0 ? 0.8 : 0.72), notes: [n] }),
           );
@@ -103,7 +106,7 @@ export const ballad: Style = {
         const line = walk(c.chord, c.length, bassNote, target, random);
         line.forEach((n, b) => {
           // A triplet skip before the next note now and then, the ballad's swing.
-          const skip = b < line.length - 1 && random() < 0.1;
+          const skip = !straight && b < line.length - 1 && random() < 0.1;
           events.push({ track: "bass", time: place(t + c.beat + b, "bass"), duration: skip ? 2 * TRIPLET - 0.04 : 0.95, velocity: human((b === 0 ? 0.8 : 0.7) + gauss(random) * 0.04), notes: [n] });
           if (skip) events.push({ track: "bass", time: place(t + c.beat + b + 2 * TRIPLET, "bass"), duration: TRIPLET - 0.03, velocity: human(0.5), notes: [n] });
         });
@@ -115,13 +118,14 @@ export const ballad: Style = {
         if (!c.attack && c.beat === 0) {
           // A held-over chord ("%"): touch it again softly on 1, or let it ring into the bar.
           piano = voiceChord(c.chord, piano, range);
-          if (random() < 0.75) roll(t + (random() < 0.3 ? 2 * TRIPLET : 0), piano, c.length - 0.1, 0.3 * lift);
+          if (straight) roll(t, piano, c.length - 0.1, 0.3);
+          else if (random() < 0.75) roll(t + (random() < 0.3 ? 2 * TRIPLET : 0), piano, c.length - 0.1, 0.3 * lift);
           continue;
         }
         piano = voiceChord(c.chord, piano, range);
         roll(t + c.beat, piano, c.length - 0.05, 0.44 * lift);
       }
-      if (bar.chords.length === 1 && piano) {
+      if (!straight && bar.chords.length === 1 && piano) {
         const chord = piano;
         const r = random();
         if (r < 0.3) {
@@ -145,7 +149,7 @@ export const ballad: Style = {
       }
 
       // Drums: brushes.
-      const fill = endsSection(bar, next) && !next?.final;
+      const fill = endsSection(bar, next) && !next?.final && (!straight || isFormEnd(bar, next));
       for (const b of [0, 2]) drum(t + b, "brush", 0.5 * lift);
       for (const b of [1, 3]) {
         if (fill && b === 3) continue;
@@ -153,7 +157,7 @@ export const ballad: Style = {
         drum(t + b, "pedal", 0.32);
       }
       // A swung tap before 2 or 4 now and then (the last triplet), the brush player's lilt.
-      if (!fill && random() < 0.3) drum(t + (random() < 0.5 ? 2 * TRIPLET : 2 + 2 * TRIPLET), "brushTap", 0.26 * lift);
+      if (!straight && !fill && random() < 0.3) drum(t + (random() < 0.5 ? 2 * TRIPLET : 2 + 2 * TRIPLET), "brushTap", 0.26 * lift);
       for (const b of [0, 2]) drum(t + b, "kick", 0.1, 0.03);
       if (fill) {
         const strength = isFormEnd(bar, next) ? 0.08 : 0;

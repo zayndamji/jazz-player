@@ -1,6 +1,6 @@
 import { isMinorKey, keyPitchClass, spellingPc } from "../chart/chords";
 import type { Chart } from "../chart/types";
-import type { NoteEvent, Style, Track } from "../styles/types";
+import type { NoteEvent, Style, Track, Variation } from "../styles/types";
 import { melodyEvents, type MelodyMode, type MelodyNote } from "./melody";
 import { applyTrading, markTrading, type TradeMode } from "./trading";
 import { buildTimeline, keyCycle, loopedChoruses, playOrder, rangeOrder, sameRef, sectionOrder, type BarRange, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
@@ -49,6 +49,8 @@ export interface PlaybackOptions {
   twoFeel?: boolean;
   /** Trade fours or eights with the drums in the solo choruses (off when left out). */
   trade?: TradeMode;
+  /** "straight" keeps the same groove every bar; "varied" (the default) lets the band develop. */
+  variation?: Variation;
   /** Play the head's melody along with the band: the mode and the printed measures' notes (see `parseMelody`). */
   melody?: { mode: MelodyMode; measures: MelodyNote[][] };
 }
@@ -168,7 +170,7 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   }
 
   const band = bandFor(chart, style);
-  const played = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp }).filter((e) => band.includes(e.track));
+  const played = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, variation: opts.variation ?? "varied" }).filter((e) => band.includes(e.track));
   const events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"));
   const melody = opts.melody && opts.melody.mode !== "off" ? opts.melody : null;
   if (melody) {

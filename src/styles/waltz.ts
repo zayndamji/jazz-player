@@ -3,7 +3,7 @@ import { chordAt, type TimelineBar } from "../engine/timeline";
 import { SWING_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
 import { gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
-import { shapeBars, weighted } from "./shape";
+import { shapeBars, steadyBars, weighted } from "./shape";
 import { endsSection, isFormEnd, nearest, scalePcs, swingRatio, walk } from "./swing";
 import type { DrumSound, NoteEvent, Style } from "./types";
 
@@ -25,6 +25,8 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  *   feathered kick on 1 and a kick with the bass on the and of 3, snare comping in the
  *   piano's gaps, triplet fills at phrase, section and form ends, crashes into sections.
  * - The performance arcs and every part sits in its timing pocket, as in swing (feel.ts).
+ * - Straight (`Feel.variation`): walking quarters (root and fifth over a pedal), piano on 2
+ *   and 3, the "1, 2 and 3" ride every bar; a short fill and a crash only at the end of the form.
  */
 
 const BAR = 3;
@@ -221,7 +223,8 @@ export const waltz: Style = {
 
     const base = swingRatio(feel.tempo);
     const fast = feel.tempo >= UP;
-    const shapes = shapeBars(music, random, true);
+    const straight = feel.variation === "straight";
+    const shapes = straight ? steadyBars(music) : shapeBars(music, random, true);
     const pedalOf = pedals(music);
 
     let piano: number[] | null = null;
@@ -252,7 +255,7 @@ export const waltz: Style = {
       const prev = music[i - 1];
       const { intensity: lift, phraseEnd, plan, shout, inPhrase } = shapes[i];
       clock.bar();
-      const sw = Math.min(0.72, Math.max(0.55, base + plan.swing * 0.8 + gauss(random) * 0.006));
+      const sw = straight ? base : Math.min(0.72, Math.max(0.55, base + plan.swing * 0.8 + gauss(random) * 0.006));
       const eighth = (n: number) => Math.floor(n / 2) + (n % 2 ? sw : 0);
       const pedal = pedalOf[i];
       const solo = plan.role === "solo" || plan.role === "peak";
@@ -271,7 +274,7 @@ export const waltz: Style = {
       // Bass.
       if (pedal !== null) {
         const root = nearest(pedal, 31);
-        const figure = weighted((tied ? PEDAL_AFTER_TIE : PEDAL).map((f) => ({ weight: f.weight * (f.hits.length > 2 && !solo ? 0.7 : 1), value: f })), random);
+        const figure = straight ? PEDAL[1] : weighted((tied ? PEDAL_AFTER_TIE : PEDAL).map((f) => ({ weight: f.weight * (f.hits.length > 2 && !solo ? 0.7 : 1), value: f })), random);
         for (const [slot, interval, length, velocity] of figure.hits) {
           const note = interval === 12 && root + 12 > 50 ? root : interval === 7 ? nearest((pedal + 7) % 12, root + 5) : root + interval;
           const at = eighth(slot);
@@ -285,7 +288,7 @@ export const waltz: Style = {
           const following = bar.chords[k + 1] ?? next?.chords[0];
           const target = following ? nearest(following.chord.bass, bassNote) : null;
           const at = c.beat;
-          if (!solo && c.length >= 3) {
+          if (!solo && !straight && c.length >= 3) {
             // In one: a dotted half, 1 and 3, or 1 with a pickup into the next chord.
             const root = nearest(c.chord.bass, bassNote);
             const kind = weighted([{ weight: 0.4, value: "one" }, { weight: 0.35, value: "three" }, { weight: target !== null ? 0.25 : 0, value: "pickup" }], random);
@@ -302,7 +305,7 @@ export const waltz: Style = {
             }
             return;
           }
-          if (!solo) {
+          if (!solo && !straight) {
             const root = nearest(c.chord.bass, bassNote);
             events.push({ track: "bass", time: place(t + at, "bass"), duration: c.length * 0.9, velocity: human(0.8 * lift, 0.08), notes: [root] });
             bassNote = root;
@@ -311,10 +314,10 @@ export const waltz: Style = {
           // Walking: quarters, with a skip or a dead note now and then.
           const line = walk(c.chord, c.length, bassNote, target, random, plan.register, 0.55);
           line.forEach((n, b) => {
-            const dead = b > 0 && random() < 0.08;
+            const dead = !straight && b > 0 && random() < 0.08;
             const ev: NoteEvent = { track: "bass", time: place(t + at + b, "bass"), duration: dead ? 0.16 : 0.6 + random() * 0.35, velocity: human((b === 0 ? 0.84 : 0.74) * lift * (dead ? 0.62 : 1) + gauss(random) * 0.06, 0.06), notes: [n] };
             events.push(ev);
-            if (!fast && !dead && b < line.length - 1 && random() < (plan.role === "peak" ? 0.16 : 0.1)) {
+            if (!straight && !fast && !dead && b < line.length - 1 && random() < (plan.role === "peak" ? 0.16 : 0.1)) {
               ev.duration = sw - 0.06;
               const into = line[b + 1];
               events.push({ track: "bass", time: place(t + at + b + sw, "bass"), duration: 1 - sw - 0.06, velocity: human(0.48 * lift), notes: [Math.max(28, Math.min(50, into + (into > n ? -1 : 1)))] });
@@ -325,19 +328,19 @@ export const waltz: Style = {
       }
 
       // Piano.
-      if (inPhrase === 0 && ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5))
+      if (!straight && inPhrase === 0 && ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5))
         registerDrift = weighted([{ weight: 0.5, value: -2 }, { weight: 1, value: -1 }, { weight: 1.2, value: 0 }, { weight: 1, value: 1 }, { weight: 0.7, value: 2 }, { weight: 0.4, value: 3 }], random, registerDrift);
       const shift = Math.max(-3, Math.min(6, plan.register + registerDrift));
       const range: VoicingRange = { ...SWING_RANGE, low: SWING_RANGE.low + shift, high: SWING_RANGE.high + shift, center: SWING_RANGE.center + shift };
-      if (inPhrase === 0) {
+      if (!straight && inPhrase === 0) {
         phraseDb = gauss(random) * 0.6;
         phraseSlope = weighted([{ weight: 0.4, value: 0 }, { weight: 0.35, value: 0.6 }, { weight: 0.25, value: -0.6 }], random);
       }
-      const pianoGain = 10 ** ((phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 0.4) / 20);
+      const pianoGain = straight ? 1 : 10 ** ((phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 0.4) / 20);
       const nextChord = next?.chords[0];
       const changes = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord;
       const pool = fast ? COMP_FAST : pedal !== null ? VAMP : COMP;
-      const cell = weighted(pool.map((c) => ({ weight: fast ? c.weight : forDensity(c, plan.density), value: c.hits })), random, lastCell);
+      const cell = straight ? COMP[0].hits : weighted(pool.map((c) => ({ weight: fast ? c.weight : forDensity(c, plan.density), value: c.hits })), random, lastCell);
       lastCell = cell;
       const legato = plan.role === "peak" ? 1 : solo ? 1.15 : 1.35;
       const pianoBeats: number[] = [];
@@ -351,10 +354,10 @@ export const waltz: Style = {
         piano = (modal(c.chord) && quartal(c.chord, piano, range)) || voiceChord(c.chord, piano, range);
         const changeAt = ahead ? BAR + nextChord!.length : (bar.chords.find((x) => x.beat > beat + 0.01)?.beat ?? (changes ? BAR - 0.4 : BAR + 1));
         const nextHit = cell[h + 1] ? eighth(cell[h + 1][0]) : BAR + 0.5;
-        const duration = Math.max(0.25, Math.min(random() < 0.3 ? nextHit - beat - 0.05 : length * legato * (0.85 + random() * 0.3), 2.6, changeAt - beat - 0.05));
+        const duration = Math.max(0.25, Math.min(!straight && random() < 0.3 ? nextHit - beat - 0.05 : length * legato * (0.85 + random() * 0.3), 2.6, changeAt - beat - 0.05));
         let notes = piano;
         // Over a pedal, the left hand doubles the bass note with an open fifth on the riff's first chord.
-        if (pedal !== null && h === 0 && random() < 0.45) {
+        if (!straight && pedal !== null && h === 0 && random() < 0.45) {
           const low = 40 + ((pedal - 4 + 12) % 12); // E2 to D#3
           notes = [low, low + 7, ...piano.filter((n) => n > low + 9)];
         }
@@ -364,7 +367,7 @@ export const waltz: Style = {
           duration,
           velocity: human((velocity + (slot % 2 ? 0.04 : 0)) * lift * pianoGain, 0.12),
           notes,
-          ...pianoTouch(notes, random, duration >= 1.5 && random() < 0.3),
+          ...pianoTouch(notes, random, !straight && duration >= 1.5 && random() < 0.3),
         });
         pianoBeats.push(beat);
         if (ahead) pushes = true;
@@ -373,7 +376,7 @@ export const waltz: Style = {
 
       // Drums.
       const vocab = waltzFills(sw);
-      const fill = endsSection(bar, next) && !next?.final;
+      const fill = !straight && endsSection(bar, next) && !next?.final;
       const bigFill = isFormEnd(bar, next) && !!next;
       const smallFill = phraseEnd && random() < (shout ? 0.85 : plan.role === "peak" ? 0.7 : solo ? 0.55 : 0.4);
       const pick = (list: Hit[][]) => {
@@ -381,11 +384,12 @@ export const waltz: Style = {
         lastFill = f;
         return f;
       };
-      const theFill = bigFill ? pick(vocab.big) : fill ? pick(vocab.medium) : smallFill ? pick(shout ? vocab.medium : vocab.small) : null;
+      const theFill = straight ? (bigFill ? vocab.small[0] : null) : bigFill ? pick(vocab.big) : fill ? pick(vocab.medium) : smallFill ? pick(shout ? vocab.medium : vocab.small) : null;
       const rideEnd = theFill ? Math.max(1, Math.min(...theFill.map(([at]) => at))) : BAR;
 
       let crash = 0;
       if (crashAhead) crashAhead = false;
+      else if (straight) crash = prev && isFormEnd(prev, bar) ? 0.58 : 0;
       else if (prev && endsSection(prev, bar)) crash = isFormEnd(prev, bar) ? 0.62 : random() < 0.55 ? 0.48 : 0;
       else if ((plan.role === "peak" || shout) && inPhrase === 0 && random() < 0.3) crash = 0.4;
       if (crash) {
@@ -393,16 +397,17 @@ export const waltz: Style = {
         if (crash > 0.4 || random() < 0.5) drum(t, "kick", crash * 0.7);
       }
 
-      const home = homeFor(bar.chorus, plan.role === "peak");
+      const home = straight ? { ride: RIDES[0], accent: "one" as const, hat: [1, 2] } : homeFor(bar.chorus, plan.role === "peak");
       let ride: Ride;
-      if (fast) ride = random() < 0.7 ? RIDES[0] : RIDES[3];
+      if (straight) ride = RIDES[0];
+      else if (fast) ride = random() < 0.7 ? RIDES[0] : RIDES[3];
       else if (phraseEnd && !theFill && random() < 0.25) ride = LONG;
       else if (random() < (ridePrev && ridePrev !== home.ride ? 0.36 : 0.22)) ride = home.ride;
       else ride = weighted(RIDES.filter((r) => r !== home.ride && r !== ridePrev).map((r) => ({ weight: r.id === "quarters" ? 0.1 : 0.2, value: r })), random);
       ridePrev = ride;
-      if (inPhrase === 0) crashRide = !fast && (plan.role === "peak" || shout) && random() < 0.25;
+      if (inPhrase === 0) crashRide = !straight && !fast && (plan.role === "peak" || shout) && random() < 0.25;
       const level = (fast ? 0.95 : plan.role === "peak" ? 1.08 : solo ? 1 : 0.92) * lift;
-      const edge = !fast && inPhrase === 0 && random() < 0.35 ? 0 : -1;
+      const edge = !straight && !fast && inPhrase === 0 && random() < 0.35 ? 0 : -1;
       for (const [b, kind, v] of ride.hits) {
         const at = b + (kind === 1 ? sw : kind === 2 ? 1 / 3 : kind === 3 ? 2 / 3 : 0);
         if (at >= rideEnd - 0.01 || (crash && at < 0.01)) continue;
@@ -413,11 +418,13 @@ export const waltz: Style = {
       }
       for (const b of home.hat) drum(t + b, "pedal", b === 1 ? 0.48 : 0.42, 0.12);
       // Feathered kick on 1; with the bass on the and of 3 when it pushes into the bar.
-      if (!crash && random() < 0.65) drum(t, "kick", (solo ? 0.17 : 0.13) * (0.8 + random() * 0.4), 0.06);
+      if (straight) {
+        if (!crash) drum(t, "kick", 0.15, 0.06);
+      } else if (!crash && random() < 0.65) drum(t, "kick", (solo ? 0.17 : 0.13) * (0.8 + random() * 0.4), 0.06);
       const bassPushes = pedal !== null && tied;
-      if (!theFill && random() < (bassPushes ? (solo ? 0.45 : 0.2) : solo ? 0.08 : 0.03)) drum(t + 2 + sw, "kick", 0.3 + random() * 0.08);
+      if (!straight && !theFill && random() < (bassPushes ? (solo ? 0.45 : 0.2) : solo ? 0.08 : 0.03)) drum(t + 2 + sw, "kick", 0.3 + random() * 0.08);
       if (!theFill) {
-        const chance = (fast ? 0.25 : 0.4) * plan.density * lift * lift;
+        const chance = straight ? 0 : (fast ? 0.25 : 0.4) * plan.density * lift * lift;
         for (let n = 0; n < (plan.role === "peak" ? 2 : 1); n++) {
           if (random() >= chance * (n ? 0.5 : 1)) continue;
           for (const [at, sound, v] of SNARE[Math.floor(random() * SNARE.length)](sw)) {
@@ -426,7 +433,7 @@ export const waltz: Style = {
           }
         }
       } else for (const [at, sound, velocity] of theFill) drum(t + at, sound, velocity * (0.9 + 0.2 * (lift - 0.9)));
-      if (pushes && next && endsSection(bar, next) && !next.final && random() < 0.4) {
+      if (!straight && pushes && next && endsSection(bar, next) && !next.final && random() < 0.4) {
         drum(t + 2 + sw, "kick", 0.42);
         drum(t + 2 + sw, "crash", isFormEnd(bar, next) ? 0.6 : 0.48, 0.05);
         crashAhead = true;

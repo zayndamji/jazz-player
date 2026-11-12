@@ -4,7 +4,7 @@ import { chordAt, sameRef, type TimelineBar } from "../engine/timeline";
 import { GUITAR_RANGE, SWING_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
 import { gauss, pianoTouch, timing, type ChorusPlan } from "./feel";
 import { seededRandom } from "./random";
-import { shapeBars, weighted } from "./shape";
+import { shapeBars, steadyBars, weighted } from "./shape";
 import type { DrumSound, NoteEvent, Style } from "./types";
 
 /**
@@ -34,6 +34,9 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  *   slow drift and per-note error (feel.ts `timing`), instead of the grid.
  * - Up-tempo (from `UP_TEMPO`): sparser, longer piano hits with bars left empty,
  *   the guitar fades out, eighth-note fills instead of triplets.
+ * - Straight (`Feel.variation`): spang-a-lang and the Charleston every bar, one bass
+ *   touch, one level and register, no snare comping; a short fill and a crash only at
+ *   the end of the form.
  * - Two-feel (`Feel.twoFeel`): the intro and first chorus with the bass in half
  *   notes (with a pickup now and then), cross-stick on 4 and sparse comping; the
  *   last bar of the chorus walks into the second.
@@ -104,6 +107,15 @@ const COMP_TWO: Figure[] = [
   { weight: 0.2, hits: [[3, 1.4, 0.45]] },
   { weight: 0.25, hits: [] },
 ];
+
+/**
+ * The straight feel's comping, the same every bar: the Charleston (1 and the and of 2)
+ * over one chord, otherwise a hit where each chord starts.
+ */
+export function straightCell(bar: TimelineBar): Figure["hits"] {
+  if (bar.chords.length <= 1) return [[0, 0.8, 0.5], [3, 0.5, 0.48]];
+  return bar.chords.map((c): [number, number, number] => [Math.round(c.beat * 2), Math.min(0.8, c.length * 0.5), c.beat === 0 ? 0.5 : 0.48]);
+}
 
 /** A cell's weight for the chorus: busier cells when the band builds, sparser in the head. */
 const forDensity = (f: Figure, density: number) => f.weight * density ** ((f.hits.length - 2) * 3) * (f.hits.length >= 3 ? 1.25 : 1);
@@ -321,6 +333,8 @@ export const swing: Style = {
     const base = swingRatio(feel.tempo);
     const fast = feel.tempo >= UP_TEMPO;
     const slow = feel.tempo < 110;
+    // Straight: one groove and one comping figure all through; only the form's end is marked.
+    const straight = feel.variation === "straight";
 
     let piano: number[] | null = null;
     let guitar: number[] | null = null;
@@ -332,7 +346,7 @@ export const swing: Style = {
     let touch: BassTouch | undefined;
     let crashAhead = false; // a set-up crash on the and of 4 already marked this bar's downbeat
     const music = bars.filter((b) => !b.countIn);
-    const shapes = shapeBars(music, random, true);
+    const shapes = straight ? steadyBars(music) : shapeBars(music, random, true);
     // Per chorus: the ride's home pattern and accent; the head sometimes on closed hi-hat.
     const headHat = !fast && random() < 0.35;
     const rideHome = new Map<number, { home: RideCell; accent: Accent }>();
@@ -363,7 +377,7 @@ export const swing: Style = {
       const { intensity: lift, phraseEnd, plan, shout, inPhrase } = shapes[i];
       clock.bar();
       // The swing breathes: harder as the solos build, a little different every bar.
-      const sw = Math.min(0.75, Math.max(0.55, base + plan.swing * (fast ? 0.5 : 1) + gauss(random) * 0.006));
+      const sw = straight ? base : Math.min(0.75, Math.max(0.55, base + plan.swing * (fast ? 0.5 : 1) + gauss(random) * 0.006));
       /** Time in beats of an eighth-note slot in a bar (0 to 7), swung. */
       const eighth = (n: number) => Math.floor(n / 2) + (n % 2 ? sw : 0);
       const vocab = fills(sw, fast);
@@ -385,7 +399,8 @@ export const swing: Style = {
 
       // Bass: walk each chord, aiming at the next one; or half notes in two.
       // The bassist's touch holds for a while and changes most often at a phrase start.
-      if (!touch || random() < (inPhrase === 0 ? 0.6 : 0.2)) touch = weighted(BASS_TOUCH, random, touch);
+      if (straight) touch = BASS_TOUCH[0].value;
+      else if (!touch || random() < (inPhrase === 0 ? 0.6 : 0.2)) touch = weighted(BASS_TOUCH, random, touch);
       const barTouch = touch;
       const ornamentChance = fast ? 0.15 : plan.role === "peak" ? 0.72 : plan.role === "solo" ? 0.62 : plan.role === "outhead" ? 0.46 : 0.4;
       const walked: { at: number; note: number; ev: NoteEvent }[] = [];
@@ -420,7 +435,7 @@ export const swing: Style = {
           const at = c.beat + b;
           const beat = Math.round(at) % 4;
           const length = Math.min(0.97, barTouch.length(beat) * (0.92 + random() * 0.14));
-          const velocity = human((0.78 + (at === 0 ? 0.04 : 0) + barTouch.lean[beat] + gauss(random) * 0.085) * lift, 0.06);
+          const velocity = human((0.78 + (at === 0 ? 0.04 : 0) + barTouch.lean[beat] + gauss(random) * (straight ? 0.03 : 0.085)) * lift, 0.06);
           const ev: NoteEvent = { track: "bass", time: t + at + clock.at("bass"), duration: length, velocity, notes: [n] };
           events.push(ev);
           walked.push({ at, note: n, ev });
@@ -432,7 +447,7 @@ export const swing: Style = {
       // dead (muted) note, or a triplet turn. The quarters themselves stay on every beat.
       if (walked.length) {
         const intoNext = next?.chords[0] ? nearest(next.chords[0].chord.bass, bassNote) : null;
-        const count = random() < ornamentChance ? (plan.role === "peak" && random() < 0.3 ? 2 : 1) : 0;
+        const count = straight ? 0 : random() < ornamentChance ? (plan.role === "peak" && random() < 0.3 ? 2 : 1) : 0;
         const used = new Set<number>();
         for (let o = 0; o < count; o++) {
           const k = Math.floor(random() * walked.length);
@@ -489,7 +504,9 @@ export const swing: Style = {
       const colour = feel.comp;
       const density = plan.density * (colour === "sparse" ? 0.82 : colour === "busy" ? 1.15 : colour === "blues" ? 1.08 : 1);
       const bluesWeight = (hits: Figure["hits"]) => (colour === "blues" && hits.some(([slot]) => slot === 3 || slot === 7) ? 1.4 : 1);
-      const cell = inTwo
+      const cell = straight
+        ? straightCell(bar)
+        : inTwo
         ? weighted(COMP_TWO.map((c) => ({ weight: c.weight, value: c.hits })), random)
         : colour === "sparse" && (plan.role === "solo" || plan.role === "peak") && random() < 0.1
           ? []
@@ -502,17 +519,17 @@ export const swing: Style = {
       if (place) memory.set(place, cell);
       // The register moves with the chorus and drifts every eight bars, often every four
       // (the references' comping register spreads 2.6 to 3.4 dB bar to bar).
-      if (inPhrase === 0 && ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5))
+      if (!straight && inPhrase === 0 && ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5))
         registerDrift = weighted([{ weight: 0.4, value: -3 }, { weight: 0.7, value: -2 }, { weight: 1, value: -1 }, { weight: 1.2, value: 0 }, { weight: 1, value: 1 }, { weight: 0.8, value: 2 }, { weight: 0.5, value: 3 }, { weight: 0.3, value: 4 }], random, registerDrift);
       // ...and the hand moves a little from bar to bar.
-      const shift = Math.max(-3, Math.min(7, plan.register + registerDrift + weighted([{ weight: 0.25, value: -2 }, { weight: 0.5, value: 0 }, { weight: 0.25, value: 2 }], random)));
+      const shift = straight ? 0 : Math.max(-3, Math.min(7, plan.register + registerDrift + weighted([{ weight: 0.25, value: -2 }, { weight: 0.5, value: 0 }, { weight: 0.25, value: 2 }], random)));
       // Comping dynamics: each four-bar phrase holds, swells or falls back, and every bar
       // has its own touch, in dB (references vary the mid band 2 to 3 dB bar to bar).
-      if (inPhrase === 0) {
+      if (!straight && inPhrase === 0) {
         phraseDb = gauss(random) * 0.9;
         phraseSlope = weighted([{ weight: 0.4, value: 0 }, { weight: 0.35, value: 0.9 }, { weight: 0.25, value: -0.9 }], random);
       }
-      const touchDb = phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 1.0;
+      const touchDb = straight ? 0 : phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 1.0;
       const pianoGain = 10 ** (touchDb / 20);
       const range: VoicingRange = { ...SWING_RANGE, low: SWING_RANGE.low + shift, high: SWING_RANGE.high + shift, center: SWING_RANGE.center + shift };
       // Longer, more legato chords in the head; shorter as the band drives.
@@ -530,30 +547,31 @@ export const swing: Style = {
         // Don't ring into a different chord.
         const change = ahead ? 4 + nextChord!.length : (bar.chords.find((x) => x.beat > beat + 0.01)?.beat ?? (changes ? (pushes ? 3.5 : 4) : beat + 4));
         const nextHit = starts[h + 1] ?? (ahead ? 8 : 4 + 0.5);
-        const held = random() < 0.3 ? nextHit - beat - 0.05 : length * legato * (0.85 + random() * 0.3);
+        const held = straight ? length * legato : random() < 0.3 ? nextHit - beat - 0.05 : length * legato * (0.85 + random() * 0.3);
         const duration = Math.max(0.25, Math.min(held, 2.5, change - beat - 0.05));
         // Voicing size: a shell for a light stab, a two-hand chord (the second note doubled an
         // octave up, on top) for a held or building one.
         let notes = piano;
-        if (!fast && duration < 0.5 && plan.density < 1 && random() < 0.2) notes = [piano[0], piano[2], piano[3]];
+        if (straight) notes = piano;
+        else if (!fast && duration < 0.5 && plan.density < 1 && random() < 0.2) notes = [piano[0], piano[2], piano[3]];
         else if (plan.energy >= 1 && duration >= 0.6 && random() < 0.28 * plan.density && piano[1] + 12 > piano[3] && piano[1] + 12 <= 84) notes = [...piano, piano[1] + 12];
         // Anticipations are accented a little, as pianists push them.
         // Blues: laid back a few milliseconds more, and now and then a crushed note, the
         // minor third struck just before the major third of a dominant chord.
         const time = t + beat + clock.at("piano") + (colour === "blues" ? (0.006 * feel.tempo) / 60 : 0);
         const hitVelocity = human((velocity + (slot % 2 ? 0.04 : 0)) * lift * pianoGain, 0.12);
-        if (colour === "blues" && c.chord.intervalNames.includes("3M") && c.chord.intervalNames.includes("7m") && random() < 0.22) {
+        if (!straight && colour === "blues" && c.chord.intervalNames.includes("3M") && c.chord.intervalNames.includes("7m") && random() < 0.22) {
           const third = notes.find((n) => (((n - c.chord.root) % 12) + 12) % 12 === 4);
           if (third !== undefined) events.push({ track: "piano", time: time - 0.05, duration: 0.07, velocity: hitVelocity * 0.75, notes: [third - 1] });
         }
-        events.push({ track: "piano", time, duration, velocity: hitVelocity, notes, ...pianoTouch(notes, random, duration >= 1.5 && random() < 0.3) });
+        events.push({ track: "piano", time, duration, velocity: hitVelocity, notes, ...pianoTouch(notes, random, !straight && duration >= 1.5 && random() < 0.3) });
         pianoBeats.push(beat);
         if (ahead) pushes = true;
       });
       pushedIn = pushes;
 
       // Drums
-      const fill = endsSection(bar, next) && !next?.final;
+      const fill = !straight && endsSection(bar, next) && !next?.final;
       const bigFill = isFormEnd(bar, next) && !!next;
       const smallChance = shout ? 0.85 : plan.role === "peak" ? 0.7 : plan.role === "solo" ? 0.55 : 0.4;
       const smallFill = phraseEnd && !inTwo && random() < smallChance;
@@ -562,13 +580,14 @@ export const swing: Style = {
         lastFill = f;
         return f;
       };
-      const theFill = bigFill ? pickFill(vocab.big) : fill ? pickFill(vocab.medium) : smallFill ? pickFill(shout ? vocab.medium : vocab.small) : null;
+      const theFill = straight ? (bigFill ? vocab.medium[0] : null) : bigFill ? pickFill(vocab.big) : fill ? pickFill(vocab.medium) : smallFill ? pickFill(shout ? vocab.medium : vocab.small) : null;
       const rideEnd = theFill && theFill.start <= 2 && (bigFill || fill || shout) ? theFill.start : 4;
 
       // Crash where a section starts: always at the top of a chorus, often elsewhere; at the
       // peak and in the shout, on phrase starts too. A crash on 1 takes the ride's place.
       let crash = 0;
       if (crashAhead) crashAhead = false;
+      else if (straight) crash = i > 0 && prev && isFormEnd(prev, bar) ? 0.6 : 0;
       else if (i > 0 && prev && endsSection(prev, bar)) crash = isFormEnd(prev, bar) ? 0.66 : random() < 0.6 ? 0.5 : 0;
       else if ((plan.role === "peak" || shout) && inPhrase === 0 && random() < 0.35) crash = 0.4;
       if (crash) {
@@ -577,20 +596,20 @@ export const swing: Style = {
       }
 
       // Ride: a two-bar figure around the chorus's home pattern, accented its own way.
-      const { home, accent } = homeFor(bar.chorus, plan);
+      const { home, accent } = straight ? { home: SPANG, accent: "twoFour" as Accent } : homeFor(bar.chorus, plan);
       let ride: RideCell;
-      if (fast) ride = SPANG;
+      if (fast || straight) ride = SPANG;
       else if (phraseEnd && !theFill && random() < 0.25) ride = LONG;
       else if (plan.role === "peak" && random() < 0.1) ride = DOUBLE;
       else if (random() < (ridePrev && ridePrev !== home ? 0.42 : 0.25)) ride = home;
       else ride = weighted(RIDE.filter((r) => r !== home && r !== ridePrev).map((r) => ({ weight: r.id === "quarters" ? 0.12 : 0.2, value: r })), random);
       ridePrev = ride;
-      const onHat = headHat && (plan.role === "head" || plan.role === "outhead") && !bar.contrast && !inTwo;
+      const onHat = !straight && headHat && (plan.role === "head" || plan.role === "outhead") && !bar.contrast && !inTwo;
       // At the peak a phrase now and then rides on the crash, the wash drummers build with.
-      if (inPhrase === 0) crashRide = !fast && !onHat && (plan.role === "peak" || shout) && random() < 0.3;
+      if (inPhrase === 0) crashRide = !straight && !fast && !onHat && (plan.role === "peak" || shout) && random() < 0.3;
       const level = (inTwo ? 0.85 : fast ? 0.95 : plan.role === "peak" ? 1.08 : plan.role === "solo" ? 1 : 0.9) * lift * (onHat ? 0.85 : 1);
       // An edge accent on the ride: a phrase start, or one beat a bar in the solos.
-      const edge = !onHat && !fast && (inPhrase === 0 ? random() < 0.35 : plan.role !== "head" && random() < 0.15) ? (inPhrase === 0 ? 0 : 1 + Math.floor(random() * 3)) : -1;
+      const edge = !straight && !onHat && !fast && (inPhrase === 0 ? random() < 0.35 : plan.role !== "head" && random() < 0.15) ? (inPhrase === 0 ? 0 : 1 + Math.floor(random() * 3)) : -1;
       for (const [b, kind, v] of ride.hits) {
         const at = b + (kind === 1 ? sw : kind === 2 ? 1 / 3 : 0);
         if (at >= rideEnd - 0.01) continue;
@@ -604,15 +623,16 @@ export const swing: Style = {
       // A feathered kick (only 1 and 3 when fast), heavier as the band builds; accents later on.
       const feather = (plan.role === "peak" ? 0.19 : plan.role === "solo" ? 0.16 : 0.13) * (fast ? 0.85 : 1);
       // Feathering is felt more than heard, and not every drummer keeps it up: often off in the head.
-      if (inPhrase === 0) feathering = random() < (plan.role === "head" || plan.role === "outhead" ? 0.5 : 0.75);
-      if (feathering) for (let b = 0; b < 4; b += fast ? 2 : 1) if (!(crash && b === 0) && random() > 0.15) drum(t + b, "kick", feather * (0.75 + random() * 0.4), 0.06);
+      if (straight) feathering = true;
+      else if (inPhrase === 0) feathering = random() < (plan.role === "head" || plan.role === "outhead" ? 0.5 : 0.75);
+      if (feathering) for (let b = 0; b < 4; b += fast ? 2 : 1) if (!(crash && b === 0) && (straight || random() > 0.15)) drum(t + b, "kick", straight ? feather : feather * (0.75 + random() * 0.4), 0.06);
       // A "bomb" now and then in the solos: a kick on an offbeat or on 3.
-      if (!theFill && !inTwo && bar.chorus >= 2 && random() < (plan.role === "peak" ? 0.2 : 0.12) * plan.density)
+      if (!straight && !theFill && !inTwo && bar.chorus >= 2 && random() < (plan.role === "peak" ? 0.2 : 0.12) * plan.density)
         drum(t + weighted([{ weight: 0.5, value: 3 + sw }, { weight: 0.3, value: 1 + sw }, { weight: 0.2, value: 2 }], random), "kick", 0.34 + random() * 0.08);
 
       if (inTwo) {
         if (!fill) drum(t + 3, "rim", 0.34, 0.05); // cross-stick on 4
-      } else if (!theFill) {
+      } else if (!theFill && !straight) {
         // Snare comping, more as the band builds, mostly in the piano's gaps.
         const chance = (slow ? 0.5 : fast ? 0.3 : 0.42) * plan.density * lift * lift;
         for (let n = 0; n < (plan.role === "peak" ? 2 : 1); n++) {
@@ -626,7 +646,7 @@ export const swing: Style = {
       }
       if (theFill) for (const [at, sound, velocity] of theFill.hits) drum(t + theFill.start + at, sound, velocity * (0.9 + 0.2 * (lift - 0.9)));
       // A kick-and-crash set-up on the and of 4 when the piano pushes into a new section.
-      if (pushes && next && endsSection(bar, next) && !next.final && random() < 0.4) {
+      if (!straight && pushes && next && endsSection(bar, next) && !next.final && random() < 0.4) {
         drum(t + 3 + sw, "kick", 0.42);
         drum(t + 3 + sw, "crash", isFormEnd(bar, next) ? 0.64 : 0.5, 0.05);
         crashAhead = true;

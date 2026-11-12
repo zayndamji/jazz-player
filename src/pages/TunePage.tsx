@@ -14,7 +14,7 @@ import { MELODY_LABELS, MELODY_MODES, type MelodyMode, type MelodyNote } from ".
 import { bandFor, buildSchedule, chorusesFor, chorusLayoutChanges, clickLabel, performanceBeats, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
 import { chartBars, chorusTranspose, chordAt, fold, itemAtFraction, keyCycle, nextChord, performanceFraction, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
 import { STYLES, playableStyle, stylesFor } from "../styles";
-import type { Style } from "../styles/types";
+import type { Style, Variation } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
 import { TRADE_LABELS, TRADE_MODES, tradeLabel, type TradeMode } from "../engine/trading";
 import { shareUrl, rememberable, withLink, type LinkSettings } from "./share";
@@ -76,6 +76,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   const [error, setError] = useState<string | null>(null);
   const [tempo, setTempo] = useState(initial.tempo);
   const [twoFeel, setTwoFeel] = useState(initial.twoFeel);
+  const [variation, setVariation] = useState<Variation>(initial.variation);
   const [transpose, setTranspose] = useState(initial.transpose);
   const [instrumentId, setInstrumentId] = useState(() => link.instrument ?? readInstrument());
   const linkedInstrument = useRef(link.instrument);
@@ -135,8 +136,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   }, [muted]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, trade, chords: chordsShown, melody, mix }, stored, linkNow.current));
-  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, clickMode, showScales, speedUp, keyStep, trade, chordsShown, melody, mix]);
+    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, variation, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, trade, chords: chordsShown, melody, mix }, stored, linkNow.current));
+  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, variation, intro, ending, view, clickMode, showScales, speedUp, keyStep, trade, chordsShown, melody, mix]);
   useEffect(() => {
     // An instrument that came from a link isn't remembered until the player picks one.
     if (linkedInstrument.current === instrumentId) return;
@@ -198,7 +199,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   }, [chart.id, headAvailable, melody]);
 
   const start = useCallback(
-    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "countInBars" | "intro" | "ending" | "keyStep" | "trade" | "melody">, choruses: Repeat = repeat) => {
+    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "variation" | "countInBars" | "intro" | "ending" | "keyStep" | "trade" | "melody">, choruses: Repeat = repeat) => {
       const p = getPlayer();
       setError(null);
       setStatus("loading");
@@ -218,7 +219,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         p.setVolume(t, mix[t].level);
         p.setMute(t, effectiveMute(mix, t));
       });
-      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, intro, ending, keyStep, trade, melody: melodyOpts(), choruses, transpose, tempo, twoFeel };
+      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, intro, ending, keyStep, trade, melody: melodyOpts(), choruses, transpose, tempo, twoFeel, variation };
       const schedule = buildSchedule(chart, style, full);
       current.current = { opts: full, schedule, style, repeat };
       p.metronomeOn = metronome;
@@ -231,7 +232,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       setCue(null);
       setStatus("playing");
     },
-    [chart, style, mix, repeat, countInBars, intro, ending, keyStep, trade, melody, headAvailable, transpose, metronome, clickMode, tempo, twoFeel, muted],
+    [chart, style, mix, repeat, countInBars, intro, ending, keyStep, trade, melody, headAvailable, transpose, metronome, clickMode, tempo, twoFeel, variation, muted],
   );
 
 
@@ -249,7 +250,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     const c = current.current;
     if (!playing || !c) return;
     const m = melodyOpts();
-    const sameShape = c.opts.melody?.mode === m?.mode && c.opts.melody?.measures === m?.measures && c.opts.transpose === transpose && c.opts.keyStep === keyStep && c.opts.trade === trade && c.style === style && c.opts.twoFeel === twoFeel && c.repeat === repeat;
+    const sameShape = c.opts.melody?.mode === m?.mode && c.opts.melody?.measures === m?.measures && c.opts.transpose === transpose && c.opts.keyStep === keyStep && c.opts.trade === trade && c.style === style && c.opts.twoFeel === twoFeel && c.opts.variation === variation && c.repeat === repeat;
     if (sameShape && c.opts.tempo === tempo) return;
     const rebuild = () => {
       const now = current.current;
@@ -282,7 +283,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       }
       // A different key step changes how many choruses a loop lays out, so the loop starts over from this bar.
       if (now.schedule.loop && now.opts.keyStep !== keyStep && keyCycle(now.opts.keyStep ?? 0) !== keyCycle(keyStep) && restart(now.opts.choruses)) return;
-      const opts = { ...now.opts, choruses, transpose, keyStep, trade, melody: melodyOpts(), tempo, twoFeel };
+      const opts = { ...now.opts, choruses, transpose, keyStep, trade, melody: melodyOpts(), tempo, twoFeel, variation };
       const schedule = buildSchedule(chart, style, opts);
       current.current = { opts, schedule, style, repeat };
       player.current.setSchedule(schedule);
@@ -290,7 +291,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     if (!sameShape) return rebuild();
     const id = window.setTimeout(rebuild, 400);
     return () => window.clearTimeout(id);
-  }, [chart, style, transpose, keyStep, trade, melody, measuresReady, tempo, twoFeel, repeat, playing]);
+  }, [chart, style, transpose, keyStep, trade, melody, measuresReady, tempo, twoFeel, variation, repeat, playing]);
 
   const schedule = current.current?.schedule ?? null;
   const totalBeats = useMemo(
@@ -564,6 +565,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     setRepeat(d.choruses);
     setCountInBars(d.countIn);
     setTwoFeel(d.twoFeel);
+    setVariation(d.variation);
     setIntro(d.intro);
     setEnding(d.ending);
     setView(d.view);
@@ -721,6 +723,13 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
               {s.id === chart.style ? " (original)" : ""}
             </option>
           ))}
+        </select>
+      </label>
+      <label className="field">
+        <span>Band</span>
+        <select value={variation} onChange={(e) => setVariation(e.target.value as Variation)}>
+          <option value="varied">Variation</option>
+          <option value="straight">Straight</option>
         </select>
       </label>
       <label className="field">
