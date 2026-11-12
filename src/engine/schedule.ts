@@ -131,6 +131,12 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   return { bars, events, beats, totalBeats, beatsPerBar, loop, mix: style.mix ?? {}, band };
 }
 
+/**
+ * How many choruses to build when the count changes during playback: the band
+ * finishes the chorus it's in rather than stopping mid-chorus.
+ */
+export const chorusesFor = (requested: number, currentChorus: number) => Math.max(requested, currentChorus, 1);
+
 /** The parts that play a chart in a style. */
 export function bandFor(chart: Chart, style: Style): Track[] {
   return chart.band ?? style.band;

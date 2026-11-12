@@ -3,7 +3,7 @@ import { parseChord } from "../chart/chords";
 import { chordScale } from "../chart/scales";
 import { bossaForm } from "../fixtures";
 import { bossa } from "../styles/bossa";
-import { buildSchedule, clicksOn } from "./schedule";
+import { buildSchedule, chorusesFor, clicksOn } from "./schedule";
 import { validateChart } from "../charts";
 import type { Chart } from "../chart/types";
 import { buildTimeline, chartBars, chorusTranspose, navOrder, nextChord, playOrder, rangeBars, stepBar, stepSection, type PlayItem } from "./timeline";
@@ -445,5 +445,25 @@ describe("next chord", () => {
   });
   it("gives nothing at the end", () => {
     expect(nextChord(s.bars, s.bars.length - 1, 0)).toBeNull();
+  });
+});
+
+describe("changing choruses while playing", () => {
+  it("never goes below the chorus being played", () => {
+    expect(chorusesFor(5, 2)).toBe(5);
+    expect(chorusesFor(1, 3)).toBe(3);
+    expect(chorusesFor(2, 0)).toBe(2);
+  });
+
+  it("ends after the current chorus when the count drops", () => {
+    const s = buildSchedule(chart, bossa, { choruses: chorusesFor(1, 2), countIn: false, transpose: 0 });
+    expect(Math.max(...s.bars.map((b) => b.chorus))).toBe(2);
+    expect(s.bars.at(-1)!.final).toBe(true);
+  });
+
+  it("keeps bar positions when only the tail changes", () => {
+    const a = buildSchedule(chart, bossa, { choruses: 3, countIn: true, transpose: 0 });
+    const b = buildSchedule(chart, bossa, { choruses: 5, countIn: true, transpose: 0 });
+    expect(b.bars.slice(0, 40).map((x) => x.ref)).toEqual(a.bars.slice(0, 40).map((x) => x.ref));
   });
 });

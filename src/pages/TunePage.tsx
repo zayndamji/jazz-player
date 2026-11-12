@@ -10,7 +10,7 @@ import { ControlBar, type View } from "../components/ControlBar";
 import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
-import { bandFor, buildSchedule, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
+import { bandFor, buildSchedule, chorusesFor, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
 import { chartBars, chorusTranspose, chordAt, fold, nextChord, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
@@ -60,7 +60,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   const bars = useMemo(() => chartBars(chart), [chart]);
   const headAvailable = hasHead(chart.id);
   const player = useRef<Player | null>(sharedPlayer);
-  const current = useRef<{ opts: PlaybackOptions; schedule: Schedule; style: Style } | null>(null);
+  const current = useRef<{ opts: PlaybackOptions; schedule: Schedule; style: Style; repeat: Repeat } | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [tempo, setTempo] = useState(initial.tempo);
@@ -175,7 +175,7 @@ export function TunePage({ chart }: { chart: Chart }) {
       });
       const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, intro, ending, keyStep, choruses: repeat, transpose, tempo, twoFeel };
       const schedule = buildSchedule(chart, style, full);
-      current.current = { opts: full, schedule, style };
+      current.current = { opts: full, schedule, style, repeat };
       p.metronomeOn = metronome;
       p.clickMode = clickMode;
       p.setMasterMute(muted);
@@ -203,20 +203,33 @@ export function TunePage({ chart }: { chart: Chart }) {
   useEffect(() => {
     const c = current.current;
     if (!playing || !c) return;
-    const sameShape = c.opts.transpose === transpose && c.opts.keyStep === keyStep && c.style === style && c.opts.twoFeel === twoFeel;
+    const sameShape = c.opts.transpose === transpose && c.opts.keyStep === keyStep && c.style === style && c.opts.twoFeel === twoFeel && c.repeat === repeat;
     if (sameShape && c.opts.tempo === tempo) return;
     const rebuild = () => {
       const now = current.current;
       if (!now || !player.current?.playing) return;
-      const opts = { ...now.opts, transpose, keyStep, tempo, twoFeel };
+      let choruses = now.opts.choruses;
+      if (now.repeat !== repeat) {
+        const looped = now.opts.loopSection != null || !!now.opts.loopRange;
+        if (!looped && (repeat === "loop" || now.repeat === "loop")) {
+          // Chorus numbers mean something different when they repeat until stopped, so carry on from this bar.
+          current.current = { ...now, repeat };
+          const here = placeNow();
+          if (here) return keys.current.begin(here, false, null);
+        } else if (!looped && typeof repeat === "number") {
+          const at = nowBar?.ref?.part === "form" ? nowBar.chorus : nowBar?.ref?.part === "ending" ? (now.opts.choruses as number) : 1;
+          choruses = chorusesFor(repeat, at);
+        }
+      }
+      const opts = { ...now.opts, choruses, transpose, keyStep, tempo, twoFeel };
       const schedule = buildSchedule(chart, style, opts);
-      current.current = { opts, schedule, style };
+      current.current = { opts, schedule, style, repeat };
       player.current.setSchedule(schedule);
     };
     if (!sameShape) return rebuild();
     const id = window.setTimeout(rebuild, 400);
     return () => window.clearTimeout(id);
-  }, [chart, style, transpose, keyStep, tempo, twoFeel, playing]);
+  }, [chart, style, transpose, keyStep, tempo, twoFeel, repeat, playing]);
 
   const schedule = current.current?.schedule ?? null;
   const totalBeats = useMemo(
@@ -605,7 +618,7 @@ export function TunePage({ chart }: { chart: Chart }) {
       </label>
       <label className="field">
         <span>Choruses</span>
-        <select value={String(repeat)} disabled={playing} onChange={(e) => setRepeat(e.target.value === "loop" ? "loop" : Number(e.target.value))}>
+        <select value={String(repeat)} onChange={(e) => setRepeat(e.target.value === "loop" ? "loop" : Number(e.target.value))}>
           {REPEATS.map((r) => (
             <option key={String(r)} value={String(r)}>
               {r === "loop" ? "Until stopped" : r}
