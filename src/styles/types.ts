@@ -16,6 +16,8 @@ export interface NoteEvent {
   offsets?: number[];
   /** Velocity factor for each note of `notes` (voicing: the top note louder). */
   levels?: number[];
+  /** Drums: a level factor on top of velocity, which leaves the sample layer as it is (a style's cymbal balance). */
+  gain?: number;
   /** Which drum for the drums track. */
   drum?: DrumSound;
 }

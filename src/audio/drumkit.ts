@@ -113,8 +113,8 @@ export class DrumKit {
     this.layers.set("brushTap", made(brushTap));
   }
 
-  /** Play a hit. Velocity picks the layer and scales the level within it. */
-  play(sound: DrumSound, time: number, velocity: number) {
+  /** Play a hit. Velocity picks the layer and scales the level within it; `gain` scales the level alone. */
+  play(sound: DrumSound, time: number, velocity: number, gain = 1) {
     const layers = this.layers.get(sound);
     if (!layers?.length) return;
     const v = Math.min(1, Math.max(0, velocity));
@@ -132,7 +132,7 @@ export class DrumKit {
       this.playing.delete(source);
       source.dispose();
     };
-    source.start(time, take.offset, take.length, TRIM[sound] * (0.45 + 0.55 * v));
+    source.start(time, take.offset, take.length, gain * TRIM[sound] * (0.45 + 0.55 * v));
   }
 
   /** Fade out every hit that is sounding or about to (ride, crash and brush tails), over `fade` seconds. */

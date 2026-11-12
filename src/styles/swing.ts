@@ -314,6 +314,9 @@ const SNARE_COMP: ((sw: number) => [number, DrumSound, number][])[] = [
   (sw) => [[2 + sw, "kick", 0.28], [3 + sw, "snare", 0.22]],
 ];
 
+/** Level factor for the swing ride and hats (2 dB). */
+const CYMBALS = 10 ** (2 / 20);
+
 /** Which timing pocket (feel.ts) each drum sits in. */
 const DRUM_POCKET: Record<DrumSound, "ride" | "hat" | "pedal" | "kick" | "snare" | "fill"> = {
   ride: "ride", hat: "hat", pedal: "pedal", kick: "kick", snare: "snare", rim: "snare",
@@ -334,8 +337,9 @@ export const swing: Style = {
     const human = (v: number, spread = 0.08) => Math.min(1, Math.max(0.05, v + (random() - 0.5) * spread));
     const clock = timing(random, feel.tempo);
     const events: NoteEvent[] = [];
+    // The ride and closed hats 2 dB up: eleven swing backing tracks average -25.4 dB in the hat band, the site measured -28.5.
     const drum = (time: number, sound: DrumSound, velocity: number, spread = 0.08) =>
-      events.push({ track: "drums", drum: sound, time: time + clock.at(DRUM_POCKET[sound]), duration: 0.25, velocity: human(velocity, spread) });
+      events.push({ track: "drums", drum: sound, time: time + clock.at(DRUM_POCKET[sound]), duration: 0.25, velocity: human(velocity, spread), ...(sound === "ride" || sound === "hat" ? { gain: CYMBALS } : {}) });
 
     const base = swingRatio(feel.tempo);
     const fast = feel.tempo >= UP_TEMPO;

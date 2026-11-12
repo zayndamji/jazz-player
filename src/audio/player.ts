@@ -177,7 +177,7 @@ export class Player {
   }
 
   private playNote(time: number, e: NoteEvent) {
-    if (e.track === "drums" && e.drum) this.drums.play(e.drum, time, e.velocity);
+    if (e.track === "drums" && e.drum) this.drums.play(e.drum, time, e.velocity, e.gain);
     else if (e.notes) {
       const duration = Tone.Time(ticks(e.duration)).toSeconds();
       const instrument = e.track === "piano" ? this.piano : e.track === "guitar" ? this.guitar : e.track === "melody" ? this.melody : this.bass;
