@@ -39,6 +39,8 @@ function pwa(): Plugin {
 
 export default defineConfig({
   plugins: [react(), saveRecordings(), pwa()],
-  // Agent worktrees live in .claude/worktrees; their tests are theirs to run.
+  // Agent worktrees live in .claude/worktrees: their tests are theirs to run, and a file
+  // written there (an index.html) must not reload the page. Nor must a saved recording.
+  server: { watch: { ignored: ["**/.claude/worktrees/**", "**/tunes/*/analysis/**"] } },
   test: { exclude: [...configDefaults.exclude, ".claude/**"] },
 });
