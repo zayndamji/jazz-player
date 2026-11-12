@@ -183,6 +183,26 @@ export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number
   return bars;
 }
 
+/**
+ * The next chord that differs from the one sounding at a beat, looking through the rest of
+ * this bar and the next `ahead` bars (wrapping to `loopBar`, the first bar of the repeating copy, at the end).
+ */
+export function nextChord(bars: TimelineBar[], index: number, beat: number, ahead = 2, loopBar: number | null = null): { chord: ParsedChord; transpose: number } | null {
+  const bar = bars[index];
+  const now = bar && chordAt(bar, beat);
+  if (!bar || !now) return null;
+  const at = (i: number) => (i < bars.length ? bars[i] : loopBar !== null && bars.length > loopBar ? bars[loopBar + ((i - bars.length) % (bars.length - loopBar))] : undefined);
+  for (let i = index; i <= index + ahead; i++) {
+    const b = at(i);
+    if (!b || b.countIn) return null;
+    for (const c of b.chords) {
+      if (i === index && c.beat <= now.beat + 1e-6) continue;
+      if (c.attack && c.chord.symbol !== now.chord.symbol) return { chord: c.chord, transpose: b.transpose };
+    }
+  }
+  return null;
+}
+
 /** The chord sounding at a beat inside a bar. */
 export function chordAt(bar: TimelineBar, beat: number): TimelineChord | undefined {
   let found: TimelineChord | undefined;

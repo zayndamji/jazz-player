@@ -11,7 +11,7 @@ import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
 import { bandFor, buildSchedule, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
-import { chartBars, chorusTranspose, chordAt, fold, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
+import { chartBars, chorusTranspose, chordAt, fold, nextChord, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
@@ -519,10 +519,18 @@ export function TunePage({ chart }: { chart: Chart }) {
     if (!nowBar || !position || nowBar.countIn) return null;
     const slot = chordAt(nowBar, position.beat);
     if (!slot) return null;
-    const symbol = transposeSymbol(slot.chord.symbol, fold(instrument.offset), printedSpellPc);
-    const scale = chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], printedSpellPc);
-    return `${displayParts(symbol).root} ${scale.name.toLowerCase()}: ${scale.notes.join(" ")}`;
-  }, [nowBar, position, instrument.offset, printedSpellPc]);
+    const spellFor = (t: number) => spellingPc((chartKeyPc + fold(t + instrument.offset) + 12) % 12, minor);
+    const symbol = transposeSymbol(slot.chord.symbol, fold(instrument.offset), spellFor(nowBar.transpose));
+    const scale = chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], spellFor(nowBar.transpose));
+    let text = `${displayParts(symbol).root} ${scale.name.toLowerCase()}: ${scale.notes.join(" ")}`;
+    const loopAt = current.current?.schedule.loop;
+    const next = nextChord(current.current!.schedule.bars, nowBar.index, position.beat, 2, loopAt ? loopAt.start / chart.beatsPerBar : null);
+    if (next) {
+      const n = displayParts(transposeSymbol(next.chord.symbol, fold(instrument.offset), spellFor(next.transpose)));
+      text += ` · next ${n.root}${n.quality}${n.bass ? "/" + n.bass : ""}`;
+    }
+    return text;
+  }, [nowBar, position, instrument.offset, chartKeyPc, minor, chart.beatsPerBar]);
 
   const sheetBar = nowBar?.ref ? (nowNumber?.sheetNumber ?? null) : null;
   const cueSheetBar = !nowBar?.ref && nowNumber ? nowNumber.sheetNumber : null;

@@ -6,7 +6,7 @@ import { bossa } from "../styles/bossa";
 import { buildSchedule, clicksOn } from "./schedule";
 import { validateChart } from "../charts";
 import type { Chart } from "../chart/types";
-import { buildTimeline, chartBars, chorusTranspose, navOrder, playOrder, rangeBars, stepBar, stepSection, type PlayItem } from "./timeline";
+import { buildTimeline, chartBars, chorusTranspose, navOrder, nextChord, playOrder, rangeBars, stepBar, stepSection, type PlayItem } from "./timeline";
 import { SWING_RANGE, VOICING_HIGH, VOICING_LOW, voiceChord, voicingIntervals } from "./voicing";
 
 const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -422,5 +422,28 @@ describe("key cycling", () => {
     const s = buildSchedule(chart, bossa, { choruses: 3, countIn: true, transpose: 0, keyStep: 5, start: { ref: { part: "form", section: 0, bar: 0 }, chorus: 2 } });
     expect(s.bars[0].countIn).toBe(true);
     expect(s.bars[0].transpose).toBe(5);
+  });
+});
+
+describe("next chord", () => {
+  const s = buildSchedule(chart, bossa, { choruses: 1, countIn: false, transpose: 0, intro: false });
+  const sym = (r: ReturnType<typeof nextChord>) => r?.chord.symbol ?? null;
+  it("looks inside the bar first", () => {
+    expect(sym(nextChord(s.bars, 1, 0))).toBe("A7");
+  });
+  it("skips repeated chords and finds one in the next two bars", () => {
+    // bar 2 is Dm7, bar 3 is "%", bar 4 is Fmaj7: two bars on.
+    expect(sym(nextChord(s.bars, 2, 0))).toBe("Fmaj7");
+  });
+  it("gives nothing when the next two bars hold the same chord", () => {
+    expect(sym(nextChord(s.bars, 2, 0, 1))).toBeNull();
+  });
+  it("wraps into the repeating copy of a loop", () => {
+    const l = buildSchedule(chart, bossa, { choruses: 1, countIn: false, transpose: 0, loopSection: 0 });
+    const last = l.bars.length - 1;
+    expect(sym(nextChord(l.bars, last, 3, 2, l.bars.length / 2))).toBe("Cmaj7");
+  });
+  it("gives nothing at the end", () => {
+    expect(nextChord(s.bars, s.bars.length - 1, 0)).toBeNull();
   });
 });
