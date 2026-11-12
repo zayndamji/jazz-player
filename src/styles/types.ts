@@ -32,6 +32,8 @@ export interface Style {
   id: string;
   name: string;
   generate(bars: TimelineBar[], seed: number, feel: Feel): NoteEvent[];
+  /** The parts this style plays unless a chart names its own `band`. */
+  band: Track[];
   /** True when the style honours `Feel.twoFeel`, so the page offers it. */
   twoFeel?: boolean;
   /** Level changes in dB for this style's band, on top of the player's defaults. */

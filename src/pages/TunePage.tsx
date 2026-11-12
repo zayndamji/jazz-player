@@ -10,7 +10,7 @@ import { ControlBar, type View } from "../components/ControlBar";
 import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
-import { buildSchedule, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
+import { bandFor, buildSchedule, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
 import { chartBars, chordAt, navOrder, playOrder, sameRef, stepBar, stepSection, type BarRef, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
@@ -94,11 +94,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [loopSection, setLoopSection] = useState<number | null>(null);
   /** The last bar the user clicked, so Loop knows which section they mean. */
   const [picked, setPicked] = useState<BarRef | null>(null);
-  const [mix, setMix] = useState(() => {
-    const m = { ...initialMix };
-    for (const track of chart.mute ?? []) m[track] = { ...m[track], mute: true };
-    return m;
-  });
+  const [mix, setMix] = useState(initialMix);
   const [position, setPosition] = useState<Position | null>(null);
   const [loops, setLoops] = useState(0);
   const [muted, setMuted] = useState(() => readMuted());
@@ -498,7 +494,7 @@ export function TunePage({ chart }: { chart: Chart }) {
         Show scales on the chart
       </label>
       <h3>Mix</h3>
-      <Mixer mix={mix} onChange={changeMix} />
+      <Mixer mix={mix} onChange={changeMix} band={bandFor(chart, style)} />
     </div>
   );
 

@@ -1,6 +1,6 @@
 # Jazz Player
 
-A framework for practicing jazz tunes in the browser. You add your tunes as chord charts (and lead sheets, if you like); it shows the chart or the lead sheet and plays a backing band (bass, guitar, piano, drums) that follows the chords. Styles so far: bossa nova, swing (slow-medium to up-tempo, with an optional two-feel) and ballad. The repo holds the framework only: tunes are your own content, kept out of git, and one made-up example (a blues in F) ships with it.
+A framework for practicing jazz tunes in the browser. You add your tunes as chord charts (and lead sheets, if you like); it shows the chart or the lead sheet and plays a backing band (bass, piano and drums, plus guitar in bossa nova) that follows the chords. Styles so far: bossa nova, swing (slow-medium to up-tempo, with an optional two-feel) and ballad. The repo holds the framework only: tunes are your own content, kept out of git, and one made-up example (a blues in F) ships with it.
 
 ## What it does
 
@@ -8,8 +8,8 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 - Chord chart view: four bars per line, rehearsal letters, bar numbers, repeat bars, double barlines at section ends. The bar that's playing is highlighted.
 - Head and solo choruses: a tune whose solo changes differ from the head plays the head in the first and last chorus and the solo changes in between; the chart marks those sections "head" and "solos".
 - Lead sheet view: the melody in notation with the chords above it, drawn in the same colours and font as the chart, with the same highlight. Same band, same controls.
-- Bossa nova band: upright bass on 1 and 3 with anticipations, nylon guitar comping that varies between figures and pushes chord changes, soft held piano chords, and a sampled acoustic jazz kit with fills at section ends, a crash where a section starts and the ride in the bridge.
-- Swing band: walking bass with half-step approaches, swung piano comping, quiet four-to-the-bar guitar, ride cymbal with the hi-hat on 2 and 4, snare comping and fills. It follows the tempo: the swing straightens and the comping thins out as it gets faster, and above about 200 BPM the guitar drops out and fills move to eighth notes. A two-feel option plays the intro and first chorus with half-note bass and cross-stick on 4, then walks.
+- Bossa nova band: upright bass on 1 and 3 with anticipations, light piano comping in front of a quiet nylon guitar (the two push chord changes together), and a light sampled kit: soft hi-hat eighths, cross-stick clave, short fills, the ride in the bridge.
+- Swing band: a piano trio. Walking bass with half-step approaches and the odd ghosted note; piano comping in rootless voicings on rhythms that change every bar (2 and 4, Charleston, pushes on the ands that anticipate the next chord); ride cymbal with variations, the hi-hat on 2 and 4, snare and kick comping, and fills at phrase, section and chorus ends picked from a set. Each chorus builds a little. A chart can add four-to-the-bar guitar. It follows the tempo: the swing straightens and the comping thins out as it gets faster, and fills move to eighth notes. A two-feel option plays the intro and first chorus with half-note bass and cross-stick on 4, then walks.
 - Ballad band: bass in half notes that starts walking in the bridge and later choruses, rolled piano chords held through each change with soft triplet fills, and brushes (a sweep on 1 and 3, a stroke on 2 and 4) made from shaped noise, since the drum samples have no brushes.
 - Player bar at the bottom: play and pause (or Space; pausing keeps your place, and Play counts you back in there; Home, 0 or "From the top" goes back to the start), a progress line you can click to jump, tempo from 40 to 320 BPM, Loop, Metronome, Mute (remembered between visits; the band keeps playing silently), and More.
 - Click any bar, in either view, to play from there.
@@ -19,16 +19,16 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 - Every tune is stored in its original concert key. Two separate settings in More change it:
   - Band plays in: moves the whole tune, sound and music, to any of the 12 keys, shown as half steps up or down from the original.
   - Written for: prints the chart and lead sheet for a concert, B♭, E♭ or F instrument without changing the sound. A trumpet player picks B♭ and sees a tune in C printed in D while the band plays in C. The site remembers this choice between tunes and visits.
-- More also has the band's style (any tune can play in any style; the chart names its original, and a change applies while playing), a two-feel first chorus (swing), the number of choruses or until stopped, a two-bar count-in, scale names under each chord, and a mixer with volume and mute for each part.
+- The mixer in More shows the parts that play. More also has the band's style (any tune can play in any style; the chart names its original, and a change applies while playing), a two-feel first chorus (swing), the number of choruses or until stopped, a two-bar count-in, scale names under each chord, and a mixer with volume and mute for each part.
 - While playing, the player bar shows the bar, chorus, and a scale for the current chord with its notes.
 - Light theme only, like printed music. Works on phones.
 
 ## How it works
 
-- A chart is one JSON file, `tunes/<id>/chart.json`: key, tempo, style, optionally `twoFeel` and `mute` (parts that start muted, such as a pianoless trio), and sections of bars written as chord symbols. A form section with `"play": "head"` or `"play": "solos"` plays only in head or only in solo choruses. The site collects every tune in `tunes/` and the example in `examples/`; tests check each one.
+- A chart is one JSON file, `tunes/<id>/chart.json`: key, tempo, style, optionally `twoFeel` and `band` (the parts that play, when not the style's own: add guitar to a swing tune, or leave out piano for a trio), and sections of bars written as chord symbols. A form section with `"play": "head"` or `"play": "solos"` plays only in head or only in solo choruses. The site collects every tune in `tunes/` and the example in `examples/`; tests check each one.
 - The timeline lays it out in playing order: count-in, intro, choruses, tag, final bar. Looping plays the section or form twice and repeats the second copy, so playback can start on any bar.
-- A style turns the timeline into notes for a tempo and feel, and can set its own mix. Tempo changes regenerate the notes in place once the presses settle. Each style is modelled on a measured reference recording (`scripts/analyze_reference.py`).
-- Piano and guitar use rootless drop-2 voicings, each chord voice-led from the last.
+- A style turns the timeline into notes for a tempo and feel, names its band, and can set its own mix. Every part follows one shared dynamic shape (a lift each chorus, more in the bridge, a slow drift). Tempo changes regenerate the notes in place once the presses settle. Each style is modelled on a measured reference recording (`scripts/analyze_reference.py`).
+- Piano and guitar use rootless voicings, each chord voice-led from the last: open drop-2 shapes for bossa, close shapes with the 3rd or 7th at the bottom for swing.
 - The player schedules everything on the Tone.js clock in beats, so tempo and key changes apply while playing.
 - The lead sheet is a MusicXML file rendered by OpenSheetMusicDisplay, transposed with the chart.
 - Everything runs in the browser. There is no server.
@@ -86,9 +86,11 @@ Downloads and converts the drum kit into `public/samples/drums/` (needs ffmpeg).
 python3 scripts/analyze_reference.py TRACK.m4a --form 32
 ```
 
-Measures a reference recording: tempo, swing, rhythm per frequency band, band balance, loudness per form bar (needs ffmpeg and numpy).
+Measures a reference recording: tempo, swing, rhythm per frequency band, band balance, loudness per form bar, and per band how busy, how varied, how dynamic and how far left or right it is (needs ffmpeg and numpy).
 
-`scripts/mix-meter.js` is the matching check for the site: start playback on the dev server, paste it into the browser console, and it returns the same band balance for what the site plays. It listens before Mute, so it works muted.
+`scripts/record-site.js` records what the site plays into `tunes/<id>/analysis/` (dev server only; run it in the page while a tune plays), so the same analyzer measures our band and a reference side by side.
+
+`scripts/mix-meter.js` is a quicker check for the site: start playback on the dev server, paste it into the browser console, and it returns the same band balance for what the site plays. It listens before Mute, so it works muted.
 
 ## Adding a tune, a lead sheet or a style
 

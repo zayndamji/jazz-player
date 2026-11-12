@@ -1,4 +1,5 @@
 import type { Mixable } from "../audio/player";
+import type { Track } from "../styles/types";
 
 export interface MixState {
   level: number;
@@ -13,10 +14,11 @@ const TRACKS: { id: Mixable; name: string }[] = [
   { id: "metronome", name: "Metronome" },
 ];
 
-export function Mixer({ mix, onChange }: { mix: Record<Mixable, MixState>; onChange: (track: Mixable, state: MixState) => void }) {
+/** Volume and mute for each part that plays (the band) and the metronome. */
+export function Mixer({ mix, onChange, band }: { mix: Record<Mixable, MixState>; onChange: (track: Mixable, state: MixState) => void; band: Track[] }) {
   return (
     <div className="mixer">
-      {TRACKS.map(({ id, name }) => (
+      {TRACKS.filter(({ id }) => id === "metronome" || band.includes(id)).map(({ id, name }) => (
         <div className={`strip${mix[id].mute ? " muted" : ""}`} key={id}>
           <label htmlFor={`vol-${id}`}>{name}</label>
           <input

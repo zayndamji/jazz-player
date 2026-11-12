@@ -31,8 +31,9 @@ export type Mixable = Track | "metronome";
 const CHANNELS: Record<Mixable, { volume: number; pan: number }> = {
   // Balanced against the reference track's band levels (context/reference-backing-track.md).
   bass: { volume: -6, pan: 0 },
-  piano: { volume: -8, pan: -0.25 },
-  guitar: { volume: -3.5, pan: 0.35 },
+  // Comping sits right of centre, as in the reference tracks (piano right, guitar left when both play).
+  piano: { volume: -8, pan: 0.2 },
+  guitar: { volume: -3.5, pan: -0.3 },
   drums: { volume: -4, pan: 0 },
   metronome: { volume: -8, pan: 0 },
 };
@@ -74,7 +75,7 @@ export class Player {
       // Master mute is the last stage, so tools can still listen just before it.
       this.master = new Tone.Gain(this.muted ? 0 : 1).toDestination();
       const out = new Tone.Compressor({ threshold: -16, ratio: 2.5, attack: 0.01, release: 0.2 }).connect(this.master);
-      if (import.meta.env.DEV) (window as unknown as { __jazzPlayer: unknown }).__jazzPlayer = { preMute: out, Tone };
+      if (import.meta.env.DEV) (window as unknown as { __jazzPlayer: unknown }).__jazzPlayer = { preMute: out, Tone, player: this };
       const room = new Tone.Reverb({ decay: 1.4, preDelay: 0.01, wet: 0.16 }).connect(out);
       const channels = {} as Record<Mixable, Tone.Channel>;
       for (const [name, c] of Object.entries(CHANNELS)) channels[name as Mixable] = new Tone.Channel(c).connect(room);
@@ -98,7 +99,11 @@ export class Player {
   }
 
   /** Replace what's playing. The Transport keeps its position, so this works mid-song. */
+  /** What's playing, for the dev tools (scripts/record-site.js). */
+  schedule: Schedule | null = null;
+
   setSchedule(schedule: Schedule) {
+    this.schedule = schedule;
     this.styleMix = schedule.mix;
     (Object.keys(this.levels) as Mixable[]).forEach((t) => this.setVolume(t, this.levels[t]));
     const transport = Tone.getTransport();

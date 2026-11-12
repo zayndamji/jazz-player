@@ -49,7 +49,7 @@ export function validateChart(chart: Chart): string[] {
       first = false;
     });
   }
-  for (const track of chart.mute ?? []) if (!["bass", "guitar", "piano", "drums"].includes(track)) errors.push(`"mute" has an unknown part "${track}"`);
+  for (const track of chart.band ?? []) if (!["bass", "guitar", "piano", "drums"].includes(track)) errors.push(`"band" has an unknown part "${track}"`);
   const plays = chart.form?.map((s) => s.play) ?? [];
   if (plays.some((p) => p !== undefined && p !== "head" && p !== "solos")) errors.push(`"play" must be "head" or "solos"`);
   if (plays.some((p) => p) && (!plays.some((p) => p !== "solos") || !plays.some((p) => p !== "head")))

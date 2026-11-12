@@ -7,7 +7,7 @@ import { buildSchedule } from "./schedule";
 import { validateChart } from "../charts";
 import type { Chart } from "../chart/types";
 import { buildTimeline, chartBars, navOrder, playOrder, stepBar, stepSection, type PlayItem } from "./timeline";
-import { VOICING_HIGH, VOICING_LOW, voiceChord, voicingIntervals } from "./voicing";
+import { SWING_RANGE, VOICING_HIGH, VOICING_LOW, voiceChord, voicingIntervals } from "./voicing";
 
 const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const pcs = (notes: number[]) => notes.map((n) => names[n % 12]);
@@ -126,6 +126,21 @@ describe("schedule", () => {
 });
 
 describe("voicing", () => {
+  it("voices a flat 13 as the flat 13, not the natural 13", () => {
+    const iv = voicingIntervals(parseChord("E7b13"));
+    expect(iv).toContain(8);
+    expect(iv).not.toContain(9);
+  });
+
+  it("puts a guide tone at the bottom of swing voicings", () => {
+    for (const s of ["Bb7", "Eb7", "Cm7", "F7", "Dm7", "G7", "Cmaj7", "Ab7"]) {
+      const c = parseChord(s);
+      const v = voiceChord(c, null, SWING_RANGE);
+      const bottom = (v[0] - c.root + 120) % 12;
+      expect([3, 4, 10, 11], s).toContain(bottom);
+    }
+  });
+
   it("leaves out the root and keeps guide tones", () => {
     expect(pcs(voiceChord(parseChord("Em7"), null)).sort()).toEqual(["B", "D", "F#", "G"]);
     expect(voicingIntervals(parseChord("A7"))).toEqual([4, 9, 10, 2]);
@@ -191,13 +206,24 @@ describe("bossa style", () => {
     expect(drums.filter((e) => e.drum === "rim").length).toBe(2);
   });
 
-  it("plays guitar on every bar and fills at section ends", () => {
+  it("plays guitar on every bar and a light fill at the end of the form", () => {
     for (let b = 2; b < 2 + 36; b++) expect(inBar(b, "guitar").length).toBeGreaterThanOrEqual(2);
-    const endOfA = 2 + 4 + 7; // last bar of the first A
-    expect(inBar(endOfA, "drums").some((e) => e.drum === "snare")).toBe(true);
     const endOfForm = 2 + 4 + 31;
-    expect(inBar(endOfForm, "drums").filter((e) => e.drum?.startsWith("tom")).length).toBe(4);
-    expect(inBar(endOfA + 1, "drums").some((e) => e.drum === "crash")).toBe(true);
+    const fill = inBar(endOfForm, "drums").filter((e) => ["snare", "rim", "tomHigh", "tomLow"].includes(e.drum!) && e.time % 4 >= 2.95);
+    expect(fill.length).toBeGreaterThanOrEqual(3);
+    expect(inBar(endOfForm + 1, "drums").some((e) => e.drum === "crash")).toBe(true);
+  });
+
+  it("never has guitar and piano on different chords at once", () => {
+    const pcSet = (notes: number[]) => [...new Set(notes.map((n) => n % 12))].sort().join(",");
+    const piano = schedule.events.filter((e) => e.track === "piano");
+    let checked = 0;
+    for (const g of schedule.events.filter((e) => e.track === "guitar")) {
+      const under = piano.filter((p) => p.time <= g.time + 0.03 && p.time + p.duration > g.time + 0.03);
+      for (const p of under) expect(pcSet(p.notes!), `beat ${g.time.toFixed(2)}`).toBe(pcSet(g.notes!));
+      checked += under.length;
+    }
+    expect(checked).toBeGreaterThan(50);
   });
 
   it("sometimes pushes a chord change to the and of 4", () => {

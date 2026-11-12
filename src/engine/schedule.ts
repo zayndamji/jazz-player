@@ -40,6 +40,8 @@ export interface Schedule {
   loop: { start: number; end: number } | null;
   /** The style's level changes per track, in dB. */
   mix: Partial<Record<Track, number>>;
+  /** The parts that play (the chart's band, or the style's). */
+  band: Track[];
 }
 
 /**
@@ -100,5 +102,12 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const loop =
     loopFrom >= 0 ? { start: (loopFrom - startAt + countInBars) * beatsPerBar, end: totalBeats } : null;
 
-  return { bars, events: style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false }), beats, totalBeats, beatsPerBar, loop, mix: style.mix ?? {} };
+  const band = bandFor(chart, style);
+  const events = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false }).filter((e) => band.includes(e.track));
+  return { bars, events, beats, totalBeats, beatsPerBar, loop, mix: style.mix ?? {}, band };
+}
+
+/** The parts that play a chart in a style. */
+export function bandFor(chart: Chart, style: Style): Track[] {
+  return chart.band ?? style.band;
 }

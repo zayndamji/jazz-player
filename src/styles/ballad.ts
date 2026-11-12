@@ -23,7 +23,9 @@ const ROLL = 0.025;
 export const ballad: Style = {
   id: "ballad",
   name: "Ballad",
-  mix: { bass: 13, piano: 4, drums: 6 },
+  band: ["bass", "piano", "drums"],
+  // Bass leads; the upper band (piano brightness, brushes) measured 4 dB over the references.
+  mix: { bass: 13, piano: 2.5, drums: 3.5 },
   generate(bars, seed) {
     const random = seededRandom(seed);
     const human = (v: number, spread = 0.06) => Math.min(1, Math.max(0.05, v + (random() - 0.5) * spread));

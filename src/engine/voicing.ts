@@ -16,7 +16,8 @@ const has = (c: ParsedChord, name: string) => c.intervalNames.includes(name);
 /** Semitones above the root of the four voiced tones. */
 export function voicingIntervals(c: ParsedChord): number[] {
   const third = has(c, "3m") ? 3 : has(c, "4P") && !has(c, "3M") ? 5 : 4;
-  const fifth = has(c, "5A") ? 8 : has(c, "5d") ? 6 : 7;
+  // A flat 13 (7b13) is voiced like a raised fifth.
+  const fifth = has(c, "5A") || has(c, "13m") ? 8 : has(c, "5d") ? 6 : 7;
   const altered = fifth !== 7;
   const seventh = has(c, "7M") ? 11 : has(c, "7m") ? 10 : has(c, "7d") ? 9 : has(c, "6M") || has(c, "13M") ? 9 : third === 3 ? 10 : 9;
   const ninth = has(c, "9m") ? 1 : has(c, "9A") ? 3 : 2;
@@ -37,9 +38,16 @@ export interface VoicingRange {
   high: number;
   /** The middle of the voicing is pulled toward this note. */
   center: number;
+  /**
+   * Only shapes with the 3rd or 7th at the bottom (the jazz pianist's rootless "A" and "B"
+   * voicings), close or drop-2. Keeps the 9th and 13th out of the bass register.
+   */
+  guideBottom?: boolean;
 }
 
 export const PIANO_RANGE: VoicingRange = { low: VOICING_LOW, high: VOICING_HIGH, center: 63 };
+/** Swing comping: left-hand rootless voicings around middle C, guide tone at the bottom. */
+export const SWING_RANGE: VoicingRange = { low: 50, high: 76, center: 61, guideBottom: true };
 /** Nylon guitar, written range: sounds around E3 to D5. */
 export const GUITAR_RANGE: VoicingRange = { low: 52, high: 74, center: 61 };
 
@@ -88,15 +96,22 @@ const distance = (a: number[], b: number[]) => a.reduce((sum, n, i) => sum + Mat
 
 /** MIDI notes for a chord, voice-led from the previous voicing. */
 export function voiceChord(c: ParsedChord, previous: number[] | null, range: VoicingRange = PIANO_RANGE): number[] {
-  const pcs = [...new Set(voicingIntervals(c).map((i) => (c.root + i) % 12))];
-  const options = voicingOptions(pcs, range);
+  const intervals = voicingIntervals(c);
+  const pcs = [...new Set(intervals.map((i) => (c.root + i) % 12))];
+  let options = voicingOptions(pcs, range);
+  if (range.guideBottom) {
+    const guides = [intervals[0], intervals[2]].map((i) => (c.root + i) % 12);
+    const guided = options.filter((o) => guides.includes(o.notes[0] % 12));
+    if (guided.length) options = guided;
+  }
   const center = range.center;
   let best = options[0]?.notes ?? [];
   let bestScore = Infinity;
   for (const { notes, drop2: wide } of options) {
     const mid = (notes[0] + notes[notes.length - 1]) / 2;
     const lead = previous && previous.length === notes.length ? distance(notes, previous) : 0;
-    const score = lead + Math.abs(mid - center) * 0.4 + (wide ? 0 : 2.5);
+    // Bossa prefers the open drop-2 sound; swing comping prefers close shapes.
+    const score = lead + Math.abs(mid - center) * 0.4 + (range.guideBottom ? (wide ? 2.5 : 0) : wide ? 0 : 2.5);
     if (score < bestScore) {
       bestScore = score;
       best = notes;

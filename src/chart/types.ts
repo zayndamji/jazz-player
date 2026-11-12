@@ -19,8 +19,11 @@ export interface Chart {
   beatsPerBar: number;
   /** Id of the default backing style, e.g. "bossa". */
   style: string;
-  /** Parts that start muted, for a band without them (a pianoless trio: ["piano", "guitar"]). The mixer turns them back on. */
-  mute?: ("bass" | "guitar" | "piano" | "drums")[];
+  /**
+   * The parts that play, when not the style's own band: add "guitar" to a swing tune for
+   * four-to-the-bar rhythm guitar, or leave out "piano" for a pianoless trio.
+   */
+  band?: ("bass" | "guitar" | "piano" | "drums")[];
   /** Start in two: the intro and first chorus with half-note bass, walking after (swing). Default false. */
   twoFeel?: boolean;
   /** Played once before the first chorus. */
