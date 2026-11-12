@@ -16,6 +16,7 @@ import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
 import { shareUrl, rememberable, withLink, type LinkSettings } from "./share";
+import { recordOpened } from "./tuneList";
 import { applyPreset, effectiveMute, PRESETS } from "./mix";
 import { clearSettings, defaultSettings, loadSettings, raisedTempo, REPEATS, saveSettings, SPEED_UPS, type SpeedUp } from "./settings";
 import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
@@ -159,6 +160,9 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     player.current = p;
     return p;
   };
+
+  // Remember when this tune was opened, for the library's "Recently opened" order.
+  useEffect(() => recordOpened(chart.id), [chart.id]);
 
   // Leaving the tune stops the band.
   useEffect(() => () => {

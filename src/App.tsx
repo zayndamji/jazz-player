@@ -18,14 +18,23 @@ function useHash() {
   return hash;
 }
 
+/** The id as typed in the address, if it can be read. */
+const safe = (id: string) => {
+  try {
+    return decodeURIComponent(id);
+  } catch {
+    return id;
+  }
+};
+
 export default function App() {
   const hash = useHash();
-  const id = /^#\/tune\/([a-z0-9-]+)/.exec(hash)?.[1];
+  const id = /^#\/tune\/([^/?#]+)/.exec(hash)?.[1];
   const chart = id ? getChart(id) : undefined;
   useEffect(() => {
     document.title = chart ? `${chart.title} · Jazz Player` : "Jazz Player";
   }, [chart]);
   // The address can carry settings after a ?, which the tune reads once when it opens.
   const link = useMemo(() => parseLink(hash), [hash]);
-  return chart ? <TunePage key={chart.id} chart={chart} link={link} /> : <Library />;
+  return chart ? <TunePage key={chart.id} chart={chart} link={link} /> : <Library missing={id && !chart ? safe(id) : undefined} />;
 }

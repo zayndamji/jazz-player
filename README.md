@@ -4,7 +4,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 
 ## What it does
 
-- Library: every tune in a list you can search by title and filter by style. Each tune has its own address (`#/tune/<id>`).
+- Library: every tune in a list you can search by title, filter by style and sort A to Z or by when you opened them. The search and filter stay when you open a tune and come back. The count reads "4 of 11 tunes" when filtered, and tunes with a lead sheet say so. An address with an unknown tune shows the list with a note. Each tune has its own address (`#/tune/<id>`).
 - Chord chart view: four bars per line, rehearsal letters, bar numbers, repeat bars, double barlines at section ends. The bar that's playing is highlighted.
 - Head and solo choruses: a tune whose solo changes differ from the head plays the head in the first and last chorus and the solo changes in between; the chart marks those sections "head" and "solos".
 - Lead sheet view: the melody in notation with the chords above it, drawn in the same colours and font as the chart, with the same highlight. Same band, same controls.

@@ -132,6 +132,7 @@ input:disabled {
 
 .filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 16px;
 }
@@ -148,6 +149,11 @@ input:disabled {
 .filters input {
   flex: 1;
   min-width: 0;
+}
+
+.not-found {
+  margin: 0 0 16px;
+  color: var(--muted);
 }
 
 .tunes {
