@@ -21,6 +21,7 @@ import { applyPreset, effectiveMute, PRESETS } from "./mix";
 import { clearSettings, defaultSettings, loadSettings, raisedTempo, REPEATS, saveSettings, SPEED_UPS, type SpeedUp } from "./settings";
 import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
 import { readStored, store } from "./storage";
+import { useWakeLock } from "./useWakeLock";
 
 const MUTE_KEY = "jazz-player.muted";
 const INSTRUMENT_KEY = "jazz-player.instrument";
@@ -134,6 +135,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
 
   const instrument = INSTRUMENTS.find((i) => i.id === instrumentId)!;
   const playing = status === "playing";
+  useWakeLock(playing);
 
   const getPlayer = () => {
     if (!sharedPlayer) sharedPlayer = new Player();
