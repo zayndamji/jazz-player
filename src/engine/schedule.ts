@@ -1,7 +1,7 @@
 import { isMinorKey, keyPitchClass, spellingPc } from "../chart/chords";
 import type { Chart } from "../chart/types";
 import type { NoteEvent, Style, Track } from "../styles/types";
-import { buildTimeline, playOrder, sameRef, sectionOrder, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
+import { buildTimeline, playOrder, rangeOrder, sameRef, sectionOrder, type BarRange, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
 
 export type Repeat = number | "loop";
 
@@ -24,6 +24,8 @@ export interface PlaybackOptions {
   start?: { ref: BarRef; chorus: number } | null;
   /** Repeat only this form section until stopped. */
   loopSection?: number | null;
+  /** Repeat only these bars, from the first to the last inclusive, until stopped (a loop section wins when both are set). */
+  loopRange?: BarRange | null;
   /** Tempo the band's feel is built for; the chart's tempo when left out. */
   tempo?: number;
   /** Play the chart's intro (default true). */
@@ -71,6 +73,9 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   let loopFrom = -1; // index in items where the repeating copy starts
   if (opts.loopSection != null) {
     items = sectionOrder(chart, opts.loopSection, 2);
+    loopFrom = items.length / 2;
+  } else if (opts.loopRange) {
+    items = rangeOrder(chart, opts.loopRange, 2);
     loopFrom = items.length / 2;
   } else if (opts.choruses === "loop") {
     items = playOrder(chart, 2, opts.intro !== false, false);

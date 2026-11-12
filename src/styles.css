@@ -251,7 +251,8 @@ input:disabled {
   color: var(--accent-ink);
 }
 
-.looping .bar {
+.looping .bar,
+.bar.in-range {
   background: var(--loop-bg);
 }
 
@@ -267,6 +268,9 @@ input:disabled {
   background: none;
   text-align: left;
   scroll-margin: 24px 0 140px;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Double barline at the end of a section; thin and thick at the very end. */
@@ -403,6 +407,9 @@ input:disabled {
 }
 
 .sheet-bar {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   position: absolute;
   z-index: 1;
   border: 0;

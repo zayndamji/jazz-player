@@ -130,7 +130,7 @@ export function ControlBar(p: Props) {
         )}
 
         <button type="button" className="toggle" aria-pressed={!!p.loopLabel} aria-keyshortcuts="L" title={withKey("Loop", "loop")} onClick={p.onLoop}>
-          {p.loopLabel ? `Loop ${p.loopLabel}` : "Loop"}
+          {p.loopLabel ?? "Loop"}
         </button>
         <button type="button" className="toggle" aria-pressed={p.metronome} aria-keyshortcuts="C" title={withKey("Metronome", "click")} onClick={() => p.onMetronome(!p.metronome)}>
           <span className="long">Metronome</span>

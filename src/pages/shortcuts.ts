@@ -12,6 +12,8 @@ export type ShortcutId =
   | "slower"
   | "faster"
   | "loop"
+  | "unloop"
+  | "loop-bars"
   | "click"
   | "mute"
   | "view"
@@ -38,6 +40,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "bar-on", keys: ["→"], aria: "ArrowRight", label: "A bar on", group: "Moving", singleKey: false },
   { id: "section-back", keys: ["Shift ←"], aria: "Shift+ArrowLeft", label: "Start of this section, or the one before; when looping, loop the one before", group: "Moving", singleKey: false },
   { id: "section-on", keys: ["Shift →"], aria: "Shift+ArrowRight", label: "Next section; when looping, loop the next one", group: "Moving", singleKey: false },
+  { id: "loop-bars", keys: ["Shift-click"], aria: "", label: "Loop from the bar you last clicked to this one (on touch, press and hold)", group: "Moving", singleKey: false },
+  { id: "unloop", keys: ["Esc"], aria: "Escape", label: "Stop looping", group: "Moving", singleKey: false },
   { id: "loop", keys: ["L"], aria: "L", label: "Loop", group: "Settings", singleKey: true },
   { id: "click", keys: ["C"], aria: "C", label: "Metronome", group: "Settings", singleKey: true },
   { id: "mute", keys: ["M"], aria: "M", label: "Mute", group: "Settings", singleKey: true },

@@ -101,6 +101,29 @@ export function playOrder(chart: Chart, choruses: number, withIntro = true, with
   return items;
 }
 
+/** A run of bars to loop, from one bar to another in chart order (the two can be given either way round). */
+export interface BarRange {
+  from: BarRef;
+  to: BarRef;
+}
+
+/** The chart's bars from one end of a range to the other, inclusive, in playing order within a chorus. */
+export function rangeBars(chart: Chart, range: BarRange): ChartBar[] {
+  const all = chartBars(chart);
+  const a = all.findIndex((b) => sameRef(b.ref, range.from));
+  const b = all.findIndex((b) => sameRef(b.ref, range.to));
+  if (a < 0 || b < 0) return [];
+  return all.slice(Math.min(a, b), Math.max(a, b) + 1);
+}
+
+/** The bars of a range, a number of times (the chorus counts up for form bars, like a looped section). */
+export function rangeOrder(chart: Chart, range: BarRange, times: number): PlayItem[] {
+  const bars = rangeBars(chart, range);
+  const items: PlayItem[] = [];
+  for (let c = 1; c <= times; c++) for (const b of bars) items.push({ ref: b.ref, chorus: b.ref.part === "form" ? c : 0 });
+  return items;
+}
+
 /** The bars of one form section, a number of times. */
 export function sectionOrder(chart: Chart, section: number, times: number): PlayItem[] {
   const items: PlayItem[] = [];

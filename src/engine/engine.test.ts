@@ -6,7 +6,7 @@ import { bossa } from "../styles/bossa";
 import { buildSchedule, clicksOn } from "./schedule";
 import { validateChart } from "../charts";
 import type { Chart } from "../chart/types";
-import { buildTimeline, chartBars, navOrder, playOrder, stepBar, stepSection, type PlayItem } from "./timeline";
+import { buildTimeline, chartBars, navOrder, playOrder, rangeBars, stepBar, stepSection, type PlayItem } from "./timeline";
 import { SWING_RANGE, VOICING_HIGH, VOICING_LOW, voiceChord, voicingIntervals } from "./voicing";
 
 const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -337,5 +337,42 @@ describe("click mode", () => {
     expect(beats.filter((b) => clicksOn("every", b))).toEqual([0, 1, 2, 3]);
     expect(beats.filter((b) => clicksOn("two-four", b))).toEqual([1, 3]);
     expect(beats.filter((b) => clicksOn("one", b))).toEqual([0]);
+  });
+});
+
+describe("loop a range of bars", () => {
+  const ref = (section: number, bar: number) => ({ part: "form" as const, section, bar });
+  const range = { from: ref(0, 2), to: ref(0, 5) };
+
+  it("lists the bars from the first to the last, either way round", () => {
+    expect(rangeBars(chart, range).map((b) => b.number)).toEqual([7, 8, 9, 10]);
+    expect(rangeBars(chart, { from: range.to, to: range.from }).map((b) => b.number)).toEqual([7, 8, 9, 10]);
+  });
+
+  it("plays the range twice and repeats the second copy", () => {
+    const s = buildSchedule(chart, bossa, { choruses: 3, countIn: false, transpose: 0, loopRange: range });
+    expect(s.bars.length).toBe(8);
+    expect(s.loop).toEqual({ start: 16, end: 32 });
+    expect(s.bars[0].ref).toEqual(range.from);
+    expect(s.bars[3].ref).toEqual(range.to);
+    expect(s.bars[4].ref).toEqual(range.from);
+    expect(s.bars[4].chorus).toBe(2);
+  });
+
+  it("starts inside the range and after a count-in", () => {
+    const s = buildSchedule(chart, bossa, { choruses: 3, countIn: true, transpose: 0, loopRange: range, start: { ref: ref(0, 4), chorus: 1 } });
+    expect(s.bars.filter((b) => !b.countIn).map((b) => b.ref!.bar)).toEqual([4, 5, 2, 3, 4, 5]);
+    expect(s.loop).toEqual({ start: (2 + 2) * 4, end: s.totalBeats });
+  });
+
+  it("can span sections", () => {
+    const across = { from: ref(0, 7), to: ref(1, 1) };
+    const s = buildSchedule(chart, bossa, { choruses: 1, countIn: false, transpose: 0, loopRange: across });
+    expect(s.bars.slice(0, 3).map((b) => [b.ref!.section, b.ref!.bar])).toEqual([[0, 7], [1, 0], [1, 1]]);
+  });
+
+  it("loops a section instead when both are given", () => {
+    const s = buildSchedule(chart, bossa, { choruses: 3, countIn: false, transpose: 0, loopSection: 1, loopRange: range });
+    expect(s.bars[0].ref!.section).toBe(1);
   });
 });

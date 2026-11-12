@@ -16,7 +16,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 - Click any bar, in either view, to play from there.
 - Keyboard: Space plays and pauses, Home or 0 goes to the start, `-` and `=` change the tempo, L loops, C turns on the metronome, M mutes, V switches the view, and `?` lists every shortcut. The list has a switch to turn off the single-letter keys.
 - Left and Right arrows move a bar back or on, Shift with them a whole section; while playing the band jumps there, while paused the place moves. With Loop on they stay inside the loop, and Shift moves the loop to the next or previous section.
-- Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section.
+- Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section. To loop any run of bars, click the first bar, then Shift-click the last (on a touch screen, press and hold the last bar); the button then reads "Bars 9-12". Loop or Esc stops it.
 - Every tune is stored in its original concert key. Two separate settings in More change it:
   - Band plays in: moves the whole tune, sound and music, to any of the 12 keys, shown as half steps up or down from the original.
   - Written for: prints the chart and lead sheet for a concert, B♭, E♭ or F instrument without changing the sound. A trumpet player picks B♭ and sees a tune in C printed in D while the band plays in C. The site remembers this choice between tunes and visits.

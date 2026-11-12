@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import { loadHead } from "../charts/heads";
+import { useBarPress } from "./barPress";
 
 interface Props {
   chartId: string;
@@ -14,6 +15,8 @@ interface Props {
   loopBars: number[];
   /** Called with the printed bar number (from 1) when a bar is clicked. */
   onBar: (number: number) => void;
+  /** Loop from the bar last clicked to this one (Shift-click, or press and hold on touch). */
+  onRange: (number: number) => void;
 }
 
 interface Box {
@@ -32,7 +35,8 @@ const zoomFor = (width: number) => (width < NARROW ? Math.min(0.75, width / 500)
  * Renders the head from MusicXML with OpenSheetMusicDisplay, in the page's
  * own colours and font, with the same current-bar and loop marks as the chord chart.
  */
-export function LeadSheet({ chartId, shift, bar, cue, loopBars, onBar }: Props) {
+export function LeadSheet({ chartId, shift, bar, cue, loopBars, onBar, onRange }: Props) {
+  const press = useBarPress(onBar, onRange);
   const host = useRef<HTMLDivElement>(null);
   const osmd = useRef<OpenSheetMusicDisplay | null>(null);
   const mark = useRef<HTMLDivElement>(null);
@@ -156,7 +160,7 @@ export function LeadSheet({ chartId, shift, bar, cue, loopBars, onBar }: Props) 
         {cueBox && <div ref={mark} className="sheet-cued" style={at(cueBox)} />}
         <div ref={host} className="sheet-music" />
         {boxes.map((b, i) => (
-          <button type="button" key={i} className="sheet-bar" style={at(b)} aria-label={`Bar ${i + 1}. Play from here.`} onClick={() => onBar(i + 1)} />
+          <button type="button" key={i} className="sheet-bar" style={at(b)} aria-label={`Bar ${i + 1}. Play from here.`} {...press(i + 1)} />
         ))}
       </div>
     </div>
