@@ -300,3 +300,33 @@ describe("count-in length", () => {
     expect(buildSchedule(chart, bossa, { choruses: 1, countIn: true, transpose: 0 }).bars.filter((b) => b.countIn).length).toBe(2);
   });
 });
+
+describe("intro and ending switches", () => {
+  const partsOf = (items: PlayItem[]) => new Set(items.map((i) => i.ref.part));
+  it("leaves them out of the play order", () => {
+    expect([...partsOf(playOrder(chart, 2))]).toEqual(["intro", "form", "ending"]);
+    expect([...partsOf(playOrder(chart, 2, false, true))]).toEqual(["form", "ending"]);
+    expect([...partsOf(playOrder(chart, 2, true, false, true))]).toEqual(["intro", "form"]);
+    expect(playOrder(chart, 2, false, false, true).length).toBe(64);
+  });
+
+  it("keeps the last chorus a head chorus without the ending", () => {
+    const order = playOrder(headAndSolos, 3, true, false, true);
+    expect(order.filter((i) => i.chorus === 3).every((i) => i.ref.section === 0)).toBe(true);
+  });
+
+  it("builds a schedule without them", () => {
+    const s = buildSchedule(chart, bossa, { choruses: 1, countIn: false, transpose: 0, intro: false, ending: false });
+    expect(s.bars.length).toBe(32);
+    expect(s.bars[0].ref).toEqual({ part: "form", section: 0, bar: 0 });
+    expect(s.bars.at(-1)!.final).toBe(false);
+    const full = buildSchedule(chart, bossa, { choruses: 1, countIn: false, transpose: 0 });
+    expect(full.bars.length).toBe(4 + 32 + 8 + 1);
+  });
+
+  it("steps through the same bars with the keys", () => {
+    expect(navOrder(chart, 2, null, 1, false, false).length).toBe(64);
+    expect(navOrder(chart, 2, null, 1, true, true).length).toBe(4 + 64 + 9);
+    expect(navOrder(chart, "loop", null, 1, false).some((i) => i.ref.part === "intro")).toBe(false);
+  });
+});

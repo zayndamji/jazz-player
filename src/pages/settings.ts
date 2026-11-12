@@ -29,6 +29,8 @@ export interface TuneSettings {
   /** Bars of count-in. */
   countIn: 0 | 1 | 2;
   twoFeel: boolean;
+  intro: boolean;
+  ending: boolean;
   view: View;
   showScales: boolean;
   mix: Record<Mixable, MixState>;
@@ -44,6 +46,8 @@ export function defaultSettings(chart: Chart): TuneSettings {
     choruses: 3,
     countIn: 2,
     twoFeel: chart.twoFeel ?? false,
+    intro: true,
+    ending: true,
     view: "chords",
     showScales: false,
     mix: initialMix(),
@@ -90,6 +94,8 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   // Entries from before the count-in had a length.
   else if (isBool(raw.countIn)) out.countIn = raw.countIn ? 2 : 0;
   if (isBool(raw.twoFeel)) out.twoFeel = raw.twoFeel;
+  if (isBool(raw.intro)) out.intro = raw.intro;
+  if (isBool(raw.ending)) out.ending = raw.ending;
   if (raw.view === "chords" || raw.view === "sheet") out.view = raw.view;
   if (isBool(raw.showScales)) out.showScales = raw.showScales;
   const mix = parseMix(raw.mix);

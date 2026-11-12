@@ -19,6 +19,10 @@ export interface PlaybackOptions {
   loopSection?: number | null;
   /** Tempo the band's feel is built for; the chart's tempo when left out. */
   tempo?: number;
+  /** Play the chart's intro (default true). */
+  intro?: boolean;
+  /** Play the chart's ending after the last chorus (default true). */
+  ending?: boolean;
   /** Play the intro and first chorus in two; the chart's `twoFeel` when left out. */
   twoFeel?: boolean;
 }
@@ -62,10 +66,10 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     items = sectionOrder(chart, opts.loopSection, 2);
     loopFrom = items.length / 2;
   } else if (opts.choruses === "loop") {
-    items = playOrder(chart, 2, true, false);
+    items = playOrder(chart, 2, opts.intro !== false, false);
     loopFrom = items.findIndex((i) => i.chorus === 2);
   } else {
-    items = playOrder(chart, opts.choruses);
+    items = playOrder(chart, opts.choruses, opts.intro !== false, opts.ending !== false, true);
   }
 
   const full = buildTimeline(chart, items, opts.transpose, keyPc);

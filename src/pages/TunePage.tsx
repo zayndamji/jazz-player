@@ -67,6 +67,8 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [repeat, setRepeat] = useState<Repeat>(initial.choruses);
   const [countInBars, setCountInBars] = useState(initial.countIn);
   const countIn = countInBars > 0;
+  const [intro, setIntro] = useState(initial.intro);
+  const [ending, setEnding] = useState(initial.ending);
   const [metronome, setMetronome] = useState(false);
   const [showScales, setShowScales] = useState(initial.showScales);
   const [view, setView] = useState<View>(initial.view);
@@ -102,8 +104,8 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, [muted]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, view, showScales, mix });
-  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, view, showScales, mix]);
+    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, showScales, mix });
+  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, showScales, mix]);
   useEffect(() => store(INSTRUMENT_KEY, instrumentId), [instrumentId]);
   useEffect(() => store(SHORTCUTS_KEY, singleKeys ? "1" : "0"), [singleKeys]);
 
@@ -135,7 +137,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, []);
 
   const start = useCallback(
-    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "countInBars">, chorusOffset = 0) => {
+    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "countInBars" | "intro" | "ending">, chorusOffset = 0) => {
       const p = getPlayer();
       setError(null);
       setStatus("loading");
@@ -151,7 +153,7 @@ export function TunePage({ chart }: { chart: Chart }) {
         p.setVolume(t, mix[t].level);
         p.setMute(t, mix[t].mute);
       });
-      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, choruses: repeat, transpose, tempo, twoFeel };
+      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, intro, ending, choruses: repeat, transpose, tempo, twoFeel };
       const schedule = buildSchedule(chart, style, full);
       current.current = { opts: full, schedule, style };
       p.metronomeOn = metronome;
@@ -163,7 +165,7 @@ export function TunePage({ chart }: { chart: Chart }) {
       setCue(null);
       setStatus("playing");
     },
-    [chart, style, mix, repeat, countInBars, transpose, metronome, tempo, twoFeel, muted],
+    [chart, style, mix, repeat, countInBars, intro, ending, transpose, metronome, tempo, twoFeel, muted],
   );
 
 
@@ -194,8 +196,8 @@ export function TunePage({ chart }: { chart: Chart }) {
 
   const schedule = current.current?.schedule ?? null;
   const totalBeats = useMemo(
-    () => playOrder(chart, repeat === "loop" ? 1 : repeat).length * chart.beatsPerBar + countInBars * chart.beatsPerBar,
-    [chart, repeat, countInBars],
+    () => playOrder(chart, repeat === "loop" ? 1 : repeat, intro, ending, true).length * chart.beatsPerBar + countInBars * chart.beatsPerBar,
+    [chart, repeat, countInBars, intro, ending],
   );
   const nowBar = position && schedule ? schedule.bars[position.bar] : null;
   const looping = current.current?.opts.loopSection != null;
@@ -271,7 +273,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   /** Left and Right: a bar back or on, in playing order; inside a loop they wrap. */
   const move = (delta: number) => {
     const from = fromHere();
-    const order = navOrder(chart, repeat, loopSection, from?.chorus ?? 1);
+    const order = navOrder(chart, repeat, loopSection, from?.chorus ?? 1, intro, ending);
     go(stepBar(order, from, delta, loopSection !== null), loopSection);
   };
 
@@ -284,7 +286,7 @@ export function TunePage({ chart }: { chart: Chart }) {
       return;
     }
     const from = fromHere();
-    go(stepSection(navOrder(chart, repeat, null, from?.chorus ?? 1), from, delta), null);
+    go(stepSection(navOrder(chart, repeat, null, from?.chorus ?? 1, intro, ending), from, delta), null);
   };
 
   const playFrom = (ref: BarRef, loop: number | null) => {
@@ -337,6 +339,8 @@ export function TunePage({ chart }: { chart: Chart }) {
     setRepeat(d.choruses);
     setCountInBars(d.countIn);
     setTwoFeel(d.twoFeel);
+    setIntro(d.intro);
+    setEnding(d.ending);
     setView(d.view);
     setShowScales(d.showScales);
     setMix(d.mix);
@@ -484,6 +488,18 @@ export function TunePage({ chart }: { chart: Chart }) {
         <label className="check">
           <input type="checkbox" checked={twoFeel} onChange={(e) => setTwoFeel(e.target.checked)} />
           Two-feel first chorus
+        </label>
+      )}
+      {chart.intro && (
+        <label className="check">
+          <input type="checkbox" checked={intro} onChange={(e) => setIntro(e.target.checked)} />
+          Play the intro
+        </label>
+      )}
+      {chart.ending && (
+        <label className="check">
+          <input type="checkbox" checked={ending} onChange={(e) => setEnding(e.target.checked)} />
+          Play the ending
         </label>
       )}
       <label className="field">

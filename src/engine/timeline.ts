@@ -82,13 +82,15 @@ export const playsIn = (section: Section, head: boolean) => !section.play || (se
  * The order bars are played in: intro, the form a number of times, ending.
  * The first chorus is the head, and so is the last when the song ends; the
  * choruses between are solos (it matters only for sections marked `play`).
+ * The intro and the ending can be left out; the last chorus is still a head chorus
+ * unless `headLast` says otherwise (the choruses repeating until stopped).
  */
-export function playOrder(chart: Chart, choruses: number, withIntro = true, withEnding = true): PlayItem[] {
+export function playOrder(chart: Chart, choruses: number, withIntro = true, withEnding = true, headLast = withEnding): PlayItem[] {
   const items: PlayItem[] = [];
   const bars = chartBars(chart);
   if (withIntro) bars.filter((b) => b.ref.part === "intro").forEach((b) => items.push({ ref: b.ref, chorus: 0 }));
   for (let c = 1; c <= choruses; c++) {
-    const head = c === 1 || (withEnding && c === choruses);
+    const head = c === 1 || (headLast && c === choruses);
     bars.filter((b) => b.ref.part === "form" && playsIn(chart.form[b.ref.section], head)).forEach((b) => items.push({ ref: b.ref, chorus: c }));
   }
   if (withEnding) {
@@ -148,10 +150,10 @@ export function chordAt(bar: TimelineBar, beat: number): TimelineChord | undefin
  * looping it, intro and form when the choruses repeat until stopped (stepping
  * past the end goes on to the next chorus), else intro, every chorus, ending.
  */
-export function navOrder(chart: Chart, choruses: number | "loop", loopSection: number | null, atChorus = 1): PlayItem[] {
+export function navOrder(chart: Chart, choruses: number | "loop", loopSection: number | null, atChorus = 1, intro = true, ending = true): PlayItem[] {
   if (loopSection !== null) return sectionOrder(chart, loopSection, 1);
-  if (choruses === "loop") return playOrder(chart, Math.max(2, atChorus + 1), true, false);
-  return playOrder(chart, choruses);
+  if (choruses === "loop") return playOrder(chart, Math.max(2, atChorus + 1), intro, false);
+  return playOrder(chart, choruses, intro, ending, true);
 }
 
 function indexIn(order: PlayItem[], from: PlayItem | null): number {
