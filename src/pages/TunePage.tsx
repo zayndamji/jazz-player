@@ -15,6 +15,7 @@ import { chartBars, chorusTranspose, chordAt, fold, navOrder, playOrder, rangeBa
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
+import { applyPreset, effectiveMute, PRESETS } from "./mix";
 import { clearSettings, defaultSettings, loadSettings, raisedTempo, REPEATS, saveSettings, SPEED_UPS, type SpeedUp } from "./settings";
 import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
 import { readStored, store } from "./storage";
@@ -170,7 +171,7 @@ export function TunePage({ chart }: { chart: Chart }) {
       }
       (Object.keys(mix) as Mixable[]).forEach((t) => {
         p.setVolume(t, mix[t].level);
-        p.setMute(t, mix[t].mute);
+        p.setMute(t, effectiveMute(mix, t));
       });
       const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, intro, ending, keyStep, choruses: repeat, transpose, tempo, twoFeel };
       const schedule = buildSchedule(chart, style, full);
@@ -409,11 +410,15 @@ export function TunePage({ chart }: { chart: Chart }) {
   };
 
   const changeMix = (track: Mixable, state: MixState) => setMix((m) => ({ ...m, [track]: state }));
+  const changePreset = (id: string) => {
+    const preset = PRESETS.find((p) => p.id === id);
+    if (preset) setMix((m) => applyPreset(m, preset, bandFor(chart, style)));
+  };
   // The mixer's state goes to the player as it changes, even while playing.
   useEffect(() => {
     (Object.keys(mix) as Mixable[]).forEach((t) => {
       player.current?.setVolume(t, mix[t].level);
-      player.current?.setMute(t, mix[t].mute);
+      player.current?.setMute(t, effectiveMute(mix, t));
     });
   }, [mix]);
 
@@ -652,7 +657,7 @@ export function TunePage({ chart }: { chart: Chart }) {
         Reset to original
       </button>
       <h3>Mix</h3>
-      <Mixer mix={mix} onChange={changeMix} band={bandFor(chart, style)} />
+      <Mixer mix={mix} onChange={changeMix} onPreset={changePreset} band={bandFor(chart, style)} />
     </div>
   );
 

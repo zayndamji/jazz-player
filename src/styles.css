@@ -712,7 +712,7 @@ input:disabled {
 
 .strip {
   display: grid;
-  grid-template-columns: 96px 1fr 30px;
+  grid-template-columns: 96px 1fr 30px 30px;
   align-items: center;
   gap: 8px;
 }

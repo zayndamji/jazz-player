@@ -46,9 +46,9 @@ describe("tune settings", () => {
       twoFeel: true,
       view: "poster",
       showScales: 1,
-      mix: { bass: { level: 3, mute: true }, drums: { level: 0.5, mute: "no" } },
+      mix: { bass: { level: 3, mute: true }, drums: { level: 0.5, mute: "no", solo: true } },
     });
-    expect(got).toEqual({ twoFeel: true, mix: expect.objectContaining({ bass: { level: 1, mute: true }, drums: { level: 0.5, mute: false } }) });
+    expect(got).toEqual({ twoFeel: true, mix: expect.objectContaining({ bass: { level: 1, mute: true, solo: false }, drums: { level: 0.5, mute: false, solo: true } }) });
     expect(parseSettings({ tempo: 120, transpose: -6, style: "bossa", choruses: "loop", view: "sheet" })).toEqual({ tempo: 120, transpose: -6, style: "bossa", choruses: "loop", view: "sheet" });
   });
 

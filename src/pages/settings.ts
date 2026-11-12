@@ -20,11 +20,11 @@ export const raisedTempo = (tempo: number, step: number) => Math.min(TEMPO.max, 
 export const MIXABLES: Mixable[] = ["bass", "guitar", "piano", "drums", "metronome"];
 
 export const initialMix = (): Record<Mixable, MixState> => ({
-  bass: { level: 1, mute: false },
-  guitar: { level: 1, mute: false },
-  piano: { level: 1, mute: false },
-  drums: { level: 1, mute: false },
-  metronome: { level: 1, mute: false },
+  bass: { level: 1, mute: false, solo: false },
+  guitar: { level: 1, mute: false, solo: false },
+  piano: { level: 1, mute: false, solo: false },
+  drums: { level: 1, mute: false, solo: false },
+  metronome: { level: 1, mute: false, solo: false },
 });
 
 /** What a tune remembers between visits: everything More and the player bar can change, except the global Mute and instrument. */
@@ -91,6 +91,10 @@ function parseMix(raw: unknown): Record<Mixable, MixState> | undefined {
     }
     if (isBool(m.mute)) {
       mix[track].mute = m.mute;
+      any = true;
+    }
+    if (isBool(m.solo) && track !== "metronome") {
+      mix[track].solo = m.solo;
       any = true;
     }
   }
