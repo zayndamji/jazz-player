@@ -89,6 +89,7 @@ export function decodeLink(link: string): IRealSong[] {
 /** The backing style for an iReal style name. Edit this to change the mapping. */
 export function styleFor(ireal: string, beatsPerBar: number): string {
   const s = ireal.toLowerCase();
+  if (beatsPerBar === 5) return "five";
   if (beatsPerBar === 3 || /waltz/.test(s)) return "waltz";
   if (/bossa|latin|samba|brazil|afro/.test(s)) return "bossa";
   if (/ballad/.test(s)) return "ballad";
@@ -196,11 +197,11 @@ export function parseMusic(music: string): { measures: Measure[]; beatsPerBar: n
     const rest = s.slice(i);
     if (ch === "T" && /^T\d\d/.test(rest)) {
       const sig = rest.slice(1, 3);
-      if (sig !== "44" && sig !== "34") {
+      if (sig !== "44" && sig !== "34" && sig !== "54") {
         const shown = sig === "12" ? "12/8" : `${sig[0]}/${sig[1]}`;
-        throw new Error(`Only 3/4 and 4/4 charts are supported (this one is ${shown}).`);
+        throw new Error(`Only 3/4, 4/4 and 5/4 charts are supported (this one is ${shown}).`);
       }
-      const meter = sig === "44" ? 4 : 3;
+      const meter = Number(sig[0]);
       if (metered && meter !== beatsPerBar) throw new Error("The time signature changes partway through, which isn't supported.");
       beatsPerBar = meter;
       metered = true;

@@ -31,12 +31,13 @@ describe("3/4 bars", () => {
 
 describe("validateChart meters", () => {
   const chart = (beatsPerBar: number, bars = ["Dm7"]): Chart => ({ ...waltzForm, beatsPerBar, intro: undefined, ending: undefined, form: [{ label: "A", bars }] });
-  it("accepts 3 and 4, rejects others", () => {
+  it("accepts 3, 4 and 5, rejects others", () => {
     expect(validateChart(waltzForm)).toEqual([]);
     expect(validateChart(chart(3))).toEqual([]);
     expect(validateChart(chart(4))).toEqual([]);
-    expect(validateChart(chart(5))).toContain("beatsPerBar must be 3 or 4");
-    expect(validateChart(chart(2))).toContain("beatsPerBar must be 3 or 4");
+    expect(validateChart(chart(5))).toEqual([]);
+    expect(validateChart(chart(6))).toContain("beatsPerBar must be 3, 4 or 5");
+    expect(validateChart(chart(2))).toContain("beatsPerBar must be 3, 4 or 5");
   });
   it("rejects a 3/4 bar with four slots", () => {
     expect(validateChart(chart(3, ["Dm7 G7 C7 F7"])).length).toBe(1);
@@ -163,7 +164,8 @@ describe("styles by meter", () => {
   it("offers only styles that play the chart's meter", () => {
     expect(stylesFor(waltzForm).map((s) => s.id)).toEqual(["waltz"]);
     expect(stylesFor(swingForm).map((s) => s.id)).not.toContain("waltz");
-    expect(stylesFor(swingForm).length).toBe(Object.keys(STYLES).length - 1);
+    expect(stylesFor(swingForm).map((s) => s.id)).not.toContain("five");
+    expect(stylesFor(swingForm).length).toBe(Object.keys(STYLES).length - 2);
     expect(playsMeter(STYLES.swing, 4)).toBe(true);
     expect(playsMeter(STYLES.swing, 3)).toBe(false);
   });

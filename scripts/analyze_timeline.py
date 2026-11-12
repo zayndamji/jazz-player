@@ -70,7 +70,7 @@ def main():
     ap.add_argument("track"); ap.add_argument("--bpm", type=float, required=True); ap.add_argument("--bar1", type=float, required=True)
     ap.add_argument("--form", type=int, default=32); ap.add_argument("--json"); ap.add_argument("--label", default="")
     ap.add_argument("--max-bars", type=int, default=0)
-    ap.add_argument("--beats", type=int, default=4, choices=(3, 4), help="beats per bar (default 4; 3 for a waltz)")
+    ap.add_argument("--beats", type=int, default=4, choices=(3, 4, 5), help="beats per bar (default 4; 3 for a waltz, 5 for 5/4)")
     a = ap.parse_args()
     x = decode(a.track)
     fps = SR / HOP

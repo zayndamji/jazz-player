@@ -7,21 +7,21 @@ import { buildTimeline, keyCycle, loopedChoruses, playOrder, rangeOrder, sameRef
 
 export type Repeat = number | "loop";
 
-/** Which beats the metronome clicks: every beat, the backbeats (2 and 4, or 2 and 3 in 3/4), or only beat 1. */
+/** Which beats the metronome clicks: every beat, the backbeats (2 and 4, or 2 and 3 in 3/4; in 5/4 the 3+2 groups, 1 and 4), or only beat 1. */
 export type ClickMode = "every" | "two-four" | "one";
 export const CLICK_MODES: ClickMode[] = ["every", "two-four", "one"];
 
 /** Whether the metronome clicks on a beat of the bar (from 0). The count-in always clicks every beat. */
 export const clicksOn = (mode: ClickMode, beat: number, beatsPerBar = 4) =>
-  mode === "every" ? true : mode === "two-four" ? (beatsPerBar === 3 ? beat >= 1 : beat % 2 === 1) : beat === 0;
+  mode === "every" ? true : mode === "two-four" ? (beatsPerBar === 3 ? beat >= 1 : beatsPerBar === 5 ? beat === 0 || beat === 3 : beat % 2 === 1) : beat === 0;
 
-/** The click setting's name in the menu: the backbeats are 2 and 4 in 4/4, 2 and 3 in 3/4. */
+/** The click setting's name in the menu: the backbeats are 2 and 4 in 4/4, 2 and 3 in 3/4, 1 and 4 in 5/4. */
 export const clickLabel = (mode: ClickMode, beatsPerBar = 4) =>
-  mode === "every" ? "Every beat" : mode === "one" ? "Beat 1 only" : beatsPerBar === 3 ? "2 and 3" : "2 and 4";
+  mode === "every" ? "Every beat" : mode === "one" ? "Beat 1 only" : beatsPerBar === 3 ? "2 and 3" : beatsPerBar === 5 ? "1 and 4" : "2 and 4";
 
-/** Whether a count-in click sounds. With two bars the first is a bar of half notes in 4/4 ("1 . 2 . | 1 2 3 4"); in 3/4 it is one pulse ("1 . . | 1 2 3", a dotted half), which is how a drummer counts a waltz in. */
+/** Whether a count-in click sounds. With two bars the first is a bar of half notes in 4/4 ("1 . 2 . | 1 2 3 4"); in 3/4 it is one pulse ("1 . . | 1 2 3", a dotted half), which is how a drummer counts a waltz in; in 5/4 it clicks the groups, 1 and 4. */
 const countInClick = (beatsPerBar: number, bar: number, bars: number, beat: number) =>
-  !(bar === 0 && bars > 1 && (beatsPerBar === 3 ? beat > 0 : beat % 2 === 1));
+  !(bar === 0 && bars > 1 && (beatsPerBar === 3 ? beat > 0 : beatsPerBar === 5 ? beat !== 0 && beat !== 3 : beat % 2 === 1));
 
 export interface PlaybackOptions {
   /** Times through the form, or "loop" to repeat it until stopped. */

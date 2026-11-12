@@ -101,7 +101,7 @@ def main():
     ap.add_argument("--bpm", type=float, help="tempo, if known")
     ap.add_argument("--bar1", type=float, help="time of bar 1 in seconds, if known")
     ap.add_argument("--form", type=int, default=32, help="bars in the form (default 32)")
-    ap.add_argument("--beats", type=int, default=4, choices=(3, 4), help="beats per bar (default 4; 3 for a waltz)")
+    ap.add_argument("--beats", type=int, default=4, choices=(3, 4, 5), help="beats per bar (default 4; 3 for a waltz, 5 for 5/4)")
     ap.add_argument("--json", help="also write the results here")
     a = ap.parse_args()
 

@@ -1,0 +1,57 @@
+{
+  "id": "five-form",
+  "title": "Made-up Five",
+  "key": "Dm",
+  "tempo": 170,
+  "beatsPerBar": 5,
+  "style": "five",
+  "intro": {
+    "label": "Intro",
+    "bars": [
+      "Dm Am7",
+      "Dm Am7"
+    ]
+  },
+  "form": [
+    {
+      "label": "A",
+      "bars": [
+        "Dm Am7",
+        "Dm Am7",
+        "Dm Am7",
+        "Dm Am7"
+      ]
+    },
+    {
+      "label": "B",
+      "bars": [
+        "Bbmaj7 Gm6",
+        "Am7 Dm7",
+        "Gm7 C7",
+        "Fmaj7",
+        "Bbmaj7 Gm6",
+        "Am7 Dm7",
+        "Em7 A7",
+        "Dm"
+      ]
+    },
+    {
+      "label": "A",
+      "bars": [
+        "Dm Am7",
+        "Dm Am7",
+        "Dm Am7",
+        "Dm Am7"
+      ]
+    }
+  ],
+  "ending": [
+    {
+      "label": "Tag",
+      "bars": [
+        "Dm Am7",
+        "Dm"
+      ]
+    }
+  ]
+}

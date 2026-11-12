@@ -66,7 +66,8 @@ export const BEAT = "/";
  * Parse one bar string from a chart ("D", "Em7/A A7", "Am7 / / Fmaj7", "%").
  * Tokens split the bar evenly; a "/" token takes a slot without a new chord.
  * In 3/4 a bar has three beat slots, so two tokens are two beats then one (the
- * jazz waltz convention: "Dm7 G7" is Dm7 on 1 and G7 on 3).
+ * jazz waltz convention: "Dm7 G7" is Dm7 on 1 and G7 on 3). In 5/4 two tokens are
+ * three beats then two, the 3+2 the meter is felt in ("Ebm Bbm7" changes on beat 4).
  */
 export function parseBar(text: string, beatsPerBar: number): ParsedBar {
   const tokens = barTokens(text);
@@ -74,10 +75,10 @@ export function parseBar(text: string, beatsPerBar: number): ParsedBar {
     return { chords: [], repeat: true };
   }
   const step = beatsPerBar / tokens.length;
-  const waltzSplit = beatsPerBar === 3 && tokens.length === 2;
+  const split = tokens.length !== 2 ? 0 : beatsPerBar === 3 ? 2 : beatsPerBar === 5 ? 3 : 0;
   const chords: ChordSlot[] = [];
   tokens.forEach((symbol, i) => {
-    if (symbol !== BEAT) chords.push({ symbol, beat: waltzSplit ? i * 2 : i * step });
+    if (symbol !== BEAT) chords.push({ symbol, beat: split ? i * split : i * step });
   });
   return { chords, repeat: false };
 }

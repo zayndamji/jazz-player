@@ -1,5 +1,6 @@
 import { ballad } from "./ballad";
 import { bossa } from "./bossa";
+import { five } from "./five";
 import { swing } from "./swing";
 import { waltz } from "./waltz";
 import type { Chart } from "../chart/types";
@@ -10,6 +11,7 @@ export const STYLES: Record<string, Style> = {
   [bossa.id]: bossa,
   [swing.id]: swing,
   [waltz.id]: waltz,
+  [five.id]: five,
 };
 
 /** True when the style can play bars of this many beats (4 unless it lists `meters`). */

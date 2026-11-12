@@ -27,7 +27,7 @@ export function validateChart(chart: Chart): string[] {
   if (!chart.title) errors.push("missing title");
   if (!/^[A-G][b#]?m?$/.test(chart.key)) errors.push(`key "${chart.key}" must be a note like C, Bb or F#, with "m" for minor (Em)`);
   if (!(chart.tempo >= TEMPO.min && chart.tempo <= TEMPO.max)) errors.push(`tempo ${chart.tempo} out of range`);
-  if (chart.beatsPerBar !== 4 && chart.beatsPerBar !== 3) errors.push("beatsPerBar must be 3 or 4");
+  if (![3, 4, 5].includes(chart.beatsPerBar)) errors.push("beatsPerBar must be 3, 4 or 5");
   if (!chart.form?.length) errors.push("form has no sections");
   if (chart.comp !== undefined && !["sparse", "busy", "blues"].includes(chart.comp)) errors.push(`comp "${chart.comp}" must be sparse, busy or blues`);
   const sections = [...(chart.intro ? [chart.intro] : []), ...(chart.form ?? []), ...(chart.ending ?? [])];
@@ -40,6 +40,7 @@ export function validateChart(chart: Chart): string[] {
       const tokens = barTokens(text);
       if (tokens[0] === BEAT && first) errors.push(`section ${section.label} bar ${i + 1}: "/" with no chord before it`);
       if (chart.beatsPerBar === 3 && tokens.length > 3) errors.push(`section ${section.label} bar ${i + 1}: a 3/4 bar has at most three chords or slashes`);
+      if (chart.beatsPerBar === 5 && (tokens.length === 3 || tokens.length === 4 || tokens.length > 5)) errors.push(`section ${section.label} bar ${i + 1}: a 5/4 bar has one, two (3+2) or five chords or slashes`);
       if (tokens.length > 1 && tokens.includes("%")) errors.push(`section ${section.label} bar ${i + 1}: "%" must be the whole bar; use "/" to hold a chord for a beat`);
       for (const slot of bar.chords) {
         try {

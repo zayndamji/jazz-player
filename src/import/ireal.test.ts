@@ -95,11 +95,11 @@ describe("iReal charts", () => {
   });
 
   it("imports a playlist and lists songs it can't read", () => {
-    const bad = song("[T54C7 |D7 Z", { title: "Five Four" });
+    const bad = song("[T68C7 |D7 Z", { title: "Six Eight" });
     const { results, skipped } = importIReal(irealLink([swingSong, bad, waltzSong], "List"));
     expect(results.map((r) => r.chart.id)).toEqual(["made-up-swing", "made-up-waltz"]);
-    expect(skipped).toEqual(["Five Four: Only 3/4 and 4/4 charts are supported (this one is 5/4)."]);
-    expect(() => importIReal(irealLink([bad]))).toThrow(/5\/4/);
+    expect(skipped).toEqual(["Six Eight: Only 3/4, 4/4 and 5/4 charts are supported (this one is 6/8)."]);
+    expect(() => importIReal(irealLink([bad]))).toThrow(/6\/8/);
   });
 
   it("maps iReal styles", () => {
@@ -118,10 +118,11 @@ describe("iReal tokens", () => {
     expect(bars("T44C7 |D7 |E7  F7 |G7 ,A7 |B7,,C7 |D7 E7 F7 G7 |C7 ,,D7 Z")).toEqual(["C7", "D7", "E7 F7", "G7 A7", "B7 C7", "D7 E7 F7 G7", "C7 / / D7"]);
   });
 
-  it("reads time signatures T44 and T34 and rejects the rest", () => {
+  it("reads time signatures T44, T34 and T54 and rejects the rest", () => {
     expect(parseMusic("T44C7 |").beatsPerBar).toBe(4);
     expect(parseMusic("T34C7 |").beatsPerBar).toBe(3);
-    for (const t of ["T24", "T54", "T64", "T74", "T22", "T32", "T58", "T68", "T78", "T98", "T12"]) expect(() => parseMusic(`${t}C7 |`)).toThrow(/Only 3\/4 and 4\/4/);
+    expect(parseMusic("T54C7 |").beatsPerBar).toBe(5);
+    for (const t of ["T24", "T64", "T74", "T22", "T32", "T58", "T68", "T78", "T98", "T12"]) expect(() => parseMusic(`${t}C7 |`)).toThrow(/Only 3\/4, 4\/4 and 5\/4/);
   });
 
   it("reads section marks *A *B *C *i *v", () => {

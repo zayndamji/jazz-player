@@ -146,8 +146,8 @@ export function importMusicXml(source: string, fileName = ""): ImportResult {
         if (time && !beats) {
           beats = Number(textOf(time, "beats"));
           beatType = Number(textOf(time, "beat-type"));
-          if (!((beats === 3 || beats === 4) && beatType === 4)) {
-            throw new Error(`Only 3/4 and 4/4 charts are supported (this one is ${textOf(time, "beats")}/${textOf(time, "beat-type")}).`);
+          if (!((beats === 3 || beats === 4 || beats === 5) && beatType === 4)) {
+            throw new Error(`Only 3/4, 4/4 and 5/4 charts are supported (this one is ${textOf(time, "beats")}/${textOf(time, "beat-type")}).`);
           }
         }
         const transpose = child(c, "transpose");

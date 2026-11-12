@@ -30,7 +30,7 @@ export interface Played {
 }
 
 /** Style for a time signature when the file doesn't say. */
-export const defaultStyle = (beatsPerBar: number) => (beatsPerBar === 3 ? "waltz" : "swing");
+export const defaultStyle = (beatsPerBar: number) => (beatsPerBar === 3 ? "waltz" : beatsPerBar === 5 ? "five" : "swing");
 
 export const clampTempo = (bpm: number) => Math.min(TEMPO.max, Math.max(TEMPO.min, Math.round(bpm)));
 
