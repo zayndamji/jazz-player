@@ -1,4 +1,4 @@
-import { parseBar, parseChord, transposeSymbol, type ParsedChord } from "../chart/chords";
+import { isMinorKey, keyPitchClass, parseBar, parseChord, spellingPc, transposeSymbol, type ParsedChord } from "../chart/chords";
 import type { Chart, Section } from "../chart/types";
 
 /** Where a bar sits on the chart, so the grid can light it up. */
@@ -18,7 +18,19 @@ export interface TimelineChord {
   attack: boolean;
 }
 
+/** Fold semitones into -6..+5 so transposed charts stay near the written register. */
+export const fold = (n: number) => ((((n + 6) % 12) + 12) % 12) - 6;
+
+/** Half steps the key moves up each chorus when cycling: none, a fourth, a half step up or down, a whole step. */
+export const KEY_STEPS = [0, 5, 1, -1, 2] as const;
+export type KeyStep = (typeof KEY_STEPS)[number];
+
+/** The transpose chorus `chorus` (from 1) plays in when each chorus moves the key by `step`, folded into -6..5. */
+export const chorusTranspose = (base: number, step: number, chorus: number) => (step === 0 ? base : fold(base + (Math.max(1, chorus) - 1) * step));
+
 export interface TimelineBar {
+  /** Half steps from the original key this bar's chords are in. */
+  transpose: number;
   /** Bar number from the start of playback, from 0 (count-in bars come first). */
   index: number;
   startBeat: number;
@@ -131,14 +143,24 @@ export function sectionOrder(chart: Chart, section: number, times: number): Play
   return items;
 }
 
-/** Fill in chords (transposed) for a play order. Bar indexes and beats start at 0. */
-export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number, keyPc: number): TimelineBar[] {
+/**
+ * Fill in chords (transposed) for a play order. Bar indexes and beats start at 0.
+ * With a key `step` each chorus is in its own key (see `chorusTranspose`), chords spelled for it;
+ * the intro is in the first chorus's key and the ending in the last one's.
+ */
+export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number, keyPc: number, step = 0): TimelineBar[] {
   const beats = chart.beatsPerBar;
   let previous: ParsedChord | null = null;
   // Contrast is against the first section played in the same chorus (solo choruses may start elsewhere).
   const firstLabel = new Map<number, string>();
   for (const item of items) if (item.ref.part === "form" && !firstLabel.has(item.chorus)) firstLabel.set(item.chorus, chart.form[item.ref.section].label);
+  const lastChorus = Math.max(1, ...items.map((i) => i.chorus));
+  const chartPc = keyPitchClass(chart.key);
+  const minor = isMinorKey(chart.key);
   const bars = items.map((item, index): TimelineBar => {
+    const chorusOf = item.ref.part === "form" ? item.chorus : item.ref.part === "ending" ? lastChorus : 1;
+    const barTranspose = chorusTranspose(transpose, step, chorusOf);
+    const barKeyPc = step === 0 ? keyPc : spellingPc((chartPc + barTranspose + 120) % 12, minor);
     const parsed = parseBar(barText(chart, item.ref), beats);
     const chords: TimelineChord[] = [];
     if (parsed.repeat) {
@@ -146,7 +168,7 @@ export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number
     } else {
       parsed.chords.forEach((slot, i) => {
         const next = parsed.chords[i + 1];
-        const chord = parseChord(transposeSymbol(slot.symbol, transpose, keyPc));
+        const chord = parseChord(transposeSymbol(slot.symbol, barTranspose, barKeyPc));
         chords.push({ beat: slot.beat, length: (next ? next.beat : beats) - slot.beat, chord, attack: true });
         previous = chord;
       });
@@ -154,7 +176,7 @@ export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number
     const section = sectionOf(chart, item.ref);
     const label = section?.label ?? "";
     const contrast = item.ref.part === "form" && label !== (firstLabel.get(item.chorus) ?? chart.form[0].label);
-    return { index, startBeat: index * beats, ref: item.ref, chorus: item.chorus, label, contrast, chords, countIn: false, final: false };
+    return { transpose: barTranspose, index, startBeat: index * beats, ref: item.ref, chorus: item.chorus, label, contrast, chords, countIn: false, final: false };
   });
   const last = bars.at(-1);
   if (last && last.ref?.part === "ending") last.final = true;

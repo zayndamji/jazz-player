@@ -3,6 +3,7 @@ import type { MixState } from "../components/Mixer";
 import type { View } from "../components/ControlBar";
 import { TEMPO, type Chart } from "../chart/types";
 import { CLICK_MODES, type ClickMode, type Repeat } from "../engine/schedule";
+import { KEY_STEPS, type KeyStep } from "../engine/timeline";
 import { STYLES } from "../styles";
 import { forget, readStored, store } from "./storage";
 
@@ -42,6 +43,8 @@ export interface TuneSettings {
   click: ClickMode;
   showScales: boolean;
   speedUp: SpeedUp;
+  /** Half steps the key moves each chorus. */
+  keyStep: KeyStep;
   mix: Record<Mixable, MixState>;
 }
 
@@ -61,6 +64,7 @@ export function defaultSettings(chart: Chart): TuneSettings {
     click: "every",
     showScales: false,
     speedUp: 0,
+    keyStep: 0,
     mix: initialMix(),
   };
 }
@@ -110,6 +114,7 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   if (raw.view === "chords" || raw.view === "sheet") out.view = raw.view;
   if (CLICK_MODES.includes(raw.click as ClickMode)) out.click = raw.click as ClickMode;
   if (SPEED_UPS.includes(raw.speedUp as SpeedUp)) out.speedUp = raw.speedUp as SpeedUp;
+  if (KEY_STEPS.includes(raw.keyStep as KeyStep)) out.keyStep = raw.keyStep as KeyStep;
   if (isBool(raw.showScales)) out.showScales = raw.showScales;
   const mix = parseMix(raw.mix);
   if (mix) out.mix = mix;

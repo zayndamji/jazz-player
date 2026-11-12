@@ -11,7 +11,7 @@ import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
 import { bandFor, buildSchedule, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
-import { chartBars, chordAt, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type PlayItem } from "../engine/timeline";
+import { chartBars, chorusTranspose, chordAt, fold, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
@@ -41,9 +41,6 @@ function sectionName(chart: Chart, index: number): string {
   const same = chart.form.filter((s) => s.label === label).length;
   return same > 1 ? label + chart.form.slice(0, index + 1).filter((s) => s.label === label).length : label;
 }
-
-/** Fold semitones into -6..+5 so transposed charts stay near the written register. */
-const fold = (n: number) => ((((n + 6) % 12) + 12) % 12) - 6;
 
 type Status = "idle" | "loading" | "playing";
 
@@ -80,6 +77,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   const speedUpNow = useRef(speedUp);
   speedUpNow.current = speedUp;
   const lastBar = useRef<number | null>(null);
+  const [keyStep, setKeyStep] = useState<KeyStep>(initial.keyStep);
   const [metronome, setMetronome] = useState(false);
   const [showScales, setShowScales] = useState(initial.showScales);
   const [view, setView] = useState<View>(initial.view);
@@ -118,17 +116,12 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, [muted]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, speedUp, mix });
-  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, clickMode, showScales, speedUp, mix]);
+    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, mix });
+  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, clickMode, showScales, speedUp, keyStep, mix]);
   useEffect(() => store(INSTRUMENT_KEY, instrumentId), [instrumentId]);
   useEffect(() => store(SHORTCUTS_KEY, singleKeys ? "1" : "0"), [singleKeys]);
 
   const instrument = INSTRUMENTS.find((i) => i.id === instrumentId)!;
-  const shift = fold(transpose + instrument.offset);
-  const printedKeyPc = (chartKeyPc + shift + 12) % 12;
-  /** The major key the printed chords are spelled in (the relative major for a minor tune). */
-  const printedSpellPc = spellingPc(printedKeyPc, minor);
-  const concertKeyPc = (chartKeyPc + transpose + 12) % 12;
   const playing = status === "playing";
 
   const getPlayer = () => {
@@ -163,7 +156,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, []);
 
   const start = useCallback(
-    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "countInBars" | "intro" | "ending">, chorusOffset = 0) => {
+    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "countInBars" | "intro" | "ending" | "keyStep">, chorusOffset = 0) => {
       const p = getPlayer();
       setError(null);
       setStatus("loading");
@@ -179,7 +172,7 @@ export function TunePage({ chart }: { chart: Chart }) {
         p.setVolume(t, mix[t].level);
         p.setMute(t, mix[t].mute);
       });
-      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, intro, ending, choruses: repeat, transpose, tempo, twoFeel };
+      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, intro, ending, keyStep, choruses: repeat, transpose, tempo, twoFeel };
       const schedule = buildSchedule(chart, style, full);
       current.current = { opts: full, schedule, style };
       p.metronomeOn = metronome;
@@ -192,7 +185,7 @@ export function TunePage({ chart }: { chart: Chart }) {
       setCue(null);
       setStatus("playing");
     },
-    [chart, style, mix, repeat, countInBars, intro, ending, transpose, metronome, clickMode, tempo, twoFeel, muted],
+    [chart, style, mix, repeat, countInBars, intro, ending, keyStep, transpose, metronome, clickMode, tempo, twoFeel, muted],
   );
 
 
@@ -209,12 +202,12 @@ export function TunePage({ chart }: { chart: Chart }) {
   useEffect(() => {
     const c = current.current;
     if (!playing || !c) return;
-    const sameShape = c.opts.transpose === transpose && c.style === style && c.opts.twoFeel === twoFeel;
+    const sameShape = c.opts.transpose === transpose && c.opts.keyStep === keyStep && c.style === style && c.opts.twoFeel === twoFeel;
     if (sameShape && c.opts.tempo === tempo) return;
     const rebuild = () => {
       const now = current.current;
       if (!now || !player.current?.playing) return;
-      const opts = { ...now.opts, transpose, tempo, twoFeel };
+      const opts = { ...now.opts, transpose, keyStep, tempo, twoFeel };
       const schedule = buildSchedule(chart, style, opts);
       current.current = { opts, schedule, style };
       player.current.setSchedule(schedule);
@@ -222,7 +215,7 @@ export function TunePage({ chart }: { chart: Chart }) {
     if (!sameShape) return rebuild();
     const id = window.setTimeout(rebuild, 400);
     return () => window.clearTimeout(id);
-  }, [chart, style, transpose, tempo, twoFeel, playing]);
+  }, [chart, style, transpose, keyStep, tempo, twoFeel, playing]);
 
   const schedule = current.current?.schedule ?? null;
   const totalBeats = useMemo(
@@ -233,6 +226,24 @@ export function TunePage({ chart }: { chart: Chart }) {
   const looping = current.current?.opts.loopSection != null || current.current?.opts.loopRange != null;
   /** The chorus a bar is in, counting the repeats when the choruses go on until stopped. */
   const realChorus = (chorus: number) => (repeat === "loop" && !looping && chorus > 0 ? chorus + loops : chorus);
+
+  // With key cycling the key follows the chorus that's playing (or the one the band will start in).
+  const oneKey = loop !== null || repeat === "loop";
+  const chorusKey = (ref: BarRef, chorus: number) => (ref.part === "form" ? chorus || 1 : ref.part === "ending" && typeof repeat === "number" ? repeat : 1);
+  const placeShown: PlayItem | null = nowBar?.ref
+    ? { ref: nowBar.ref, chorus: realChorus(nowBar.chorus) }
+    : nowBar?.countIn
+      ? (current.current?.opts.start ?? null)
+      : status === "idle"
+        ? cue
+        : null;
+  /** Half steps from the original key of the music on show. */
+  const shownTranspose = chorusTranspose(transpose, oneKey ? 0 : keyStep, placeShown ? chorusKey(placeShown.ref, placeShown.chorus) : 1);
+  const shift = fold(shownTranspose + instrument.offset);
+  const printedKeyPc = (chartKeyPc + shift + 12) % 12;
+  /** The major key the printed chords are spelled in (the relative major for a minor tune). */
+  const printedSpellPc = spellingPc(printedKeyPc, minor);
+  const concertKeyPc = (chartKeyPc + shownTranspose + 12) % 12;
 
   /**
    * Start the band at a bar (null: the top, or the looped section's first bar).
@@ -421,6 +432,7 @@ export function TunePage({ chart }: { chart: Chart }) {
     setClickMode(d.click);
     setShowScales(d.showScales);
     setSpeedUp(d.speedUp);
+    setKeyStep(d.keyStep);
     setMix(d.mix);
     clearSettings(chart.id);
   };
@@ -559,6 +571,16 @@ export function TunePage({ chart }: { chart: Chart }) {
         </select>
       </label>
       <label className="field">
+        <span>Key each chorus</span>
+        <select value={keyStep} onChange={(e) => setKeyStep(Number(e.target.value) as KeyStep)}>
+          <option value={0}>Same key</option>
+          <option value={5}>Up a fourth</option>
+          <option value={1}>Up a half step</option>
+          <option value={-1}>Down a half step</option>
+          <option value={2}>Up a whole step</option>
+        </select>
+      </label>
+      <label className="field">
         <span>Written for</span>
         <select value={instrumentId} onChange={(e) => setInstrumentId(e.target.value)}>
           {INSTRUMENTS.map((i) => (
@@ -645,7 +667,7 @@ export function TunePage({ chart }: { chart: Chart }) {
           <span>{style.name}</span>
           <span>
             {keyWords(concertKeyPc, minor)}
-            {transpose !== 0 && `, ${steps(transpose)} from ${keyLabel(chartKeyPc, minor)}`}
+            {shownTranspose !== 0 && `, ${steps(shownTranspose)} from ${keyLabel(chartKeyPc, minor)}`}
           </span>
           <span>{chart.beatsPerBar}/4</span>
           {instrument.offset !== 0 && (

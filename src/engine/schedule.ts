@@ -20,6 +20,8 @@ export interface PlaybackOptions {
   /** Bars of count-in: 0, 1 or 2. Overrides `countIn` when set. */
   countInBars?: 0 | 1 | 2;
   transpose: number;
+  /** Half steps the key moves up each chorus (see `KEY_STEPS`); loops and choruses until stopped stay in one key. */
+  keyStep?: number;
   /** Start from this bar instead of the top. */
   start?: { ref: BarRef; chorus: number } | null;
   /** Repeat only this form section until stopped. */
@@ -84,7 +86,8 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     items = playOrder(chart, opts.choruses, opts.intro !== false, opts.ending !== false, true);
   }
 
-  const full = buildTimeline(chart, items, opts.transpose, keyPc);
+  const oneKey = opts.loopSection != null || !!opts.loopRange || opts.choruses === "loop";
+  const full = buildTimeline(chart, items, opts.transpose, keyPc, oneKey ? 0 : (opts.keyStep ?? 0));
   let startAt = 0;
   if (opts.start) {
     const found = full.findIndex((b) => sameRef(b.ref, opts.start!.ref) && b.chorus === opts.start!.chorus);
@@ -99,12 +102,14 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     startBeat: i * beatsPerBar,
     ref: null,
     chorus: 0,
+    transpose: 0,
     label: "",
     contrast: false,
     chords: [],
     countIn: true,
     final: false,
   }));
+  for (const bar of countIn) bar.transpose = full[startAt]?.transpose ?? opts.transpose;
   const music = full.slice(startAt).map((b, i) => ({ ...b, index: i + countInBars, startBeat: (i + countInBars) * beatsPerBar }));
   const bars = [...countIn, ...music];
 

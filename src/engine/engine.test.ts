@@ -6,7 +6,7 @@ import { bossa } from "../styles/bossa";
 import { buildSchedule, clicksOn } from "./schedule";
 import { validateChart } from "../charts";
 import type { Chart } from "../chart/types";
-import { buildTimeline, chartBars, navOrder, playOrder, rangeBars, stepBar, stepSection, type PlayItem } from "./timeline";
+import { buildTimeline, chartBars, chorusTranspose, navOrder, playOrder, rangeBars, stepBar, stepSection, type PlayItem } from "./timeline";
 import { SWING_RANGE, VOICING_HIGH, VOICING_LOW, voiceChord, voicingIntervals } from "./voicing";
 
 const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -374,5 +374,53 @@ describe("loop a range of bars", () => {
   it("loops a section instead when both are given", () => {
     const s = buildSchedule(chart, bossa, { choruses: 3, countIn: false, transpose: 0, loopSection: 1, loopRange: range });
     expect(s.bars[0].ref!.section).toBe(1);
+  });
+});
+
+describe("key cycling", () => {
+  const root = (bar: { chords: { chord: { symbol: string } }[] }) => bar.chords[0].chord.symbol;
+  const sched = (keyStep: number, extra = {}) => buildSchedule(chart, bossa, { choruses: 3, countIn: false, transpose: 0, keyStep, ...extra });
+  const firstOf = (s: ReturnType<typeof sched>, chorus: number) => s.bars.find((b) => b.chorus === chorus && b.ref!.part === "form")!;
+
+  it("moves each chorus up a fourth: chorus 2 is up 5 half steps", () => {
+    const s = sched(5);
+    expect(root(firstOf(s, 1))).toBe("Cmaj7");
+    expect(root(firstOf(s, 2))).toBe("Fmaj7");
+    expect(firstOf(s, 2).transpose).toBe(5);
+    expect(root(firstOf(s, 3))).toBe("Bbmaj7");
+    expect(firstOf(s, 3).transpose).toBe(-2);
+  });
+
+  it("adds the base transpose and folds it into -6..5", () => {
+    expect(chorusTranspose(0, 5, 1)).toBe(0);
+    expect(chorusTranspose(0, 5, 2)).toBe(5);
+    expect(chorusTranspose(0, 5, 3)).toBe(-2);
+    expect(chorusTranspose(3, 5, 2)).toBe(-4);
+    expect(chorusTranspose(2, 1, 12)).toBe(1);
+    expect(chorusTranspose(2, 0, 7)).toBe(2);
+  });
+
+  it("keeps the intro in the first key and the ending in the last", () => {
+    const s = sched(2);
+    expect(s.bars[0].transpose).toBe(0);
+    expect(s.bars.at(-1)!.transpose).toBe(4);
+  });
+
+  it("spells each chorus's chords in its own key", () => {
+    const flats = sched(-1);
+    expect(root(firstOf(flats, 2))).toBe("Bmaj7");
+    expect(firstOf(flats, 2).transpose).toBe(-1);
+  });
+
+  it("stays in one key when looping a section or a range, or repeating until stopped", () => {
+    expect(sched(5, { loopSection: 0 }).bars.every((b) => b.transpose === 0)).toBe(true);
+    expect(sched(5, { loopRange: { from: { part: "form", section: 0, bar: 0 }, to: { part: "form", section: 0, bar: 2 } } }).bars.every((b) => b.transpose === 0)).toBe(true);
+    expect(sched(5, { choruses: "loop" }).bars.every((b) => b.transpose === 0)).toBe(true);
+  });
+
+  it("starts a count-in in the key of the bar it leads to", () => {
+    const s = buildSchedule(chart, bossa, { choruses: 3, countIn: true, transpose: 0, keyStep: 5, start: { ref: { part: "form", section: 0, bar: 0 }, chorus: 2 } });
+    expect(s.bars[0].countIn).toBe(true);
+    expect(s.bars[0].transpose).toBe(5);
   });
 });

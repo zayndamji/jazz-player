@@ -76,3 +76,11 @@ describe("speed up each pass", () => {
     expect(parseSettings({ speedUp: 3 }).speedUp).toBeUndefined();
   });
 });
+
+describe("key each chorus", () => {
+  it("accepts only the offered steps", () => {
+    expect(parseSettings({ keyStep: 5 }).keyStep).toBe(5);
+    expect(parseSettings({ keyStep: -1 }).keyStep).toBe(-1);
+    expect(parseSettings({ keyStep: 3 }).keyStep).toBeUndefined();
+  });
+});
