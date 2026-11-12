@@ -172,3 +172,24 @@ describe("swing drums over a long take", () => {
     expect(busy / ends.length).toBeLessThan(0.75);
   });
 });
+
+describe("sparse comping", () => {
+  const sparse = buildSchedule({ ...chart, comp: "sparse" }, swing, { choruses: 10, countIn: false, transpose: 0 });
+  const solos = sparse.bars.filter((b) => b.ref?.part === "form" && b.chorus >= 2 && b.chorus <= 9);
+  const empty = solos.map((b) => !sparse.events.some((e) => e.track === "piano" && e.time >= b.startBeat - 0.3 && e.time < b.startBeat + 3.9));
+
+  it("strolls for whole phrases in the solos", () => {
+    const share = empty.filter(Boolean).length / empty.length;
+    expect(share).toBeGreaterThan(0.25);
+    expect(share).toBeLessThan(0.65);
+    // Most laid-out bars come in runs of a phrase or more (a pushed chord can leave a single bar empty too).
+    let run = 0;
+    const runs: number[] = [];
+    [...empty, false].forEach((e) => {
+      if (e) run++;
+      else if (run) runs.push(run), (run = 0);
+    });
+    const long = runs.filter((r) => r >= 4).reduce((a, r) => a + r, 0);
+    expect(long / runs.reduce((a, r) => a + r, 0)).toBeGreaterThan(0.75);
+  });
+});

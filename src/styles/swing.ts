@@ -353,6 +353,7 @@ export const swing: Style = {
     let pushedIn = false;
     let lastCell: Figure["hits"] | undefined;
     let twoBack: Figure["hits"] | undefined;
+    let strolling = false;
     const talk = drumTalk(random);
     let lastFill: Fill | undefined;
     let ridePrev: RideCell | undefined;
@@ -512,16 +513,20 @@ export const swing: Style = {
       const changes = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord;
       const place = bar.ref ? `${bar.ref.part}.${bar.ref.section}.${bar.ref.bar}` : "";
       const recalled = bar.chorus >= 2 ? memory.get(place) : undefined;
-      // The chart's comping colour: sparse cells and strolled bars, busy ones, or blues riffs
+      // The chart's comping colour: sparse cells and strolled phrases, busy ones, or blues riffs
       // (a cell repeated, weighted to the ands of 2 and 4 where Kelly-style blues comping sits).
       const colour = feel.comp;
+      // Sparse: in the solos the pianist strolls (lays out) for whole four-bar phrases, often two
+      // or three running, as Evans does on the 1959 modal record (piano in 30 to 40% of solo bars,
+      // out for 7 to 13 bars at a time): about 45% of the solo bars, runs of about nine bars.
+      if (inPhrase === 0) strolling = !straight && colour === "sparse" && (plan.role === "solo" || plan.role === "peak") && random() < (strolling ? 0.55 : 0.35);
       const density = plan.density * (colour === "sparse" ? 0.82 : colour === "busy" ? 1.15 : colour === "blues" ? 1.08 : 1);
       const bluesWeight = (hits: Figure["hits"]) => (colour === "blues" && hits.some(([slot]) => slot === 3 || slot === 7) ? 1.4 : 1);
       const cell = straight
         ? straightCell(bar)
         : inTwo
         ? weighted(COMP_TWO.map((c) => ({ weight: c.weight, value: c.hits })), random)
-        : colour === "sparse" && (plan.role === "solo" || plan.role === "peak") && random() < 0.1
+        : strolling
           ? []
           : colour === "blues" && lastCell && inPhrase !== 0 && random() < 0.4
             ? lastCell
@@ -532,7 +537,7 @@ export const swing: Style = {
                 : weighted((fast ? COMP_FAST : COMP).map((c) => ({ weight: fast ? c.weight : forDensity(c, density) * bluesWeight(c.hits) * breathe(c.hits, lastCell), value: c.hits })), random, lastCell);
       twoBack = lastCell;
       lastCell = cell;
-      if (place) memory.set(place, cell);
+      if (place && cell.length) memory.set(place, cell);
       // The register moves with the chorus and drifts every eight bars, often every four
       // (the references' comping register spreads 2.6 to 3.4 dB bar to bar).
       if (!straight && inPhrase === 0 && ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5))

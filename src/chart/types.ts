@@ -28,7 +28,7 @@ export interface Chart {
   twoFeel?: boolean;
   /**
    * How the piano comps in swing, when the tune's records differ from the style's middle
-   * ground: "sparse" (few, longer chords and space), "busy" (on most beats), "blues"
+   * ground: "sparse" (few, longer chords, and in the solos the piano strolls for whole phrases), "busy" (on most beats), "blues"
    * (laid back, riffs repeated, crushed notes into the third).
    */
   comp?: "sparse" | "busy" | "blues";
