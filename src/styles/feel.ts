@@ -116,6 +116,25 @@ export function timing(random: () => number, bpm: number) {
 }
 
 /**
+ * How much the drummer comps on the snare, bar by bar: call once a bar with the bar's place in
+ * its eight bars and the chorus's density (about 1); returns how many comping figures to play
+ * (0 to 2). Measured on separated drum stems of four records (context/style-swing.md): comping
+ * comes in spells (the snare count correlates 0.3 to 0.5 with the bar before and 0.2 to 0.5 with
+ * the bar four back; a busy bar is followed by another 1.6 to 2 times more often than chance),
+ * leans into each phrase end (bar 4 about 1.4 times the average, bar 8 about 1.2) and eases off
+ * in the bar after the mid-section turn (bar 5 at about half), instead of single bars picked at random.
+ */
+export function drumTalk(random: () => number) {
+  let heat = 1;
+  return (inEight: number, base: number): number => {
+    heat = TALK.hold * heat + (1 - TALK.hold) + gauss(random) * TALK.spread;
+    const level = (heat + TALK.bump[inEight % 8]) * base;
+    return level < TALK.one ? 0 : level < TALK.two ? 1 : 2;
+  };
+}
+const TALK = { hold: 0.88, spread: 0.3, bump: [0.05, 0, 0, 0.25, -0.35, -0.1, 0, 0.2], one: 0.8, two: 1.6 };
+
+/**
  * Per-note velocity factors and onset offsets (seconds) for a piano chord: the top
  * note voiced louder, the bottom a little under it, the inner notes softest, and the
  * notes spread low to high by a few milliseconds, as a pianist's hand never lands flat.

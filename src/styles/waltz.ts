@@ -1,7 +1,7 @@
 import type { ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
 import { SWING_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
-import { gauss, pianoTouch, timing } from "./feel";
+import { drumTalk, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
 import { endsSection, isFormEnd, nearest, scalePcs, swingRatio, walk } from "./swing";
@@ -232,6 +232,7 @@ export const waltz: Style = {
     let tied = false;
     let pushedIn = false;
     let lastCell: Cell["hits"] | undefined;
+    const talk = drumTalk(random);
     let lastFill: Hit[] | undefined;
     let ridePrev: Ride | undefined;
     let registerDrift = 0;
@@ -340,7 +341,9 @@ export const waltz: Style = {
       const nextChord = next?.chords[0];
       const changes = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord;
       const pool = fast ? COMP_FAST : pedal !== null ? VAMP : COMP;
-      const cell = straight ? COMP[0].hits : weighted(pool.map((c) => ({ weight: fast ? c.weight : forDensity(c, plan.density), value: c.hits })), random, lastCell);
+      // Busier bars are more often followed by sparser ones (the records' pianists breathe in two-bar units).
+      const breathe = (hits: Cell["hits"]) => (!lastCell ? 1 : lastCell.length >= 3 ? (hits.length <= 2 ? 1.25 : 0.8) : lastCell.length <= 1 ? (hits.length >= 3 ? 1.25 : 0.9) : 1);
+      const cell = straight ? COMP[0].hits : weighted(pool.map((c) => ({ weight: fast ? c.weight : forDensity(c, plan.density) * breathe(c.hits), value: c.hits })), random, lastCell);
       lastCell = cell;
       const legato = plan.role === "peak" ? 1 : solo ? 1.15 : 1.35;
       const pianoBeats: number[] = [];
@@ -378,13 +381,16 @@ export const waltz: Style = {
       const vocab = waltzFills(sw);
       const fill = !straight && endsSection(bar, next) && !next?.final;
       const bigFill = isFormEnd(bar, next) && !!next;
-      const smallFill = phraseEnd && random() < (shout ? 0.85 : plan.role === "peak" ? 0.7 : solo ? 0.55 : 0.4);
+      // Phrase ends are marked mostly by comping into them; section ends by a full fill about half
+      // the time and a short set-up otherwise; the form's end always fills (as in swing).
+      const smallFill = phraseEnd && random() < (shout ? 0.85 : plan.role === "peak" ? 0.3 : solo ? 0.2 : 0.12);
+      const sectionFill = fill && !bigFill && random() < (shout ? 0.9 : plan.role === "peak" ? 0.7 : solo ? 0.55 : 0.4);
       const pick = (list: Hit[][]) => {
         const f = weighted(list.map((x) => ({ weight: 1, value: x })), random, lastFill);
         lastFill = f;
         return f;
       };
-      const theFill = straight ? (bigFill ? vocab.small[0] : null) : bigFill ? pick(vocab.big) : fill ? pick(vocab.medium) : smallFill ? pick(shout ? vocab.medium : vocab.small) : null;
+      const theFill = straight ? (bigFill ? vocab.small[0] : null) : bigFill ? pick(solo && plan.role !== "peak" && random() < 0.35 ? vocab.medium : vocab.big) : sectionFill ? pick(vocab.medium) : fill || smallFill ? pick(shout ? vocab.medium : vocab.small) : null;
       const rideEnd = theFill ? Math.max(1, Math.min(...theFill.map(([at]) => at))) : BAR;
 
       let crash = 0;
@@ -423,10 +429,10 @@ export const waltz: Style = {
       } else if (!crash && random() < 0.65) drum(t, "kick", (solo ? 0.17 : 0.13) * (0.8 + random() * 0.4), 0.06);
       const bassPushes = pedal !== null && tied;
       if (!straight && !theFill && random() < (bassPushes ? (solo ? 0.45 : 0.2) : solo ? 0.08 : 0.03)) drum(t + 2 + sw, "kick", 0.3 + random() * 0.08);
+      // Snare comping in spells that lean into the phrase ends (feel.ts `drumTalk`).
+      const figures = straight ? 0 : talk(bar.ref?.bar ?? i, (fast ? 0.7 : 0.9) * plan.density * lift * lift) + (plan.role === "peak" && random() < 0.25 ? 1 : 0);
       if (!theFill) {
-        const chance = straight ? 0 : (fast ? 0.25 : 0.4) * plan.density * lift * lift;
-        for (let n = 0; n < (plan.role === "peak" ? 2 : 1); n++) {
-          if (random() >= chance * (n ? 0.5 : 1)) continue;
+        for (let n = 0; n < figures; n++) {
           for (const [at, sound, v] of SNARE[Math.floor(random() * SNARE.length)](sw)) {
             if (pianoBeats.some((p) => Math.abs(p - at) < 0.12) && random() < 0.6) continue;
             drum(t + at, sound, v * (0.9 + 0.3 * (lift - 0.9)), 0.06);

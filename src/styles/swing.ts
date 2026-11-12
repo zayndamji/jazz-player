@@ -2,7 +2,7 @@ import type { ParsedChord } from "../chart/chords";
 import { chordScale } from "../chart/scales";
 import { chordAt, sameRef, type TimelineBar } from "../engine/timeline";
 import { GUITAR_RANGE, SWING_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
-import { gauss, pianoTouch, timing, type ChorusPlan } from "./feel";
+import { drumTalk, gauss, pianoTouch, timing, type ChorusPlan } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
 import type { DrumSound, NoteEvent, Style } from "./types";
@@ -116,6 +116,13 @@ export function straightCell(bar: TimelineBar): Figure["hits"] {
   if (bar.chords.length <= 1) return [[0, 0.8, 0.5], [3, 0.5, 0.48]];
   return bar.chords.map((c): [number, number, number] => [Math.round(c.beat * 2), Math.min(0.8, c.length * 0.5), c.beat === 0 ? 0.5 : 0.48]);
 }
+
+/**
+ * Pianists breathe in two-bar units: a busy bar is more often followed by a sparser one and
+ * the other way round (the records' hits per bar correlate -0.1 to -0.16 with the bar before).
+ */
+const breathe = (hits: Figure["hits"], last: Figure["hits"] | undefined) =>
+  !last ? 1 : last.length >= 3 ? (hits.length <= 2 ? 1.25 : 0.8) : last.length <= 1 ? (hits.length >= 3 ? 1.25 : 0.9) : 1;
 
 /** A cell's weight for the chorus: busier cells when the band builds, sparser in the head. */
 const forDensity = (f: Figure, density: number) => f.weight * density ** ((f.hits.length - 2) * 3) * (f.hits.length >= 3 ? 1.25 : 1);
@@ -341,6 +348,8 @@ export const swing: Style = {
     let bassNote = 40;
     let pushedIn = false;
     let lastCell: Figure["hits"] | undefined;
+    let twoBack: Figure["hits"] | undefined;
+    const talk = drumTalk(random);
     let lastFill: Fill | undefined;
     let ridePrev: RideCell | undefined;
     let touch: BassTouch | undefined;
@@ -514,7 +523,10 @@ export const swing: Style = {
             ? lastCell
             : recalled && recalled !== lastCell && random() < 0.3
               ? recalled
-              : weighted((fast ? COMP_FAST : COMP).map((c) => ({ weight: fast ? c.weight : forDensity(c, density) * bluesWeight(c.hits), value: c.hits })), random, lastCell);
+              : !fast && twoBack && twoBack !== lastCell && random() < 0.12
+                ? twoBack
+                : weighted((fast ? COMP_FAST : COMP).map((c) => ({ weight: fast ? c.weight : forDensity(c, density) * bluesWeight(c.hits) * breathe(c.hits, lastCell), value: c.hits })), random, lastCell);
+      twoBack = lastCell;
       lastCell = cell;
       if (place) memory.set(place, cell);
       // The register moves with the chorus and drifts every eight bars, often every four
@@ -573,15 +585,20 @@ export const swing: Style = {
       // Drums
       const fill = !straight && endsSection(bar, next) && !next?.final;
       const bigFill = isFormEnd(bar, next) && !!next;
-      const smallChance = shout ? 0.85 : plan.role === "peak" ? 0.7 : plan.role === "solo" ? 0.55 : 0.4;
+      // Real drummers mark most phrase ends by comping into them (below), not with a fill:
+      // busy fills at under 5% of the records' phrase ends.
+      const smallChance = shout ? 0.85 : plan.role === "peak" ? 0.3 : plan.role === "solo" ? 0.2 : 0.12;
       const smallFill = phraseEnd && !inTwo && random() < smallChance;
       const pickFill = (list: Fill[]) => {
         const f = weighted(list.map((x) => ({ weight: 1, value: x })), random, lastFill);
         lastFill = f;
         return f;
       };
-      const theFill = straight ? (bigFill ? vocab.medium[0] : null) : bigFill ? pickFill(vocab.big) : fill ? pickFill(vocab.medium) : smallFill ? pickFill(shout ? vocab.medium : vocab.small) : null;
-      const rideEnd = theFill && theFill.start <= 2 && (bigFill || fill || shout) ? theFill.start : 4;
+      // Section ends: a full fill about half the time, else a short set-up (the records' drummers
+      // mark most of them with one or two notes and a crash); the end of the form always fills.
+      const sectionFill = fill && !bigFill && random() < (shout ? 0.9 : plan.role === "peak" ? 0.7 : plan.role === "solo" ? 0.55 : 0.4);
+      const theFill = straight ? (bigFill ? vocab.medium[0] : null) : bigFill ? pickFill(plan.role === "solo" && random() < 0.35 ? vocab.medium : vocab.big) : sectionFill ? pickFill(vocab.medium) : fill || smallFill ? pickFill(shout ? vocab.medium : vocab.small) : null;
+      const rideEnd = theFill && theFill.start <= 2 && (bigFill || sectionFill || shout) ? theFill.start : 4;
 
       // Crash where a section starts: always at the top of a chorus, often elsewhere; at the
       // peak and in the shout, on phrase starts too. A crash on 1 takes the ride's place.
@@ -630,14 +647,17 @@ export const swing: Style = {
       if (!straight && !theFill && !inTwo && bar.chorus >= 2 && random() < (plan.role === "peak" ? 0.2 : 0.12) * plan.density)
         drum(t + weighted([{ weight: 0.5, value: 3 + sw }, { weight: 0.3, value: 1 + sw }, { weight: 0.2, value: 2 }], random), "kick", 0.34 + random() * 0.08);
 
+      // How much the snare comps this bar: the spell goes on through fills and two-feel bars.
+      const talkBase = (slow ? 1.15 : fast ? 0.7 : 1) * (plan.role === "head" || plan.role === "outhead" ? 0.8 : 1) * plan.density * lift * lift;
+      const figures = straight ? 0 : talk(bar.ref?.bar ?? i, talkBase) + (plan.role === "peak" && random() < 0.25 ? 1 : 0);
       if (inTwo) {
         if (!fill) drum(t + 3, "rim", 0.34, 0.05); // cross-stick on 4
       } else if (!theFill && !straight) {
-        // Snare comping, more as the band builds, mostly in the piano's gaps.
-        const chance = (slow ? 0.5 : fast ? 0.3 : 0.42) * plan.density * lift * lift;
-        for (let n = 0; n < (plan.role === "peak" ? 2 : 1); n++) {
-          if (random() >= chance * (n ? 0.5 : 1)) continue;
-          const figure = SNARE_COMP[Math.floor(random() * SNARE_COMP.length)](sw);
+        // Snare comping in spells that build into each phrase end (`drumTalk`), mostly in the
+        // piano's gaps; into a phrase end the figures lean to the back of the bar.
+        for (let n = 0; n < figures; n++) {
+          const late = inPhrase === 3 && n === 0 && random() < 0.6;
+          const figure = SNARE_COMP[late ? weighted([{ weight: 1, value: 1 }, { weight: 1, value: 6 }, { weight: 1, value: 7 }], random) : Math.floor(random() * SNARE_COMP.length)](sw);
           for (const [at, sound, v] of figure) {
             if (pianoBeats.some((p) => Math.abs(p - at) < 0.12) && random() < 0.6) continue;
             drum(t + at, sound, v * (0.9 + 0.3 * (lift - 0.9)), 0.06);

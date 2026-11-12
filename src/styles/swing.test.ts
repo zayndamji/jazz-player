@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { swingForm } from "../fixtures";
 import { buildSchedule } from "../engine/schedule";
-import { swing, swingRatio } from "./swing";
+import { endsSection, isFormEnd, swing, swingRatio } from "./swing";
 
 const chart = swingForm;
 const schedule = buildSchedule(chart, swing, { choruses: 2, countIn: false, transpose: 0 });
@@ -148,5 +148,27 @@ describe("swing style", () => {
     // Blues: crushed notes, a half step under the third, just before the chord.
     const blues = hits("blues");
     expect(blues.some((e) => e.notes!.length === 1 && e.duration < 0.1)).toBe(true);
+  });
+});
+
+describe("swing drums over a long take", () => {
+  const long = buildSchedule(chart, swing, { choruses: 12, countIn: false, transpose: 0 });
+  const form = long.bars.filter((b) => b.ref?.part === "form");
+  const snare = form.map((b) => new Set(long.events.filter((e) => e.track === "drums" && (e.drum === "snare" || e.drum === "tomHigh" || e.drum === "tomLow") && e.time >= b.startBeat - 0.1 && e.time < b.startBeat + 3.9).map((e) => Math.round((e.time - b.startBeat) * 6))).size);
+  const corr = (a: number[], b: number[]) => {
+    const mean = (v: number[]) => v.reduce((s, x) => s + x, 0) / v.length;
+    const ma = mean(a), mb = mean(b);
+    const cov = a.reduce((s, x, i) => s + (x - ma) * (b[i] - mb), 0);
+    return cov / Math.sqrt(a.reduce((s, x) => s + (x - ma) ** 2, 0) * b.reduce((s, x) => s + (x - mb) ** 2, 0));
+  };
+
+  it("comps in spells: a bar's snare count follows the bar before", () => {
+    expect(corr(snare.slice(0, -1), snare.slice(1))).toBeGreaterThan(0.1);
+  });
+
+  it("doesn't fill at every section end", () => {
+    const ends = form.filter((b, i) => endsSection(b, form[i + 1]) && !isFormEnd(b, form[i + 1]));
+    const busy = ends.filter((b) => snare[form.indexOf(b)] >= 3).length;
+    expect(busy / ends.length).toBeLessThan(0.75);
   });
 });
