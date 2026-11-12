@@ -45,10 +45,10 @@ const COMP: Cell[] = [
   { weight: 0.07, hits: [[2, 1.3, 0.48]] }, // 2, held
   { weight: 0.08, hits: [[3, 0.5, 0.48], [5, 0.7, 0.5]] }, // and of 2, and of 3
   { weight: 0.05, hits: [[1, 0.4, 0.48], [3, 0.4, 0.47]] }, // and of 1, and of 2
-  { weight: 0.07, hits: [[0, 1.9, 0.48]] }, // held on 1
+  { weight: 0.05, hits: [[0, 1.9, 0.48]] }, // held on 1
   { weight: 0.05, hits: [[0, 0.4, 0.48], [1, 0.4, 0.48], [4, 0.5, 0.47]] }, // 1, and of 1, 3
   { weight: 0.05, hits: [[4, 0.4, 0.46], [5, 0.7, 0.5]] }, // 3, and of 3
-  { weight: 0.03, hits: [] }, // space
+  { weight: 0.01, hits: [] }, // space
 ];
 
 /** Over a pedal: riff cells on the and of 1, the vamp's figure. */
@@ -333,7 +333,7 @@ export const waltz: Style = {
         phraseDb = gauss(random) * 0.6;
         phraseSlope = weighted([{ weight: 0.4, value: 0 }, { weight: 0.35, value: 0.6 }, { weight: 0.25, value: -0.6 }], random);
       }
-      const pianoGain = 10 ** ((phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 0.6) / 20);
+      const pianoGain = 10 ** ((phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 0.4) / 20);
       const nextChord = next?.chords[0];
       const changes = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord;
       const pool = fast ? COMP_FAST : pedal !== null ? VAMP : COMP;

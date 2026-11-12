@@ -1,7 +1,7 @@
 import type { ParsedChord } from "../chart/chords";
 import { chordAt, sameRef, type TimelineBar } from "../engine/timeline";
 import { GUITAR_RANGE, PIANO_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
-import { pianoTouch, timing } from "./feel";
+import { gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, weighted } from "./shape";
 import type { DrumSound, NoteEvent, Style } from "./types";
@@ -81,6 +81,9 @@ const HAT_FIGURES: { weight: number; bars: number[][] }[] = [
   { weight: 0.15, bars: [[0.5, 0.22, 0.56, 0.24, 0.5, 0.22, 0.56, 0.24], [0.5, 0.22, 0.56, 0.24, 0.5, 0.26, 0.56, 0.3]] }, // on the beat, offbeats very soft
   { weight: 0.15, bars: [[0.36, 0.5, 0.44, 0.5, 0.36, 0.5, 0.44, 0.5], HAT] }, // offbeats leaning
   { weight: 0.1, bars: [[0.46, 0, 0.6, 0.3, 0.48, 0, 0.6, 0.3], [0.46, 0.28, 0.6, 0, 0.48, 0.34, 0.6, 0]] }, // gaps on the ands
+  { weight: 0.12, bars: [[0.56, 0.3, 0.46, 0.3, 0.56, 0.3, 0.46, 0.3], [0.56, 0.3, 0.46, 0.34, 0.56, 0.3, 0.46, 0.44]] }, // 1 and 3 leaning, a lift into the next bar
+  { weight: 0.1, bars: [[0.44, 0.34, 0.52, 0.36, 0.48, 0.38, 0.56, 0.42], [0.48, 0.4, 0.56, 0.44, 0.52, 0.44, 0.6, 0.48]] }, // a two-bar swell
+  { weight: 0.08, bars: [HAT, [0.46, 0.28, 0.6, 0.3, 0.48, 0, 0.62, 0.46]] }, // a space on the and of 3, the and of 4 pushed
 ];
 
 const KICK = [
@@ -179,6 +182,9 @@ export const bossa: Style = {
     const hatHome = new Map<number, number>();
     const memory = new Map<string, Hit[][]>();
     let hatFigure = 0;
+    let registerDrift = 0;
+    let phraseDb = 0;
+    let phraseSlope = 0;
     music.forEach((bar, i) => {
       const t = bar.startBeat;
       const cycle = i % 2;
@@ -201,10 +207,21 @@ export const bossa: Style = {
         if (!hatHome.has(bar.chorus)) hatHome.set(bar.chorus, weighted(HAT_FIGURES.map((f, k) => ({ weight: k === 0 ? 0.6 : f.weight, value: k })), random));
         const home = hatHome.get(bar.chorus)!;
         // The intro keeps the plain figure; elsewhere mostly the home figure, sometimes another.
-        hatFigure = bar.ref?.part === "intro" ? 0 : random() < 0.5 ? home : weighted(HAT_FIGURES.map((f, k) => ({ weight: f.weight, value: k })), random, home);
+        hatFigure = bar.ref?.part === "intro" ? 0 : random() < 0.38 ? home : weighted(HAT_FIGURES.map((f, k) => ({ weight: f.weight, value: k })), random, hatFigure === home ? home : hatFigure);
       }
-      // The piano's register moves with the chorus.
-      const range: VoicingRange = { ...PIANO_RANGE, low: PIANO_RANGE.low + plan.register, high: PIANO_RANGE.high + plan.register, center: PIANO_RANGE.center + plan.register };
+      // The piano's register moves with the chorus, drifts by phrase and a little by bar (the
+      // references spread it 3.2 to 4.7 dB bar to bar); its level holds, swells or falls back
+      // over each four bars (their mid band varies 3.2 to 4.5 dB).
+      const inPhrase = (bar.ref?.bar ?? i) % 4;
+      if (inPhrase === 0) {
+        if ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5)
+          registerDrift = weighted([{ weight: 0.5, value: -3 }, { weight: 0.8, value: -1 }, { weight: 1.2, value: 0 }, { weight: 1, value: 2 }, { weight: 0.6, value: 4 }], random, registerDrift);
+        phraseDb = gauss(random) * 1.1;
+        phraseSlope = weighted([{ weight: 0.4, value: 0 }, { weight: 0.35, value: 1.1 }, { weight: 0.25, value: -1.1 }], random);
+      }
+      const shift = Math.max(-3, Math.min(7, plan.register + registerDrift + weighted([{ weight: 0.25, value: -2 }, { weight: 0.5, value: 0 }, { weight: 0.25, value: 2 }], random)));
+      const pianoGain = 10 ** ((phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 1.1) / 20);
+      const range: VoicingRange = { ...PIANO_RANGE, low: PIANO_RANGE.low + shift, high: PIANO_RANGE.high + shift, center: PIANO_RANGE.center + shift };
 
       if (bar.final) {
         const chord = bar.chords[0]?.chord;
@@ -265,11 +282,11 @@ export const bossa: Style = {
         const until = bar.chords.find((c) => c.beat > beat + 0.01)?.beat ?? (push ? 3.5 : 4.5);
         piano = voiceChord(slot.chord, piano, range);
         const duration = Math.max(0.4, Math.min(length, until - beat) - 0.1);
-        events.push({ track: "piano", time: t + beat + clock.at("piano"), duration, velocity: human(velocity * lift, 0.12), notes: piano, ...pianoTouch(piano, random, duration >= 2 && random() < 0.3) });
+        events.push({ track: "piano", time: t + beat + clock.at("piano"), duration, velocity: human(velocity * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random, duration >= 2 && random() < 0.3) });
       }
       if (push) {
         piano = voiceChord(nextChord!.chord, piano, range);
-        events.push({ track: "piano", time: t + 3.5 + clock.at("piano"), duration: 1.4, velocity: human(0.44 * lift, 0.12), notes: piano, ...pianoTouch(piano, random) });
+        events.push({ track: "piano", time: t + 3.5 + clock.at("piano"), duration: 1.4, velocity: human(0.44 * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random) });
       }
       pushedIn = push;
 
