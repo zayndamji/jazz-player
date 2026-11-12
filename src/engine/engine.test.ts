@@ -187,7 +187,9 @@ describe("bossa style", () => {
 
   it("plays root and fifth in the bass", () => {
     const bass = inBar(2, "bass"); // intro bar 1, C
-    expect(bass.map((e) => e.time - 8)).toEqual([0, 1.5, 2, 3.5]);
+    // Each note sits within a few milliseconds of its place (the bass's timing pocket).
+    expect(bass.map((e) => Math.round((e.time - 8) * 4) / 4 + 0)).toEqual([0, 1.5, 2, 3.5]);
+    for (const e of bass) expect(Math.abs((e.time - 8) * 4 - Math.round((e.time - 8) * 4))).toBeLessThan(0.2);
     expect(pcs(bass.map((e) => e.notes![0]))).toEqual(["C", "G", "G", "G"]); // next bar is Dm7/G
   });
 
