@@ -5,6 +5,13 @@ import { buildTimeline, playOrder, sameRef, sectionOrder, type BarRef, type Play
 
 export type Repeat = number | "loop";
 
+/** Which beats the metronome clicks: every beat, 2 and 4, or only beat 1. */
+export type ClickMode = "every" | "two-four" | "one";
+export const CLICK_MODES: ClickMode[] = ["every", "two-four", "one"];
+
+/** Whether the metronome clicks on a beat of the bar (from 0). The count-in always clicks every beat. */
+export const clicksOn = (mode: ClickMode, beat: number) => (mode === "every" ? true : mode === "two-four" ? beat % 2 === 1 : beat === 0);
+
 export interface PlaybackOptions {
   /** Times through the form, or "loop" to repeat it until stopped. */
   choruses: Repeat;

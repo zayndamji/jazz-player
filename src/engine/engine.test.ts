@@ -3,7 +3,7 @@ import { parseChord } from "../chart/chords";
 import { chordScale } from "../chart/scales";
 import { bossaForm } from "../fixtures";
 import { bossa } from "../styles/bossa";
-import { buildSchedule } from "./schedule";
+import { buildSchedule, clicksOn } from "./schedule";
 import { validateChart } from "../charts";
 import type { Chart } from "../chart/types";
 import { buildTimeline, chartBars, navOrder, playOrder, stepBar, stepSection, type PlayItem } from "./timeline";
@@ -328,5 +328,14 @@ describe("intro and ending switches", () => {
     expect(navOrder(chart, 2, null, 1, false, false).length).toBe(64);
     expect(navOrder(chart, 2, null, 1, true, true).length).toBe(4 + 64 + 9);
     expect(navOrder(chart, "loop", null, 1, false).some((i) => i.ref.part === "intro")).toBe(false);
+  });
+});
+
+describe("click mode", () => {
+  const beats = [0, 1, 2, 3];
+  it("picks the beats the metronome clicks", () => {
+    expect(beats.filter((b) => clicksOn("every", b))).toEqual([0, 1, 2, 3]);
+    expect(beats.filter((b) => clicksOn("two-four", b))).toEqual([1, 3]);
+    expect(beats.filter((b) => clicksOn("one", b))).toEqual([0]);
   });
 });

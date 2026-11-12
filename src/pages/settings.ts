@@ -2,7 +2,7 @@ import type { Mixable } from "../audio/player";
 import type { MixState } from "../components/Mixer";
 import type { View } from "../components/ControlBar";
 import { TEMPO, type Chart } from "../chart/types";
-import type { Repeat } from "../engine/schedule";
+import { CLICK_MODES, type ClickMode, type Repeat } from "../engine/schedule";
 import { STYLES } from "../styles";
 import { forget, readStored, store } from "./storage";
 
@@ -32,6 +32,7 @@ export interface TuneSettings {
   intro: boolean;
   ending: boolean;
   view: View;
+  click: ClickMode;
   showScales: boolean;
   mix: Record<Mixable, MixState>;
 }
@@ -49,6 +50,7 @@ export function defaultSettings(chart: Chart): TuneSettings {
     intro: true,
     ending: true,
     view: "chords",
+    click: "every",
     showScales: false,
     mix: initialMix(),
   };
@@ -97,6 +99,7 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   if (isBool(raw.intro)) out.intro = raw.intro;
   if (isBool(raw.ending)) out.ending = raw.ending;
   if (raw.view === "chords" || raw.view === "sheet") out.view = raw.view;
+  if (CLICK_MODES.includes(raw.click as ClickMode)) out.click = raw.click as ClickMode;
   if (isBool(raw.showScales)) out.showScales = raw.showScales;
   const mix = parseMix(raw.mix);
   if (mix) out.mix = mix;

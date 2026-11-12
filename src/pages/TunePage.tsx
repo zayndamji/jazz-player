@@ -10,7 +10,7 @@ import { ControlBar, type View } from "../components/ControlBar";
 import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
-import { bandFor, buildSchedule, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
+import { bandFor, buildSchedule, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
 import { chartBars, chordAt, navOrder, playOrder, sameRef, stepBar, stepSection, type BarRef, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
@@ -69,6 +69,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   const countIn = countInBars > 0;
   const [intro, setIntro] = useState(initial.intro);
   const [ending, setEnding] = useState(initial.ending);
+  const [clickMode, setClickMode] = useState<ClickMode>(initial.click);
   const [metronome, setMetronome] = useState(false);
   const [showScales, setShowScales] = useState(initial.showScales);
   const [view, setView] = useState<View>(initial.view);
@@ -104,8 +105,8 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, [muted]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, showScales, mix });
-  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, showScales, mix]);
+    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, mix });
+  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, clickMode, showScales, mix]);
   useEffect(() => store(INSTRUMENT_KEY, instrumentId), [instrumentId]);
   useEffect(() => store(SHORTCUTS_KEY, singleKeys ? "1" : "0"), [singleKeys]);
 
@@ -157,6 +158,7 @@ export function TunePage({ chart }: { chart: Chart }) {
       const schedule = buildSchedule(chart, style, full);
       current.current = { opts: full, schedule, style };
       p.metronomeOn = metronome;
+      p.clickMode = clickMode;
       p.setMasterMute(muted);
       p.setTempo(tempo);
       p.setSchedule(schedule);
@@ -165,7 +167,7 @@ export function TunePage({ chart }: { chart: Chart }) {
       setCue(null);
       setStatus("playing");
     },
-    [chart, style, mix, repeat, countInBars, intro, ending, transpose, metronome, tempo, twoFeel, muted],
+    [chart, style, mix, repeat, countInBars, intro, ending, transpose, metronome, clickMode, tempo, twoFeel, muted],
   );
 
 
@@ -174,6 +176,9 @@ export function TunePage({ chart }: { chart: Chart }) {
   useEffect(() => {
     if (player.current) player.current.metronomeOn = metronome;
   }, [metronome]);
+  useEffect(() => {
+    if (player.current) player.current.clickMode = clickMode;
+  }, [clickMode]);
   // Key, style and feel changes rebuild the notes in place; the Transport keeps its position.
   // A tempo change rebuilds once the presses settle, so the swing and comping fit the new tempo.
   useEffect(() => {
@@ -342,6 +347,7 @@ export function TunePage({ chart }: { chart: Chart }) {
     setIntro(d.intro);
     setEnding(d.ending);
     setView(d.view);
+    setClickMode(d.click);
     setShowScales(d.showScales);
     setMix(d.mix);
     clearSettings(chart.id);
@@ -508,6 +514,14 @@ export function TunePage({ chart }: { chart: Chart }) {
           <option value={0}>None</option>
           <option value={1}>1 bar</option>
           <option value={2}>2 bars</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>Click</span>
+        <select value={clickMode} onChange={(e) => setClickMode(e.target.value as ClickMode)}>
+          <option value="every">Every beat</option>
+          <option value="two-four">2 and 4</option>
+          <option value="one">Beat 1 only</option>
         </select>
       </label>
       <label className="check">

@@ -1,5 +1,5 @@
 import * as Tone from "tone";
-import type { BeatMark, Schedule } from "../engine/schedule";
+import { clicksOn, type BeatMark, type ClickMode, type Schedule } from "../engine/schedule";
 import type { NoteEvent, Track } from "../styles/types";
 import { DrumKit } from "./drumkit";
 import { SpriteSampler, loadSprite } from "./sprite";
@@ -50,6 +50,8 @@ export class Player {
   private levels: Record<Mixable, number> = { bass: 1, piano: 1, guitar: 1, drums: 1, metronome: 1 };
 
   metronomeOn = false;
+  /** Which beats the metronome clicks; the count-in always clicks every beat. */
+  clickMode: ClickMode = "every";
   onPosition: (p: Position | null) => void = () => {};
   onLoop: () => void = () => {};
   /** Called when playback stops: `finished` is true when the song ran to its end, false when stopped. */
@@ -109,7 +111,7 @@ export class Player {
       schedule.events.map((e): [string, NoteEvent] => [ticks(e.time), e]),
     );
     this.clock = new Tone.Part<[string, BeatMark]>((time, mark) => {
-      if (mark.click && (this.metronomeOn || mark.countIn)) {
+      if (mark.click && (mark.countIn || (this.metronomeOn && clicksOn(this.clickMode, mark.beat)))) {
         this.click.triggerAttackRelease(mark.beat === 0 ? "E6" : "A5", 0.03, time, mark.beat === 0 ? 0.9 : 0.55);
       }
       Tone.getDraw().schedule(() => {
