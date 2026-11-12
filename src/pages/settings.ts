@@ -84,7 +84,7 @@ export function defaultSettings(chart: Chart): TuneSettings {
     showScales: false,
     speedUp: 0,
     keyStep: 0,
-    trade: "off",
+    trade: chart.trade ?? "off",
     chords: "always",
     melody: "off",
     mix: initialMix(),

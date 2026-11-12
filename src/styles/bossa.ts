@@ -271,12 +271,20 @@ export const bossa: Style = {
       for (let half = 0; half < 2; half++) {
         const main = mains[half];
         const pickup = pickups[half];
-        if (main !== null) events.push({ track: "bass", time: t + half * 2 + clock.at("bass"), duration: 1.4, velocity: human(0.85 * (0.94 + 0.06 * lift), 0.1), notes: [main] });
+        const mainEvent: NoteEvent | null = main === null ? null : { track: "bass", time: t + half * 2 + clock.at("bass"), duration: 1.4, velocity: human(0.85 * (0.94 + 0.06 * lift), 0.1), notes: [main] };
+        if (mainEvent) events.push(mainEvent);
         if (pickup === null) continue;
         // In the solos, now and then a half step into a new chord instead of anticipating it.
         const newChord = half === 1 && nextMains[0] !== null && nextMains[0] !== mains[0];
         const into = newChord && solos && !straight && random() < 0.2 ? pickup + (random() < 0.5 ? -1 : 1) : pickup;
         events.push({ track: "bass", time: t + half * 2 + 1.5 + clock.at("bass"), duration: 0.45, velocity: human(0.65 * (0.94 + 0.06 * lift), 0.1), notes: [into] });
+        // In the solos the line gets busier, nearer a walk: a note on 2 or 4 between the figure's
+        // hits, a fifth from the main note (Blue Bossa 1963: about 5.2 notes a bar, beat 4 in 55 to 80% of bars).
+        if (solos && !straight && main !== null && mainEvent && random() < (half ? 0.6 : 0.3)) {
+          const fifth = main + 7 <= 50 ? main + 7 : main - 5;
+          mainEvent.duration = 0.9;
+          events.push({ track: "bass", time: t + half * 2 + 1 + clock.at("bass"), duration: 0.4, velocity: human(0.58 * (0.94 + 0.06 * lift), 0.1), notes: [fifth] });
+        }
       }
 
       // Push: play the next bar's new chord early, on the and of 4, and skip its downbeat.

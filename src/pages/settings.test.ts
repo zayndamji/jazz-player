@@ -30,6 +30,11 @@ describe("tune settings", () => {
     expect(data.has(tuneKey(bossaForm.id))).toBe(false);
   });
 
+  it("starts with the chart's trading", () => {
+    expect(defaultSettings({ ...bossaForm, trade: "fours" }).trade).toBe("fours");
+    expect(defaultSettings(bossaForm).trade).toBe("off");
+  });
+
   it("remembers trading and ignores a bad value", () => {
     saveSettings(bossaForm, { ...defaultSettings(bossaForm), trade: "eights" });
     expect(loadSettings(bossaForm).trade).toBe("eights");

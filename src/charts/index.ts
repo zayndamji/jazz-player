@@ -54,6 +54,7 @@ export function validateChart(chart: Chart): string[] {
   }
   for (const [track, db] of Object.entries(chart.mix ?? {}))
     if (!["bass", "guitar", "piano", "drums"].includes(track) || typeof db !== "number" || Math.abs(db) > 24) errors.push(`"mix" needs parts (bass, guitar, piano, drums) with a dB change within 24`);
+  if (chart.trade !== undefined && !["fours", "eights", "fours-out"].includes(chart.trade)) errors.push(`trade "${chart.trade}" must be fours, eights or fours-out`);
   if (chart.pedal !== undefined && !/^[A-G][b#]?$/.test(chart.pedal)) errors.push(`pedal "${chart.pedal}" must be a note like E or Bb`);
   for (const track of chart.band ?? []) if (!["bass", "guitar", "piano", "drums"].includes(track)) errors.push(`"band" has an unknown part "${track}"`);
   const plays = chart.form?.map((s) => s.play) ?? [];

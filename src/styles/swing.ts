@@ -181,6 +181,11 @@ type Accent = "twoFour" | "even" | "skip";
 
 const BASS_LOW = 28; // E1
 const BASS_HIGH = 50; // D3
+/**
+ * Where a walking line centres: F#2. The records' walking bass sits at a median of MIDI 40 to 43
+ * (Chambers, Ware, Morin's bassist); without a pull the line drifted to 34 to 37 for whole choruses.
+ */
+const WALK_HOME = 42;
 
 /** The MIDI note of a pitch class nearest to `near`, inside the bass range. */
 export function nearest(pc: number, near: number): number {
@@ -214,7 +219,8 @@ export function scalePcs(chord: ParsedChord): number[] {
  * a chord tone rather than a scale step between the root and the approach.
  */
 export function walk(chord: ParsedChord, beats: number, from: number, target: number | null, random: () => number, lean = 0, tones = 0.6): number[] {
-  const root = nearest(chord.bass, from + lean);
+  // Each root leans back toward the line's home register, so the walk doesn't sink and stay low.
+  const root = nearest(chord.bass, from + lean + (WALK_HOME - from) * 0.6);
   const notes = [root];
   const chordTones = chord.intervals.map((i) => (chord.root + i) % 12);
   const scale = scalePcs(chord);
@@ -371,8 +377,9 @@ export const swing: Style = {
     let crashAhead = false; // a set-up crash on the and of 4 already marked this bar's downbeat
     const music = bars.filter((b) => !b.countIn);
     const shapes = straight ? steadyBars(music) : shapeBars(music, random, true);
-    // Per chorus: the ride's home pattern and accent; the head sometimes on closed hi-hat.
-    const headHat = !fast && random() < 0.35;
+    // Per chorus: the ride's home pattern and accent; the head now and then on closed hi-hat (the
+    // backing tracks do it often; the records measured, Nardis, So What, Sonnymoon and Autumn Leaves, keep the ride).
+    const headHat = !fast && random() < 0.2;
     const rideHome = new Map<number, { home: RideCell; accent: Accent }>();
     const homeFor = (chorus: number, plan: ChorusPlan) => {
       if (!rideHome.has(chorus)) {

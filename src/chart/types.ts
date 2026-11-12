@@ -40,6 +40,8 @@ export interface Chart {
   mix?: Partial<Record<"bass" | "guitar" | "piano" | "drums", number>>;
   /** A note the bass holds under every chord, as a drone ("E": Coltrane's My Favorite Things). The waltz reads it. */
   pedal?: string;
+  /** Trading with the drums the page starts with, when the tune's record trades (Tenor Madness trades fours). Default off. */
+  trade?: "fours" | "eights" | "fours-out";
   /** Played once before the first chorus. */
   intro?: Section;
   /** The repeating form, in playing order. */

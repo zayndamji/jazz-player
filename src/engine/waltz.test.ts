@@ -114,6 +114,24 @@ describe("3/4 timeline and schedule", () => {
   });
 });
 
+describe("chart mix and pedal", () => {
+  it("holds the chart's pedal under every chord, moved with the key", () => {
+    const sch = buildSchedule({ ...waltzForm, pedal: "E" }, waltz, { choruses: 2, countIn: false, transpose: 2, intro: false, ending: false });
+    const bass = sch.events.filter((e) => e.track === "bass").map((e) => e.notes![0] % 12);
+    expect(bass.length).toBeGreaterThan(20);
+    // F# (E up a whole step), its fifth C#, nothing else.
+    expect([...new Set(bass)].sort((a, b) => a - b)).toEqual([1, 6]);
+  });
+
+  it("adds the chart's mix to its own style only", () => {
+    const chart = { ...waltzForm, mix: { drums: -5 } };
+    expect(buildSchedule(chart, waltz, { choruses: 1, countIn: false, transpose: 0 }).mix.drums).toBe((waltz.mix?.drums ?? 0) - 5);
+    expect(buildSchedule(chart, STYLES.swing, { choruses: 1, countIn: false, transpose: 0 }).mix.drums).toBe(STYLES.swing.mix?.drums);
+    expect(validateChart({ ...chart, mix: { drums: 40 } }).length).toBeGreaterThan(0);
+    expect(validateChart({ ...chart, pedal: "H" }).length).toBeGreaterThan(0);
+  });
+});
+
 describe("the waltz style", () => {
   for (const tempo of [90, 168, 260]) {
     it(`keeps notes in range and near their bars at ${tempo} BPM`, () => {
