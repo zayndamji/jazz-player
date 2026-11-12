@@ -54,6 +54,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 | `src/chart/` | Chart types, chord parsing and transposing, scales, transposing instruments |
 | `src/charts/` | The loader for charts and lead sheets, and the chart checks |
 | `src/import/` | MusicXML and iReal Pro importers |
+| `src/pwa/` | The offline service worker and the list of files it keeps |
 | `src/fixtures/` | Made-up charts the tests use |
 | `src/engine/` | Timeline, voicings, playback schedule |
 | `src/styles/` | Backing styles (bossa nova, swing, ballad, jazz waltz) |
@@ -61,6 +62,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 | `src/pages/` | The library and the tune page |
 | `src/components/` | Chord chart, lead sheet, player bar, mixer |
 | `public/samples/` | One MP3 per instrument (piano, bass, guitar, drums) plus its license; this is all the site loads |
+| `public/icons/`, `public/manifest.webmanifest` | App icons and the manifest for installing the site |
 | `assets/` | Source samples, one file per note or drum hit, and their licenses (not shipped) |
 | `scripts/` | Repeatable jobs: fetching samples, turning typed heads into MusicXML, measuring reference recordings and the site's mix |
 | `tunes/<id>/` | Your tunes, one folder each (not in git): `chart.json`, optionally `head.txt` and `head.musicxml`, and anything you keep about the tune (reference sheets, recordings, notes) |
