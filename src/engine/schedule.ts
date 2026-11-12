@@ -1,6 +1,7 @@
 import { isMinorKey, keyPitchClass, spellingPc } from "../chart/chords";
 import type { Chart } from "../chart/types";
 import type { NoteEvent, Style, Track } from "../styles/types";
+import { melodyEvents, type MelodyMode, type MelodyNote } from "./melody";
 import { applyTrading, markTrading, type TradeMode } from "./trading";
 import { buildTimeline, keyCycle, loopedChoruses, playOrder, rangeOrder, sameRef, sectionOrder, type BarRange, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
 
@@ -48,6 +49,8 @@ export interface PlaybackOptions {
   twoFeel?: boolean;
   /** Trade fours or eights with the drums in the solo choruses (off when left out). */
   trade?: TradeMode;
+  /** Play the head's melody along with the band: the mode and the printed measures' notes (see `parseMelody`). */
+  melody?: { mode: MelodyMode; measures: MelodyNote[][] };
 }
 
 /** One beat on the clock, for the metronome and the playhead. */
@@ -167,7 +170,15 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const band = bandFor(chart, style);
   const played = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp }).filter((e) => band.includes(e.track));
   const events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"));
-  return { bars, events, beats, totalBeats, beatsPerBar, loop, passes, cycle, mix: style.mix ?? {}, band };
+  const melody = opts.melody && opts.melody.mode !== "off" ? opts.melody : null;
+  if (melody) {
+    // The head choruses are the first and, when the song ends, the last (as `playOrder` has it); a looped
+    // section or range has no head, so only "every chorus" plays there. The intro and ending count as head.
+    const isHead = (b: TimelineBar) => b.ref?.part !== "form" || b.chorus === 1 || (opts.choruses !== "loop" && b.chorus === lastChorus);
+    events.push(...melodyEvents(chart, bars, melody.measures, (b) => melody.mode === "every" || (!sectionLoop && isHead(b))));
+    events.sort((a, b) => a.time - b.time);
+  }
+  return { bars, events, beats, totalBeats, beatsPerBar, loop, passes, cycle, mix: style.mix ?? {}, band: melody ? [...band, "melody"] : band };
 }
 
 /**

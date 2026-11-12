@@ -23,6 +23,8 @@ const CHANNELS: Record<Mixable, { volume: number; pan: number }> = {
   piano: { volume: -8, pan: 0.2 },
   guitar: { volume: -3.5, pan: -0.3 },
   drums: { volume: -4, pan: 0 },
+  // The melody sits in the middle, a little in front of the comping.
+  melody: { volume: -4, pan: 0 },
   metronome: { volume: -8, pan: 0 },
 };
 
@@ -40,6 +42,7 @@ export class Player {
   private piano!: SpriteSampler;
   private bass!: SpriteSampler;
   private guitar!: SpriteSampler;
+  private melody!: SpriteSampler;
   private drums!: DrumKit;
   private click!: Tone.Synth;
   private notes: Tone.Part<[string, NoteEvent]> | null = null;
@@ -53,7 +56,7 @@ export class Player {
   private styleMix: Partial<Record<Track, number>> = {};
   private master: Tone.Gain | null = null;
   private muted = false;
-  private levels: Record<Mixable, number> = { bass: 1, piano: 1, guitar: 1, drums: 1, metronome: 1 };
+  private levels: Record<Mixable, number> = { bass: 1, piano: 1, guitar: 1, drums: 1, melody: 1, metronome: 1 };
 
   metronomeOn = false;
   /** Which beats the metronome clicks; the count-in always clicks every beat. */
@@ -84,6 +87,8 @@ export class Player {
         (["piano", "bass", "guitar", "drums"] as const).map((name) => loadSprite(BASE + sprites[name].file)),
       );
       this.piano = new SpriteSampler({ buffer: piano, regions: sprites.piano.regions, release: 0.9, brightness: { low: 3500, high: 16000 } }).connect(channels.piano);
+      // The melody is a second voice on the piano samples (the same buffer): brighter, with a shorter release so a line reads as legato.
+      this.melody = new SpriteSampler({ buffer: piano, regions: sprites.piano.regions, release: 0.3, brightness: { low: 5000, high: 16000 } }).connect(channels.melody);
       this.bass = new SpriteSampler({ buffer: bass, regions: sprites.bass.regions, release: 0.25 }).connect(channels.bass);
       // A treble lift gives the nylon guitar the presence of the reference recording.
       const guitarTone = new Tone.Filter({ type: "highshelf", frequency: 2500, gain: 5 }).connect(channels.guitar);
@@ -167,6 +172,7 @@ export class Player {
     this.piano?.releaseAll(FADE);
     this.bass?.releaseAll(FADE);
     this.guitar?.releaseAll(FADE);
+    this.melody?.releaseAll(FADE);
     this.drums?.stopAll(FADE);
   }
 
@@ -174,7 +180,7 @@ export class Player {
     if (e.track === "drums" && e.drum) this.drums.play(e.drum, time, e.velocity);
     else if (e.notes) {
       const duration = Tone.Time(ticks(e.duration)).toSeconds();
-      const instrument = e.track === "piano" ? this.piano : e.track === "guitar" ? this.guitar : this.bass;
+      const instrument = e.track === "piano" ? this.piano : e.track === "guitar" ? this.guitar : e.track === "melody" ? this.melody : this.bass;
       e.notes.forEach((n, i) => {
         // Guitar strum: low string first, a few milliseconds apart, on top of any chord offsets.
         const strum = e.track === "guitar" ? i * 0.008 : 0;

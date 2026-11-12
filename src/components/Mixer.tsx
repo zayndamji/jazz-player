@@ -14,6 +14,7 @@ const TRACKS: { id: Mixable; name: string }[] = [
   { id: "guitar", name: "Guitar" },
   { id: "piano", name: "Piano" },
   { id: "drums", name: "Drums" },
+  { id: "melody", name: "Melody" },
   { id: "metronome", name: "Metronome" },
 ];
 

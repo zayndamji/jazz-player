@@ -3,6 +3,7 @@ import type { MixState } from "../components/Mixer";
 import type { View } from "../components/ControlBar";
 import { TEMPO, type Chart } from "../chart/types";
 import { CLICK_MODES, type ClickMode, type Repeat } from "../engine/schedule";
+import { MELODY_MODES, type MelodyMode } from "../engine/melody";
 import { TRADE_MODES, type TradeMode } from "../engine/trading";
 import { KEY_STEPS, type KeyStep } from "../engine/timeline";
 import { STYLES, playableStyle } from "../styles";
@@ -22,13 +23,14 @@ export const raisedTempo = (tempo: number, step: number) => Math.min(TEMPO.max, 
 export type ChordsShown = "always" | "after-first" | "hidden";
 export const CHORDS_SHOWN: ChordsShown[] = ["always", "after-first", "hidden"];
 
-export const MIXABLES: Mixable[] = ["bass", "guitar", "piano", "drums", "metronome"];
+export const MIXABLES: Mixable[] = ["bass", "guitar", "piano", "drums", "melody", "metronome"];
 
 export const initialMix = (): Record<Mixable, MixState> => ({
   bass: { level: 1, mute: false, solo: false },
   guitar: { level: 1, mute: false, solo: false },
   piano: { level: 1, mute: false, solo: false },
   drums: { level: 1, mute: false, solo: false },
+  melody: { level: 1, mute: false, solo: false },
   metronome: { level: 1, mute: false, solo: false },
 });
 
@@ -53,6 +55,8 @@ export interface TuneSettings {
   /** Trading with the drums in the solo choruses. */
   trade: TradeMode;
   chords: ChordsShown;
+  /** The head's melody along with the band (tunes with a lead sheet). */
+  melody: MelodyMode;
   mix: Record<Mixable, MixState>;
 }
 
@@ -75,6 +79,7 @@ export function defaultSettings(chart: Chart): TuneSettings {
     keyStep: 0,
     trade: "off",
     chords: "always",
+    melody: "off",
     mix: initialMix(),
   };
 }
@@ -131,6 +136,7 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   if (KEY_STEPS.includes(raw.keyStep as KeyStep)) out.keyStep = raw.keyStep as KeyStep;
   if (TRADE_MODES.includes(raw.trade as TradeMode)) out.trade = raw.trade as TradeMode;
   if (CHORDS_SHOWN.includes(raw.chords as ChordsShown)) out.chords = raw.chords as ChordsShown;
+  if (MELODY_MODES.includes(raw.melody as MelodyMode)) out.melody = raw.melody as MelodyMode;
   if (isBool(raw.showScales)) out.showScales = raw.showScales;
   const mix = parseMix(raw.mix);
   if (mix) out.mix = mix;

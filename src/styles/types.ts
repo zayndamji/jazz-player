@@ -1,6 +1,6 @@
 import type { TimelineBar } from "../engine/timeline";
 
-export type Track = "bass" | "piano" | "guitar" | "drums";
+export type Track = "bass" | "piano" | "guitar" | "drums" | "melody";
 /** "brush" is a sweep across the snare, "brushTap" a brush stroke on it; both are synthesized. */
 export type DrumSound = "kick" | "rim" | "hat" | "pedal" | "ride" | "snare" | "tomHigh" | "tomLow" | "crash" | "brush" | "brushTap";
 

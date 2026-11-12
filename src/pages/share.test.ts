@@ -9,6 +9,15 @@ describe("shared links", () => {
     expect(parseLink("#/tune/x?choruses=loop")).toEqual({ choruses: "loop" });
   });
 
+  it("carries the melody setting", () => {
+    expect(parseLink("#/tune/x?melody=head")).toEqual({ melody: "head" });
+    expect(parseLink("#/tune/x?melody=loud")).toEqual({});
+    const s = { tempo: 120, transpose: 0, style: "swing", instrument: "C", choruses: 2 as const };
+    expect(shareUrl("http://x/", "t", { ...s, melody: "every" })).toContain("melody=every");
+    expect(shareUrl("http://x/", "t", { ...s, melody: "off" })).not.toContain("melody");
+    expect(withLink(defaultSettings(swingForm), { melody: "head" }).melody).toBe("head");
+  });
+
   it("ignores bad values", () => {
     expect(parseLink("#/tune/x?bpm=9000&key=7&style=polka&for=kazoo&choruses=7")).toEqual({});
     expect(parseLink("#/tune/x?bpm=&key=")).toEqual({});
