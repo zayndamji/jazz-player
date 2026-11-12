@@ -55,8 +55,7 @@ interface Voice {
  * Findings from Tone's ToneBufferSource and OneShotSource:
  * - start(time, offset, duration, gain) starts the native source at `offset` (it is not
  *   given a length) and, when `duration` is set, calls stop(time + duration). Nothing
- *   else keeps a voice inside its region, so the native source is also stopped at the
- *   region end below.
+ *   else keeps a voice inside its region, so notes are ended early enough (see below).
  * - stop(t) does not cut at t. It ramps the gain to 0 over fadeOut starting at t and
  *   stops the native source later (fadeOut after t, plus twice that for an exponential curve).
  *   The ramp is in output time, so playbackRate does not change it.
@@ -100,11 +99,11 @@ export class SpriteSampler {
     } else source.connect(this.output);
 
     source.start(time, offset, maxLen, velocity);
-    // End the note early enough for its release fade to finish inside the region, then stop
-    // the native source at the region end. A native source applies only its last stop() call,
-    // so this one must come after Tone's (which stops it later, after the fade).
+    // End the note early enough for its release fade to finish inside the region: this clamp is
+    // what keeps a voice out of the next sample. (Tone stops the native source itself after the
+    // fade; stopping it ourselves would be overridden by that later stop.) A note longer than the
+    // region minus the release is cut there, which is about 2.9 s for the bass.
     source.stop(time + Math.max(0.02, Math.min(duration, maxLen - this.options.release)));
-    (source as unknown as { _source: AudioBufferSourceNode })._source.stop(time + maxLen);
 
     const voice: Voice = { source };
     this.voices.add(voice);
@@ -114,9 +113,13 @@ export class SpriteSampler {
     };
   }
 
-  releaseAll() {
+  /** Fade every sounding voice out, over `fade` seconds when given (else the instrument's own release). */
+  releaseAll(fade?: number) {
     const now = Tone.now();
-    for (const { source } of this.voices) source.stop(now);
+    for (const { source } of this.voices) {
+      if (fade !== undefined) source.fadeOut = fade;
+      source.stop(now);
+    }
     this.voices.clear();
   }
 }

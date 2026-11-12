@@ -412,12 +412,6 @@ describe("key cycling", () => {
     expect(firstOf(flats, 2).transpose).toBe(-1);
   });
 
-  it("stays in one key when looping a section or a range, or repeating until stopped", () => {
-    expect(sched(5, { loopSection: 0 }).bars.every((b) => b.transpose === 0)).toBe(true);
-    expect(sched(5, { loopRange: { from: { part: "form", section: 0, bar: 0 }, to: { part: "form", section: 0, bar: 2 } } }).bars.every((b) => b.transpose === 0)).toBe(true);
-    expect(sched(5, { choruses: "loop" }).bars.every((b) => b.transpose === 0)).toBe(true);
-  });
-
   it("starts a count-in in the key of the bar it leads to", () => {
     const s = buildSchedule(chart, bossa, { choruses: 3, countIn: true, transpose: 0, keyStep: 5, start: { ref: { part: "form", section: 0, bar: 0 }, chorus: 2 } });
     expect(s.bars[0].countIn).toBe(true);

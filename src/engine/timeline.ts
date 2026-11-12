@@ -28,6 +28,15 @@ export type KeyStep = (typeof KEY_STEPS)[number];
 /** The transpose chorus `chorus` (from 1) plays in when each chorus moves the key by `step`, folded into -6..5. */
 export const chorusTranspose = (base: number, step: number, chorus: number) => (step === 0 ? base : fold(base + (Math.max(1, chorus) - 1) * step));
 
+/** How many choruses a key cycle takes to come back to the starting key (1 when the key doesn't move). */
+export const keyCycle = (step: number) => {
+  if (step === 0) return 1;
+  let a = 12;
+  let b = Math.abs(step) % 12;
+  while (b) [a, b] = [b, a % b];
+  return 12 / a;
+};
+
 export interface TimelineBar {
   /** Half steps from the original key this bar's chords are in. */
   transpose: number;
@@ -128,18 +137,32 @@ export function rangeBars(chart: Chart, range: BarRange): ChartBar[] {
   return all.slice(Math.min(a, b), Math.max(a, b) + 1);
 }
 
-/** The bars of a range, a number of times (the chorus counts up for form bars, like a looped section). */
-export function rangeOrder(chart: Chart, range: BarRange, times: number): PlayItem[] {
+/** The bars of a range, a number of times (the chorus counts up from `first` for form bars, like a looped section). */
+export function rangeOrder(chart: Chart, range: BarRange, times: number, first = 1): PlayItem[] {
   const bars = rangeBars(chart, range);
   const items: PlayItem[] = [];
-  for (let c = 1; c <= times; c++) for (const b of bars) items.push({ ref: b.ref, chorus: b.ref.part === "form" ? c : 0 });
+  for (let c = 0; c < times; c++) for (const b of bars) items.push({ ref: b.ref, chorus: b.ref.part === "form" ? first + c : 0 });
   return items;
 }
 
-/** The bars of one form section, a number of times. */
-export function sectionOrder(chart: Chart, section: number, times: number): PlayItem[] {
+/** The bars of one form section, a number of times (the chorus counts up from `first`). */
+export function sectionOrder(chart: Chart, section: number, times: number, first = 1): PlayItem[] {
   const items: PlayItem[] = [];
-  for (let c = 1; c <= times; c++) chart.form[section].bars.forEach((_, bar) => items.push({ ref: { part: "form", section, bar }, chorus: c }));
+  for (let c = 0; c < times; c++) chart.form[section].bars.forEach((_, bar) => items.push({ ref: { part: "form", section, bar }, chorus: first + c }));
+  return items;
+}
+
+/**
+ * The choruses repeating until stopped, numbered from `first`: `count` of them, chorus 1 a head
+ * (with the intro when `first` is 1), the rest solos. Only the choruses after the first loop.
+ */
+export function loopedChoruses(chart: Chart, first: number, count: number, withIntro = true): PlayItem[] {
+  const items: PlayItem[] = [];
+  const bars = chartBars(chart);
+  if (withIntro && first === 1) bars.filter((b) => b.ref.part === "intro").forEach((b) => items.push({ ref: b.ref, chorus: 0 }));
+  for (let c = first; c < first + count; c++) {
+    bars.filter((b) => b.ref.part === "form" && playsIn(chart.form[b.ref.section], c === 1)).forEach((b) => items.push({ ref: b.ref, chorus: c }));
+  }
   return items;
 }
 
@@ -222,8 +245,9 @@ export function navOrder(chart: Chart, choruses: number | "loop", loopSection: n
 }
 
 /** How far through a performance a place is, 0 to 1 (null when it isn't in it). Falls back to the same bar in any chorus. */
-export function performanceFraction(order: PlayItem[], place: PlayItem, beat: number, beatsPerBar: number): number | null {
-  let i = order.findIndex((x) => sameRef(x.ref, place.ref) && x.chorus === place.chorus);
+export function performanceFraction(order: PlayItem[], place: PlayItem, beat: number, beatsPerBar: number, hint?: number): number | null {
+  // A bar that appears more than once (a repeated ending tag) is told apart by where it is in the run.
+  let i = hint !== undefined && sameRef(order[hint]?.ref, place.ref) && order[hint].chorus === place.chorus ? hint : order.findIndex((x) => sameRef(x.ref, place.ref) && x.chorus === place.chorus);
   if (i < 0) i = order.findIndex((x) => sameRef(x.ref, place.ref));
   return i < 0 ? null : (i + beat / beatsPerBar) / order.length;
 }

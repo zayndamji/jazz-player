@@ -10,8 +10,8 @@ import { ControlBar, type ProgressStep, type View } from "../components/ControlB
 import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
-import { bandFor, buildSchedule, chorusesFor, clickLabel, performanceBeats, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
-import { chartBars, chorusTranspose, chordAt, fold, itemAtFraction, nextChord, performanceFraction, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
+import { bandFor, buildSchedule, chorusesFor, chorusLayoutChanges, clickLabel, performanceBeats, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
+import { chartBars, chorusTranspose, chordAt, fold, itemAtFraction, keyCycle, nextChord, performanceFraction, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
 import { STYLES, playableStyle, stylesFor } from "../styles";
 import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
@@ -54,10 +54,14 @@ type Loop = { section: number } | { range: BarRange } | null;
 const sectionStart = (section: number): PlayItem => ({ ref: { part: "form", section, bar: 0 }, chorus: 1 });
 
 export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from the address, for this visit only. */ link?: LinkSettings }) {
-  /** The band's style: the chart's own by default, any other on request. */
   /** What the tune remembers, and with a shared link's settings on top for this visit. */
   const stored = useMemo(() => loadSettings(chart), [chart]);
   const initial = useMemo(() => withLink(stored, link), [stored, link]);
+  /** The link whose values aren't remembered yet; emptied by Reset, which leaves nothing stored. */
+  const linkNow = useRef(link);
+  /** False once the page is left, so a load that finishes late doesn't start the band. */
+  const alive = useRef(true);
+  /** The band's style: the chart's own by default, any other on request. */
   const [styleId, setStyleId] = useState(playableStyle(chart, initial.style));
   const style = STYLES[playableStyle(chart, styleId)];
   const chartKeyPc = keyPitchClass(chart.key);
@@ -83,7 +87,6 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   /** Read by the player's callbacks, which outlive a render. */
   const speedUpNow = useRef(speedUp);
   speedUpNow.current = speedUp;
-  const lastBar = useRef<number | null>(null);
   const [keyStep, setKeyStep] = useState<KeyStep>(initial.keyStep);
   const [metronome, setMetronome] = useState(false);
   const [showScales, setShowScales] = useState(initial.showScales);
@@ -123,7 +126,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   }, [muted]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, mix }, stored, link));
+    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, mix }, stored, linkNow.current));
   }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, clickMode, showScales, speedUp, keyStep, mix]);
   useEffect(() => {
     // An instrument that came from a link isn't remembered until the player picks one.
@@ -140,20 +143,13 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   const getPlayer = () => {
     if (!sharedPlayer) sharedPlayer = new Player();
     const p = sharedPlayer;
-    // Each pass of a loop can raise the tempo: at the wrap, and where the first copy of the loop hands over to the second.
-    const speedUpOnce = () => {
+    p.onPosition = setPosition;
+    // Every pass of a loop (the player calls this from a Transport event, not from the playhead) can raise the tempo.
+    p.onPass = () => {
       if (speedUpNow.current > 0) setTempo((t) => raisedTempo(t, speedUpNow.current));
     };
-    p.onPosition = (pos) => {
-      setPosition(pos);
-      const loopAt = current.current?.schedule.loop;
-      if (pos && loopAt && lastBar.current === loopAt.start / current.current!.schedule.beatsPerBar - 1 && pos.bar === lastBar.current + 1) speedUpOnce();
-      lastBar.current = pos ? pos.bar : null;
-    };
-    p.onLoop = () => {
-      setLoops((n) => n + 1);
-      speedUpOnce();
-    };
+    // A wrap goes back a whole key cycle of choruses, so the chorus count on screen moves on by that many.
+    p.onLoop = () => setLoops((n) => n + (current.current?.schedule.cycle ?? 1));
     p.onEnd = (finished) => {
       setStatus("idle");
       current.current = null;
@@ -167,12 +163,19 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   useEffect(() => recordOpened(chart.id), [chart.id]);
 
   // Leaving the tune stops the band.
-  useEffect(() => () => {
-    if (sharedPlayer?.playing) sharedPlayer.stop();
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      if (pendingTimer.current !== null) window.clearTimeout(pendingTimer.current);
+      pendingTimer.current = null;
+      pending.current = null;
+      if (sharedPlayer?.playing) sharedPlayer.stop();
+    };
   }, []);
 
   const start = useCallback(
-    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "countInBars" | "intro" | "ending" | "keyStep">, chorusOffset = 0) => {
+    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "countInBars" | "intro" | "ending" | "keyStep">, choruses: Repeat = repeat) => {
       const p = getPlayer();
       setError(null);
       setStatus("loading");
@@ -180,15 +183,18 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         await p.load();
       } catch (e) {
         console.error(e);
+        if (!alive.current) return;
         setError("Couldn't load the instrument sounds. Reload the page to try again.");
         setStatus("idle");
         return;
       }
+      // The page was left while the sounds loaded: there is nothing to play along with.
+      if (!alive.current) return;
       (Object.keys(mix) as Mixable[]).forEach((t) => {
         p.setVolume(t, mix[t].level);
         p.setMute(t, effectiveMute(mix, t));
       });
-      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, intro, ending, keyStep, choruses: repeat, transpose, tempo, twoFeel };
+      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, intro, ending, keyStep, choruses, transpose, tempo, twoFeel };
       const schedule = buildSchedule(chart, style, full);
       current.current = { opts: full, schedule, style, repeat };
       p.metronomeOn = metronome;
@@ -197,7 +203,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       p.setTempo(tempo);
       p.setSchedule(schedule);
       p.play();
-      setLoops(chorusOffset);
+      setLoops(0);
       setCue(null);
       setStatus("playing");
     },
@@ -224,18 +230,33 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       const now = current.current;
       if (!now || !player.current?.playing) return;
       let choruses = now.opts.choruses;
-      if (now.repeat !== repeat) {
-        const looped = now.opts.loopSection != null || !!now.opts.loopRange;
-        if (!looped && (repeat === "loop" || now.repeat === "loop")) {
+      const looped = now.opts.loopSection != null || !!now.opts.loopRange;
+      // Restart at this bar (no count-in) with the schedule's bars laid out another way.
+      const restart = (withChoruses: Repeat) => {
+        current.current = { ...now, repeat };
+        const here = placeNow();
+        if (!here) return false;
+        keys.current.begin(here, false, loopOf(now.opts), withChoruses);
+        return true;
+      };
+      if (now.repeat !== repeat && !looped) {
+        if (repeat === "loop" || now.repeat === "loop") {
           // Chorus numbers mean something different when they repeat until stopped, so carry on from this bar.
-          current.current = { ...now, repeat };
-          const here = placeNow();
-          if (here) return keys.current.begin(here, false, null);
-        } else if (!looped && typeof repeat === "number") {
-          const at = nowBar?.ref?.part === "form" ? nowBar.chorus : nowBar?.ref?.part === "ending" ? (now.opts.choruses as number) : 1;
+          if (restart(repeat)) return;
+          // Still counting in from the top: there's no place to keep, so build with the new choruses.
+          choruses = repeat;
+        } else if (typeof repeat === "number") {
+          const part = nowBar?.ref?.part;
+          const at = part === "form" ? nowBar!.chorus : part === "ending" ? (now.opts.choruses as number) : 1;
           choruses = chorusesFor(repeat, at);
+          // The band keeps its place only if the bars before and in this chorus stay as they are: a head chorus
+          // holds other sections than a solo one, and the ending moves when choruses are added before it.
+          const moved = part === "ending" ? choruses !== now.opts.choruses : part === "form" && typeof now.opts.choruses === "number" && chorusLayoutChanges(chart, now.opts.choruses, choruses, at);
+          if (moved && restart(choruses)) return;
         }
       }
+      // A different key step changes how many choruses a loop lays out, so the loop starts over from this bar.
+      if (now.schedule.loop && now.opts.keyStep !== keyStep && keyCycle(now.opts.keyStep ?? 0) !== keyCycle(keyStep) && restart(now.opts.choruses)) return;
       const opts = { ...now.opts, choruses, transpose, keyStep, tempo, twoFeel };
       const schedule = buildSchedule(chart, style, opts);
       current.current = { opts, schedule, style, repeat };
@@ -253,12 +274,17 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   );
   const nowBar = position && schedule ? schedule.bars[position.bar] : null;
   const looping = current.current?.opts.loopSection != null || current.current?.opts.loopRange != null;
-  /** The chorus a bar is in, counting the repeats when the choruses go on until stopped. */
-  const realChorus = (chorus: number) => (repeat === "loop" && !looping && chorus > 0 ? chorus + loops : chorus);
+  /**
+   * The chorus a bar is in. A loop's bars are numbered from where it started and the schedule
+   * repeats a key cycle of them, so each wrap adds that many (`loops`).
+   * This reads the schedule that is playing, not the Choruses setting, which may just have changed.
+   */
+  const realChorus = (chorus: number) => (current.current?.schedule.loop && chorus > 0 ? chorus + loops : chorus);
+  /** How many choruses the schedule that's playing has (what the ending's key and "of N" go by), else the setting. */
+  const builtChoruses = useMemo(() => (schedule ? Math.max(1, ...schedule.bars.map((b) => b.chorus)) : typeof repeat === "number" ? repeat : 1), [schedule, repeat]);
 
   // With key cycling the key follows the chorus that's playing (or the one the band will start in).
-  const oneKey = loop !== null || repeat === "loop";
-  const chorusKey = (ref: BarRef, chorus: number) => (ref.part === "form" ? chorus || 1 : ref.part === "ending" && typeof repeat === "number" ? repeat : 1);
+  const chorusKey = (ref: BarRef, chorus: number) => (ref.part === "form" ? chorus || 1 : ref.part === "ending" ? builtChoruses : 1);
   const placeShown: PlayItem | null = nowBar?.ref
     ? { ref: nowBar.ref, chorus: realChorus(nowBar.chorus) }
     : nowBar?.countIn
@@ -267,7 +293,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         ? cue
         : null;
   /** Half steps from the original key of the music on show. */
-  const shownTranspose = chorusTranspose(transpose, oneKey ? 0 : keyStep, placeShown ? chorusKey(placeShown.ref, placeShown.chorus) : 1);
+  const shownTranspose = chorusTranspose(transpose, keyStep, placeShown ? chorusKey(placeShown.ref, placeShown.chorus) : 1);
   const shift = fold(shownTranspose + instrument.offset);
   const printedKeyPc = (chartKeyPc + shift + 12) % 12;
   /** The major key the printed chords are spelled in (the relative major for a minor tune). */
@@ -276,17 +302,15 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
 
   /**
    * Start the band at a bar (null: the top, or the looped section's first bar).
-   * When the choruses repeat until stopped the schedule holds only two, so a later
-   * chorus starts in the second and the readout counts on from there.
+   * `choruses` is how many to build (the current count unless the band is finishing a chorus
+   * after the count was lowered). A loop, or choruses until stopped, builds from the chorus
+   * it starts in, and the readout counts on from there.
    */
-  const begin = (item: PlayItem | null, withCountIn: boolean, toLoop: Loop) => {
+  const begin = (item: PlayItem | null, withCountIn: boolean, toLoop: Loop, choruses: Repeat = repeat) => {
     let from = item ?? loopStart(toLoop);
-    let offset = 0;
-    if (from && toLoop !== null) from = { ...from, chorus: from.ref.part === "form" ? 1 : 0 };
-    else if (from && repeat === "loop" && from.chorus > 2) {
-      offset = from.chorus - 2;
-      from = { ...from, chorus: 2 };
-    } else if (from && typeof repeat === "number" && from.chorus > repeat) from = { ...from, chorus: repeat };
+    // Loops and choruses until stopped number their choruses from the one they start in, so a later one starts as itself.
+    if (from && toLoop !== null) from = { ...from, chorus: from.ref.part === "form" ? Math.max(1, from.chorus) : 0 };
+    else if (from && typeof choruses === "number" && from.chorus > choruses) from = { ...from, chorus: choruses };
     void start(
       {
         countIn: withCountIn,
@@ -294,9 +318,12 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         loopRange: toLoop && "range" in toLoop ? toLoop.range : null,
         start: from,
       },
-      offset,
+      choruses,
     );
   };
+
+  /** The loop an option set repeats. */
+  const loopOf = (o: PlaybackOptions): Loop => (o.loopSection != null ? { section: o.loopSection } : o.loopRange ? { range: o.loopRange } : null);
 
   /** The first bar of a loop. */
   const loopStart = (l: Loop): PlayItem | null => {
@@ -324,7 +351,10 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   const toggle = () => {
     if (status === "loading") return;
     if (status === "playing") {
-      setCue(placeNow());
+      // A jump the arrow keys are still waiting to make becomes the cue; either way it doesn't restart the band after the pause.
+      const target = pending.current?.item ?? placeNow();
+      cancelPending();
+      setCue(target);
       player.current?.stop();
       return;
     }
@@ -332,8 +362,17 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     begin(outside ? null : cue, countIn, loop);
   };
 
+  /** Drop a jump the arrow keys have queued (its 200 ms timer included). */
+  const cancelPending = () => {
+    if (pendingTimer.current !== null) window.clearTimeout(pendingTimer.current);
+    pendingTimer.current = null;
+    pending.current = null;
+    setJump(null);
+  };
+
   /** Home: stop and go back to the start (of the loop, when looping). */
   const toStart = () => {
+    cancelPending();
     if (playing) player.current?.stop();
     setCue(null);
   };
@@ -343,7 +382,9 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
    * restart there once the keys have been quiet for 200 ms, so holding an arrow
    * scrubs instead of restarting on every bar. During the count-in, count in again.
    */
-  const go = (item: PlayItem, toLoop: Loop) => {
+  const go = (target: PlayItem, toLoop: Loop) => {
+    // In a loop the order is one pass long: carry on in the chorus (so the key) the band is in.
+    const item = toLoop !== null && target.ref.part === "form" ? { ...target, chorus: Math.max(1, fromHere()?.chorus ?? 1) } : target;
     setAnnounce(describe(item.ref, item.chorus, toLoop !== null));
     if (!playing) {
       setCue(item);
@@ -408,6 +449,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   /** Stop looping, and carry on from the same bar when playing. */
   const clearLoop = () => {
     if (!loop) return;
+    cancelPending();
     setLoop(null);
     if (playing) {
       const here = nowBar?.ref;
@@ -505,6 +547,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     setSpeedUp(d.speedUp);
     setKeyStep(d.keyStep);
     setMix(d.mix);
+    // The link no longer decides what is kept: with it, a value equal to the link's would put the old stored one back.
+    linkNow.current = {};
     clearSettings(chart.id);
   };
 
@@ -568,7 +612,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             ? `${chart.form[ref.section].label} section`
             : repeat === "loop"
               ? `Chorus ${chorus}`
-              : `Chorus ${chorus} of ${repeat}`;
+              : `Chorus ${chorus} of ${builtChoruses}`;
     return `Bar ${number} · ${part}`;
   };
   let where = "";
@@ -579,7 +623,15 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     const seconds = Math.round((totalBeats * 60) / tempo);
     where = repeat === "loop" ? "Repeats until stopped" : `${repeat} ${repeat === 1 ? "chorus" : "choruses"} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   }
-  const progress = placeShown && !nowBar?.countIn ? performanceFraction(performance, placeShown, nowBar ? (position?.beat ?? 0) : 0, chart.beatsPerBar) : null;
+  // A bar the run plays twice (a repeated ending tag) is told apart by its place in the schedule that's playing.
+  const performanceIndex = (() => {
+    const c = current.current;
+    if (!nowBar?.ref || !c || c.schedule.loop) return undefined;
+    const from = c.opts.start;
+    const startIndex = from ? performance.findIndex((x) => sameRef(x.ref, from.ref) && x.chorus === from.chorus) : 0;
+    return startIndex < 0 ? undefined : startIndex + nowBar.index - c.schedule.bars.filter((b) => b.countIn).length;
+  })();
+  const progress = placeShown && !nowBar?.countIn ? performanceFraction(performance, placeShown, nowBar ? (position?.beat ?? 0) : 0, chart.beatsPerBar, performanceIndex) : null;
 
   const nowChord = useMemo(() => {
     if (!nowBar || !position || nowBar.countIn) return null;

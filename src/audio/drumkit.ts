@@ -94,6 +94,7 @@ function brushTap(rate: number, seed: number): Float32Array {
 export class DrumKit {
   private layers = new Map<DrumSound, Take[][]>();
   private last = new Map<DrumSound, number>();
+  private playing = new Set<Tone.ToneBufferSource>();
 
   constructor(private output: Tone.ToneAudioNode) {}
 
@@ -126,7 +127,24 @@ export class DrumKit {
     this.last.set(sound, n);
     const take = takes[n];
     const source = new Tone.ToneBufferSource(take.buffer).connect(this.output);
-    source.onended = () => source.dispose();
+    this.playing.add(source);
+    source.onended = () => {
+      this.playing.delete(source);
+      source.dispose();
+    };
     source.start(time, take.offset, take.length, TRIM[sound] * (0.45 + 0.55 * v));
+  }
+
+  /** Fade out every hit that is sounding or about to (ride, crash and brush tails), over `fade` seconds. */
+  stopAll(fade = 0.08) {
+    const now = Tone.now();
+    for (const source of [...this.playing]) {
+      try {
+        source.fadeOut = fade;
+        source.stop(now);
+      } catch {
+        // Already finished.
+      }
+    }
   }
 }

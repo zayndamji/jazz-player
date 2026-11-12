@@ -26,7 +26,10 @@ const CHANNELS: Record<Mixable, { volume: number; pan: number }> = {
   metronome: { volume: -8, pan: 0 },
 };
 
-const ticks = (beats: number) => `${Math.round(beats * Tone.getTransport().PPQ)}i`;
+/** Seconds notes fade over when the band restarts or stops: quick, but not a click. */
+const FADE = 0.08;
+
+const ticks =(beats: number) => `${Math.round(beats * Tone.getTransport().PPQ)}i`;
 
 /**
  * Plays a Schedule with Tone.js. All times are in beats on the Transport, so
@@ -42,6 +45,9 @@ export class Player {
   private notes: Tone.Part<[string, NoteEvent]> | null = null;
   private clock: Tone.Part<[string, BeatMark]> | null = null;
   private endId: number | null = null;
+  /** The timer that stops the band after the last chord rings; cleared by a restart or a stop. */
+  private endTimer: number | null = null;
+  private passIds: number[] = [];
   private loaded: Promise<void> | null = null;
 
   private styleMix: Partial<Record<Track, number>> = {};
@@ -54,6 +60,8 @@ export class Player {
   clickMode: ClickMode = "every";
   onPosition: (p: Position | null) => void = () => {};
   onLoop: () => void = () => {};
+  /** Called when a pass of a loop ends and the next begins (every chorus of a key cycle, and on each wrap). */
+  onPass: () => void = () => {};
   /** Called when playback stops: `finished` is true when the song ran to its end, false when stopped. */
   onEnd: (finished: boolean) => void = () => {};
 
@@ -92,10 +100,10 @@ export class Player {
     return this.loaded;
   }
 
-  /** Replace what's playing. The Transport keeps its position, so this works mid-song. */
   /** What's playing, for the dev tools (scripts/record-site.js). */
   schedule: Schedule | null = null;
 
+  /** Replace what's playing. The Transport keeps its position, so this works mid-song. */
   setSchedule(schedule: Schedule) {
     this.schedule = schedule;
     this.styleMix = schedule.mix;
@@ -105,6 +113,9 @@ export class Player {
     this.clock?.dispose();
     if (this.endId !== null) transport.clear(this.endId);
     this.endId = null;
+    this.clearEndTimer();
+    for (const id of this.passIds) transport.clear(id);
+    this.passIds = [];
 
     this.notes = new Tone.Part<[string, NoteEvent]>(
       (time, e) => this.playNote(time, e),
@@ -124,15 +135,39 @@ export class Player {
     if (schedule.loop) {
       transport.setLoopPoints(ticks(schedule.loop.start), ticks(schedule.loop.end));
       transport.loop = true;
+      // Each pass of the loop ends where the next copy begins. The Transport reaches the first copy's
+      // start on its way in and again on every wrap. A plain timer, not Draw (see below).
+      this.passIds = schedule.passes.map((beat) =>
+        transport.schedule((time) => {
+          window.setTimeout(() => this.onPass(), Math.max(0, (time - Tone.now()) * 1000));
+        }, ticks(beat)),
+      );
     } else {
       transport.loop = false;
       // Let the last chord ring for two beats before stopping. A plain timer, not
       // Tone's Draw queue: Draw drops callbacks when animation frames are throttled.
       this.endId = transport.schedule((time) => {
         const delay = Math.max(0, (time - Tone.now()) * 1000);
-        window.setTimeout(() => this.stop(true), delay);
+        this.clearEndTimer();
+        this.endTimer = window.setTimeout(() => {
+          this.endTimer = null;
+          this.stop(true);
+        }, delay);
       }, ticks(schedule.totalBeats + 2));
     }
+  }
+
+  private clearEndTimer() {
+    if (this.endTimer !== null) window.clearTimeout(this.endTimer);
+    this.endTimer = null;
+  }
+
+  /** Fade out whatever is sounding, quickly but not as a click. */
+  private releaseAll() {
+    this.piano?.releaseAll(FADE);
+    this.bass?.releaseAll(FADE);
+    this.guitar?.releaseAll(FADE);
+    this.drums?.stopAll(FADE);
   }
 
   private playNote(time: number, e: NoteEvent) {
@@ -152,6 +187,9 @@ export class Player {
   /** Start from the top of the schedule. */
   play() {
     const transport = Tone.getTransport();
+    // A restart while playing: end the old run's ringing notes and its pending end-of-song stop.
+    this.clearEndTimer();
+    this.releaseAll();
     transport.stop();
     transport.position = 0;
     transport.start("+0.05");
@@ -163,12 +201,11 @@ export class Player {
 
   stop(finished = false) {
     const transport = Tone.getTransport();
+    this.clearEndTimer();
     transport.stop();
     transport.position = 0;
     Tone.getDraw().cancel(0);
-    this.piano?.releaseAll();
-    this.bass?.releaseAll();
-    this.guitar?.releaseAll();
+    this.releaseAll();
     this.onPosition(null);
     this.onEnd(finished);
   }
