@@ -1,6 +1,7 @@
 import { isMinorKey, keyPitchClass, spellingPc } from "../chart/chords";
 import type { Chart } from "../chart/types";
 import type { NoteEvent, Style, Track } from "../styles/types";
+import { applyTrading, markTrading, type TradeMode } from "./trading";
 import { buildTimeline, keyCycle, loopedChoruses, playOrder, rangeOrder, sameRef, sectionOrder, type BarRange, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
 
 export type Repeat = number | "loop";
@@ -45,6 +46,8 @@ export interface PlaybackOptions {
   ending?: boolean;
   /** Play the intro and first chorus in two; the chart's `twoFeel` when left out. */
   twoFeel?: boolean;
+  /** Trade fours or eights with the drums in the solo choruses (off when left out). */
+  trade?: TradeMode;
 }
 
 /** One beat on the clock, for the metronome and the playhead. */
@@ -120,6 +123,11 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const full = buildTimeline(chart, items, opts.transpose, keyPc, opts.keyStep ?? 0);
   // A loop never ends the song: no final hit at the end of the repeating copy.
   if (loopFrom >= 0) for (const b of full) b.final = false;
+  // Trading goes by the chorus each bar is in: the head choruses and the intro and ending are left alone.
+  // A looped section or range has no head to tell apart, so all its passes are solos.
+  const lastChorus = Math.max(1, ...full.map((b) => b.chorus));
+  const sectionLoop = opts.loopSection != null || !!opts.loopRange;
+  markTrading(full, opts.trade ?? "off", (c) => sectionLoop || (c >= 2 && (opts.choruses === "loop" || c < lastChorus)));
 
   const countInBars = opts.countInBars ?? (opts.countIn ? 2 : 0);
   const countIn: TimelineBar[] = Array.from({ length: countInBars }, (_, i) => ({
@@ -157,7 +165,8 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   }
 
   const band = bandFor(chart, style);
-  const events = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false }).filter((e) => band.includes(e.track));
+  const played = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false }).filter((e) => band.includes(e.track));
+  const events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"));
   return { bars, events, beats, totalBeats, beatsPerBar, loop, passes, cycle, mix: style.mix ?? {}, band };
 }
 

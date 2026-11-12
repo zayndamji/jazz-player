@@ -3,6 +3,7 @@ import type { MixState } from "../components/Mixer";
 import type { View } from "../components/ControlBar";
 import { TEMPO, type Chart } from "../chart/types";
 import { CLICK_MODES, type ClickMode, type Repeat } from "../engine/schedule";
+import { TRADE_MODES, type TradeMode } from "../engine/trading";
 import { KEY_STEPS, type KeyStep } from "../engine/timeline";
 import { STYLES, playableStyle } from "../styles";
 import { forget, readStored, store } from "./storage";
@@ -45,6 +46,8 @@ export interface TuneSettings {
   speedUp: SpeedUp;
   /** Half steps the key moves each chorus. */
   keyStep: KeyStep;
+  /** Trading with the drums in the solo choruses. */
+  trade: TradeMode;
   mix: Record<Mixable, MixState>;
 }
 
@@ -65,6 +68,7 @@ export function defaultSettings(chart: Chart): TuneSettings {
     showScales: false,
     speedUp: 0,
     keyStep: 0,
+    trade: "off",
     mix: initialMix(),
   };
 }
@@ -119,6 +123,7 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   if (CLICK_MODES.includes(raw.click as ClickMode)) out.click = raw.click as ClickMode;
   if (SPEED_UPS.includes(raw.speedUp as SpeedUp)) out.speedUp = raw.speedUp as SpeedUp;
   if (KEY_STEPS.includes(raw.keyStep as KeyStep)) out.keyStep = raw.keyStep as KeyStep;
+  if (TRADE_MODES.includes(raw.trade as TradeMode)) out.trade = raw.trade as TradeMode;
   if (isBool(raw.showScales)) out.showScales = raw.showScales;
   const mix = parseMix(raw.mix);
   if (mix) out.mix = mix;

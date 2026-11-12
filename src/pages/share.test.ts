@@ -39,4 +39,13 @@ describe("shared links", () => {
     expect(parseLink(url.slice(url.indexOf("#")))).toEqual({ tempo: 130, transpose: -3, style: "swing", instrument: "Eb", choruses: "loop" });
     expect(shareUrl("", "t", { ...s, instrument: "C" })).not.toContain("for=");
   });
+
+  it("carries trading", () => {
+    expect(parseLink("#/tune/x?trade=eights")).toEqual({ trade: "eights" });
+    expect(parseLink("#/tune/x?trade=sixes")).toEqual({});
+    const s = { tempo: 130, transpose: 0, style: "swing", instrument: "C", choruses: 3 as const };
+    expect(parseLink(shareUrl("", "t", { ...s, trade: "fours-out" }).slice(1)).trade).toBe("fours-out");
+    expect(shareUrl("", "t", { ...s, trade: "off" })).not.toContain("trade=");
+    expect(withLink(defaultSettings(swingForm), { trade: "fours" }).trade).toBe("fours");
+  });
 });

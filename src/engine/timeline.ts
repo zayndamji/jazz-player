@@ -55,6 +55,8 @@ export interface TimelineBar {
   countIn: boolean;
   /** The last bar of the song: the style plays a final hit. */
   final: boolean;
+  /** Whose turn it is when trading with the drums (solo choruses only; left out when not trading). */
+  trade?: "you" | "drums" | "out";
 }
 
 /** What to play, before chords are filled in. */

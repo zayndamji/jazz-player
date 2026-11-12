@@ -1,5 +1,6 @@
 import { INSTRUMENTS } from "../chart/instruments";
 import type { Repeat } from "../engine/schedule";
+import { TRADE_MODES, type TradeMode } from "../engine/trading";
 import { REPEATS, validStyle, validTempo, validTranspose, type TuneSettings } from "./settings";
 
 /** What a shared link can set for one visit: `#/tune/<id>?bpm=120&key=-2&style=bossa&for=Bb&choruses=4`. */
@@ -10,6 +11,8 @@ export interface LinkSettings {
   /** Instrument id. */
   instrument?: string;
   choruses?: Repeat;
+  /** Trading with the drums. */
+  trade?: TradeMode;
 }
 
 /** The valid parameters in a hash's query; bad ones are ignored. */
@@ -34,6 +37,8 @@ export function parseLink(hash: string): LinkSettings {
   const asNumber = choruses === null ? NaN : Number(choruses);
   if (choruses === "loop") out.choruses = "loop";
   else if (REPEATS.includes(asNumber)) out.choruses = asNumber;
+  const trade = params.get("trade");
+  if (TRADE_MODES.includes(trade as TradeMode)) out.trade = trade as TradeMode;
   return out;
 }
 
@@ -45,10 +50,11 @@ export function withLink(settings: TuneSettings, link: LinkSettings): TuneSettin
     ...(link.transpose !== undefined && { transpose: link.transpose }),
     ...(link.style !== undefined && { style: link.style }),
     ...(link.choruses !== undefined && { choruses: link.choruses }),
+    ...(link.trade !== undefined && { trade: link.trade }),
   };
 }
 
-const LINKED = ["tempo", "transpose", "style", "choruses"] as const;
+const LINKED = ["tempo", "transpose", "style", "choruses", "trade"] as const;
 
 /**
  * What to remember: the current settings, except that a value that still equals what the
@@ -61,9 +67,10 @@ export function rememberable(current: TuneSettings, stored: TuneSettings, link: 
 }
 
 /** A link to a tune with the setup that's on screen. The instrument is left out for a C instrument. */
-export function shareUrl(base: string, chartId: string, s: { tempo: number; transpose: number; style: string; instrument: string; choruses: Repeat }): string {
+export function shareUrl(base: string, chartId: string, s: { tempo: number; transpose: number; style: string; instrument: string; choruses: Repeat; trade?: TradeMode }): string {
   const params = new URLSearchParams({ bpm: String(s.tempo), key: String(s.transpose), style: s.style });
   if (s.instrument !== "C") params.set("for", s.instrument);
   params.set("choruses", String(s.choruses));
+  if (s.trade && s.trade !== "off") params.set("trade", s.trade);
   return `${base}#/tune/${chartId}?${params}`;
 }

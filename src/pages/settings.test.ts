@@ -30,6 +30,12 @@ describe("tune settings", () => {
     expect(data.has(tuneKey(bossaForm.id))).toBe(false);
   });
 
+  it("remembers trading and ignores a bad value", () => {
+    saveSettings(bossaForm, { ...defaultSettings(bossaForm), trade: "eights" });
+    expect(loadSettings(bossaForm).trade).toBe("eights");
+    expect(parseSettings({ trade: "sixes" }).trade).toBeUndefined();
+  });
+
   it("clears the entry", () => {
     saveSettings(bossaForm, { ...defaultSettings(bossaForm), tempo: 90 });
     clearSettings(bossaForm.id);
