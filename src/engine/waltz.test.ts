@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { parseBar } from "../chart/chords";
+import { parseBar, parseChord } from "../chart/chords";
 import type { Chart } from "../chart/types";
 import { validateChart } from "../charts";
 import { swingForm, waltzForm } from "../fixtures";
 import { loadSettings, tuneKey } from "../pages/settings";
 import { STYLES, playableStyle, playsMeter, stylesFor } from "../styles";
-import { waltz } from "../styles/waltz";
+import { quartal, waltz } from "../styles/waltz";
 import { buildSchedule, clickLabel, clicksOn, performanceBeats } from "./schedule";
+import { SWING_RANGE } from "./voicing";
 import { chartBars, itemAtFraction, nextChord, performanceFraction, playOrder, rangeOrder, stepBar } from "./timeline";
 
 const play = { choruses: 2, countIn: true, transpose: 0 } as const;
@@ -114,22 +115,47 @@ describe("3/4 timeline and schedule", () => {
 
 describe("the waltz style", () => {
   for (const tempo of [90, 168, 260]) {
-    it(`keeps notes in range and inside their bars at ${tempo} BPM`, () => {
+    it(`keeps notes in range and near their bars at ${tempo} BPM`, () => {
       const s = buildSchedule(waltzForm, waltz, { choruses: 3, countIn: true, transpose: 2, tempo });
       expect(s.events.length).toBeGreaterThan(s.bars.length * 4);
       const finalStart = s.bars.find((b) => b.final)!.startBeat;
+      const firstMusic = s.bars.find((b) => !b.countIn)!.startBeat;
       for (const e of s.events) {
         for (const n of e.notes ?? []) expect(n >= 24 && n <= 96, `note ${n}`).toBe(true);
         expect(Number.isFinite(e.time) && e.duration > 0).toBe(true);
+        expect(e.time).toBeGreaterThanOrEqual(firstMusic);
         if (e.time >= finalStart) continue;
-        const bar = Math.floor(e.time / 3);
-        expect(s.bars[bar].countIn).toBe(false);
-        if (e.track !== "drums") expect(e.time + e.duration, JSON.stringify(e)).toBeLessThanOrEqual(bar * 3 + 3);
+        // A note starts within its timing pocket of a bar and rings at most a beat past it
+        // (an anticipation on the and of 3 carries into the next bar).
+        const bar = Math.floor((e.time + 0.1) / 3);
+        if (e.track !== "drums") expect(e.time + e.duration, JSON.stringify(e)).toBeLessThanOrEqual(bar * 3 + 4.2);
       }
     });
   }
   it("is deterministic", () => {
     expect(buildSchedule(waltzForm, waltz, play).events).toEqual(buildSchedule(waltzForm, waltz, play).events);
+  });
+
+  it("voices minor, major and sus chords in fourths from their scale", () => {
+    const em11 = parseChord("Em11");
+    const v = quartal(em11, null, SWING_RANGE)!;
+    expect(v.length).toBeGreaterThanOrEqual(3);
+    const dorian = [4, 6, 7, 9, 11, 1, 2];
+    for (const n of v) expect(dorian).toContain(n % 12);
+    expect(v[1] - v[0]).toBe(5);
+    expect(v[2] - v[1]).toBe(5);
+    const emaj7 = quartal(parseChord("Emaj7"), null, SWING_RANGE)!;
+    expect(emaj7.map((n) => n % 12)).not.toContain(5); // no F over E
+  });
+
+  it("plays pedal figures over a long run on one bass note", () => {
+    const vamp = { ...waltzForm, id: "vamp", intro: undefined, ending: undefined, form: [{ label: "A", bars: Array.from({ length: 8 }, (_, i) => (i % 2 ? "F#m11/E" : "Em11")) }] };
+    const s = buildSchedule(vamp, waltz, { choruses: 2, countIn: false, transpose: 0 });
+    const bass = s.events.filter((e) => e.track === "bass");
+    const pcs = new Set(bass.map((e) => e.notes![0] % 12));
+    for (const pc of pcs) expect([4, 11]).toContain(pc); // E and its fifth
+    // The bass leans on the and of 3 into the next bar.
+    expect(bass.some((e) => Math.abs((e.time % 3) - (2 + 2 / 3)) < 0.08)).toBe(true);
   });
 });
 
