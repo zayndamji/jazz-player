@@ -81,6 +81,11 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   const [instrumentId, setInstrumentId] = useState(() => link.instrument ?? readInstrument());
   const linkedInstrument = useRef(link.instrument);
   const [repeat, setRepeat] = useState<Repeat>(initial.choruses);
+  /** Live: choruses repeat until the play button is pressed, then the band finishes the chorus and ends. */
+  const [liveSetting, setLive] = useState(initial.live && initial.choruses === "loop");
+  const live = liveSetting && repeat === "loop";
+  /** Live, after the press: the band is finishing its chorus. */
+  const [finishing, setFinishing] = useState(false);
   const [countInBars, setCountInBars] = useState(initial.countIn);
   const countIn = countInBars > 0;
   const [intro, setIntro] = useState(initial.intro);
@@ -136,8 +141,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   }, [muted]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, variation, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, trade, chords: chordsShown, melody, mix }, stored, linkNow.current));
-  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, variation, intro, ending, view, clickMode, showScales, speedUp, keyStep, trade, chordsShown, melody, mix]);
+    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, live, countIn: countInBars, twoFeel, variation, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, trade, chords: chordsShown, melody, mix }, stored, linkNow.current));
+  }, [chart, tempo, transpose, styleId, repeat, live, countInBars, twoFeel, variation, intro, ending, view, clickMode, showScales, speedUp, keyStep, trade, chordsShown, melody, mix]);
   useEffect(() => {
     // An instrument that came from a link isn't remembered until the player picks one.
     if (linkedInstrument.current === instrumentId) return;
@@ -162,6 +167,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     p.onLoop = () => setLoops((n) => n + (current.current?.schedule.cycle ?? 1));
     p.onEnd = (finished) => {
       setStatus("idle");
+      setFinishing(false);
       current.current = null;
       if (finished) setCue(null);
     };
@@ -229,6 +235,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       p.setSchedule(schedule);
       p.play();
       setLoops(0);
+      setFinishing(false);
       setCue(null);
       setStatus("playing");
     },
@@ -305,7 +312,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
    * repeats a key cycle of them, so each wrap adds that many (`loops`).
    * This reads the schedule that is playing, not the Choruses setting, which may just have changed.
    */
-  const realChorus = (chorus: number) => (current.current?.schedule.loop && chorus > 0 ? chorus + loops : chorus);
+  const realChorus = (chorus: number) => ((current.current?.schedule.loop || current.current?.opts.liveEnd != null) && chorus > 0 ? chorus + loops : chorus);
   /** How many choruses the schedule that's playing has (what the ending's key and "of N" go by), else the setting. */
   const builtChoruses = useMemo(() => (schedule ? Math.max(1, ...schedule.bars.map((b) => b.chorus)) : typeof repeat === "number" ? repeat : 1), [schedule, repeat]);
 
@@ -373,9 +380,30 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     return target ? { ref: target.ref, chorus: target.chorus } : null;
   };
 
-  /** Space: pause and keep the place, or play from it. */
+  /** Live: the band finishes the chorus it's in (the first one, from the count-in or intro), plays the ending and stops. */
+  const finishChorus = () => {
+    const c = current.current;
+    const p = player.current;
+    if (!c || !p) return;
+    const form = c.schedule.bars.filter((b) => b.ref?.part === "form");
+    const chorus = nowBar?.ref?.part === "form" ? nowBar.chorus : (form[0]?.chorus ?? 1);
+    cancelPending();
+    const opts = { ...c.opts, liveEnd: chorus };
+    const schedule = buildSchedule(chart, c.style, opts);
+    current.current = { ...c, opts, schedule };
+    p.setSchedule(schedule);
+    setFinishing(true);
+    setAnnounce("Ending after this chorus");
+  };
+
+  /** Space: pause and keep the place, or play from it. Live: the first press ends the tune after the chorus, a second stops now. */
   const toggle = () => {
     if (status === "loading") return;
+    const sectionLooped = current.current?.opts.loopSection != null || !!current.current?.opts.loopRange;
+    if (status === "playing" && live && !finishing && !sectionLooped && current.current?.opts.choruses === "loop") {
+      finishChorus();
+      return;
+    }
     if (status === "playing") {
       // A jump the arrow keys are still waiting to make becomes the cue; either way it doesn't restart the band after the pause.
       const target = pending.current?.item ?? placeNow();
@@ -563,6 +591,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     setTranspose(d.transpose);
     setStyleId(d.style);
     setRepeat(d.choruses);
+    setLive(d.live);
     setCountInBars(d.countIn);
     setTwoFeel(d.twoFeel);
     setVariation(d.variation);
@@ -651,15 +680,16 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   else if (nowBar?.ref) {
     where = describe(nowBar.ref, realChorus(nowBar.chorus), looping);
     if (nowBar.trade) where += ` · ${tradeLabel(current.current?.opts.trade ?? trade, nowBar.trade)}`;
+    if (finishing) where += " · Ending after this chorus";
   } else if (status === "idle" && cue) where = `Paused · ${describe(cue.ref, cue.chorus, loop !== null)}`;
   if (!where && status === "idle") {
     const seconds = Math.round((totalBeats * 60) / tempo);
-    where = repeat === "loop" ? "Repeats until stopped" : `${repeat} ${repeat === 1 ? "chorus" : "choruses"} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+    where = live ? "Live: repeats until you end it" : repeat === "loop" ? "Repeats until stopped" : `${repeat} ${repeat === 1 ? "chorus" : "choruses"} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   }
   // A bar the run plays twice (a repeated ending tag) is told apart by its place in the schedule that's playing.
   const performanceIndex = (() => {
     const c = current.current;
-    if (!nowBar?.ref || !c || c.schedule.loop) return undefined;
+    if (!nowBar?.ref || !c || c.schedule.loop || c.opts.choruses === "loop") return undefined;
     const from = c.opts.start;
     const startIndex = from ? performance.findIndex((x) => sameRef(x.ref, from.ref) && x.chorus === from.chorus) : 0;
     return startIndex < 0 ? undefined : startIndex + nowBar.index - c.schedule.bars.filter((b) => b.countIn).length;
@@ -798,12 +828,20 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       </label>
       <label className="field">
         <span>Choruses</span>
-        <select value={String(repeat)} onChange={(e) => setRepeat(e.target.value === "loop" ? "loop" : Number(e.target.value))}>
+        <select
+          value={live ? "live" : String(repeat)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setLive(v === "live");
+            setRepeat(v === "loop" || v === "live" ? "loop" : Number(v));
+          }}
+        >
           {REPEATS.map((r) => (
             <option key={String(r)} value={String(r)}>
               {r === "loop" ? "Until stopped" : r}
             </option>
           ))}
+          <option value="live">Live</option>
         </select>
       </label>
       {style.twoFeel && (
@@ -937,6 +975,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       <ControlBar
         status={status}
         onPlay={toggle}
+        playAction={live && loop === null ? (finishing ? { label: "Stop now", icon: "stop" } : { label: "End after this chorus", icon: "stop" }) : null}
         tempo={tempo}
         originalTempo={chart.tempo}
         onTempo={setTempo}

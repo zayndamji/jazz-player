@@ -42,6 +42,8 @@ export interface TuneSettings {
   transpose: number;
   style: string;
   choruses: Repeat;
+  /** Live: choruses repeat until the play button is pressed, then the band finishes the chorus and plays the ending (with choruses "loop"). */
+  live: boolean;
   /** Bars of count-in. */
   countIn: 0 | 1 | 2;
   twoFeel: boolean;
@@ -71,6 +73,7 @@ export function defaultSettings(chart: Chart): TuneSettings {
     transpose: 0,
     style: chart.style,
     choruses: 3,
+    live: false,
     countIn: 2,
     twoFeel: chart.twoFeel ?? false,
     variation: "varied",
@@ -132,6 +135,7 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   // Entries from before the count-in had a length.
   else if (isBool(raw.countIn)) out.countIn = raw.countIn ? 2 : 0;
   if (isBool(raw.twoFeel)) out.twoFeel = raw.twoFeel;
+  if (isBool(raw.live)) out.live = raw.live;
   if (VARIATIONS.includes(raw.variation as Variation)) out.variation = raw.variation as Variation;
   if (isBool(raw.intro)) out.intro = raw.intro;
   if (isBool(raw.ending)) out.ending = raw.ending;

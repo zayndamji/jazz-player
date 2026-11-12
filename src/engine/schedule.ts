@@ -49,6 +49,12 @@ export interface PlaybackOptions {
   twoFeel?: boolean;
   /** Trade fours or eights with the drums in the solo choruses (off when left out). */
   trade?: TradeMode;
+  /**
+   * Live: with choruses until stopped, the chorus (as numbered in the schedule's bars) after
+   * which the band plays the ending and stops. The bars before it stay where they were, so the
+   * player can swap this schedule in mid-chorus without a jump.
+   */
+  liveEnd?: number;
   /** "straight" keeps the same groove every bar; "varied" (the default) lets the band develop. */
   variation?: Variation;
   /** Play the head's melody along with the band: the mode and the printed measures' notes (see `parseMelody`). */
@@ -123,6 +129,14 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     // A bar that only the repeating copies hold: number the choruses from its chorus so it falls in the first copy.
     ({ items, loopFrom } = layout(items[startAt].chorus));
     startAt = locate(items);
+  }
+  // Live: end after the chosen chorus, then the ending, instead of looping.
+  if (opts.choruses === "loop" && opts.liveEnd != null && opts.loopSection == null && !opts.loopRange) {
+    const last = items.map((i) => i.chorus).lastIndexOf(opts.liveEnd);
+    if (last >= 0) {
+      items = [...items.slice(0, last + 1), ...(opts.ending !== false ? playOrder(chart, 0, false, true) : [])];
+      loopFrom = -1;
+    }
   }
 
   const full = buildTimeline(chart, items, opts.transpose, keyPc, opts.keyStep ?? 0);

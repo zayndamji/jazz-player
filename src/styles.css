@@ -516,6 +516,16 @@ input:disabled {
   border-right: 4px solid currentColor;
 }
 
+/* Live: the band ends after this chorus; a press stops it now. */
+.play-icon.stop {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  border: 0;
+  background: currentColor;
+  border-radius: 2px;
+}
+
 .from-top {
   padding: 0;
   border: 0;

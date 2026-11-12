@@ -19,6 +19,8 @@ const PROGRESS_KEYS: Record<string, ProgressStep> = {
 interface Props {
   status: "idle" | "loading" | "playing";
   onPlay: () => void;
+  /** While playing, what the play button does when it isn't a plain pause (Live), and its icon. */
+  playAction?: { label: string; icon: "pause" | "stop" } | null;
   tempo: number;
   /** The chart's own tempo. */
   originalTempo: number;
@@ -143,10 +145,10 @@ export function ControlBar(p: Props) {
           onClick={p.onPlay}
           disabled={p.status === "loading"}
           aria-keyshortcuts="Space"
-          title={withKey(playing ? "Pause" : "Play", "play")}
-          aria-label={playing ? "Pause" : "Play"}
+          title={withKey(playing ? (p.playAction?.label ?? "Pause") : "Play", "play")}
+          aria-label={playing ? (p.playAction?.label ?? "Pause") : "Play"}
         >
-          <span className={`play-icon${playing ? " pause" : ""}`} aria-hidden="true" />
+          <span className={`play-icon${playing ? ` ${p.playAction?.icon ?? "pause"}` : ""}`} aria-hidden="true" />
         </button>
 
         <div className="position">
