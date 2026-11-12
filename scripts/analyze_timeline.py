@@ -3,7 +3,7 @@
 
 Where scripts/analyze_reference.py averages a track into one profile, this follows it
 bar by bar, with the beat grid re-fitted every two bars so tempo drift doesn't smear it.
-Per bar and band (sub, low-mid, mid, upper, hat) it measures energy, onsets on 24 steps
+Per bar and band (sub, low-mid, mid, upper, hat) it measures energy, onsets on 24 steps (18 with --beats 3)
 and hits, and from those:
 - variety: novelty (1 minus the correlation with the previous bar), likeness at lags of
   1, 2, 4 bars and the form, distinct patterns per 32 bars (clusters at r > 0.8)
@@ -26,7 +26,7 @@ SR = 22050
 HOP = 128
 N = 1024
 BANDS = {"sub": (40, 110), "lowmid": (110, 250), "mid": (250, 1500), "upper": (1500, 5000), "hat": (6000, 11000)}
-STEPS = 24
+STEPS = 24  # per bar of 4/4; 18 with --beats 3
 
 
 def decode(path):
@@ -70,12 +70,16 @@ def main():
     ap.add_argument("track"); ap.add_argument("--bpm", type=float, required=True); ap.add_argument("--bar1", type=float, required=True)
     ap.add_argument("--form", type=int, default=32); ap.add_argument("--json"); ap.add_argument("--label", default="")
     ap.add_argument("--max-bars", type=int, default=0)
+    ap.add_argument("--beats", type=int, default=4, choices=(3, 4), help="beats per bar (default 4; 3 for a waltz)")
     a = ap.parse_args()
     x = decode(a.track)
     fps = SR / HOP
     S, f = spec(x)
     beat = 60 / a.bpm
-    bar = 4 * beat
+    nbeat = a.beats
+    steps = 6 * nbeat  # grid steps per bar
+    beat_steps = [6 * k for k in range(nbeat)]
+    bar = nbeat * beat
     nb = int((len(x) / SR - a.bar1) / bar) - 1
     if a.max_bars:
         nb = min(nb, a.max_bars)
@@ -89,7 +93,7 @@ def main():
     cands = np.arange(-0.25, 0.25, 0.005) * beat
     for w in range(nb // W):
         t0 = a.bar1 + w * W * bar
-        ks = np.arange(4 * W) * beat
+        ks = np.arange(nbeat * W) * beat
         def score(d):
             s = 0.0
             for k in ks:
@@ -124,10 +128,10 @@ def main():
         sel = (f >= lo) & (f < hi)
         pw = P[:, sel].sum(1)
         band_energy[name] = np.array([10 * np.log10(pw[fr(starts[b]):fr(ends[b])].sum() + 1e-9) for b in range(nb)])
-        g = np.zeros((nb, STEPS))
+        g = np.zeros((nb, steps))
         for b in range(nb):
-            for s in range(STEPS):
-                i = fr(starts[b] + s * (ends[b] - starts[b]) / STEPS)
+            for s in range(steps):
+                i = fr(starts[b] + s * (ends[b] - starts[b]) / steps)
                 g[b, s] = env[max(0, i - 2):i + 3].max() if i < len(env) else 0
         grids[name] = g
         t, h = peaks(env, env.mean() + env.std())
@@ -136,7 +140,7 @@ def main():
 
     total = 10 * np.log10(sum(10 ** (band_energy[k] / 10) for k in BANDS))
     alive = total > np.median(total) - 15
-    out = {"label": a.label, "track": a.track, "bpm": a.bpm, "bar1": a.bar1, "form": a.form, "bars": nb, "tempo": tempo_info}
+    out = {"label": a.label, "track": a.track, "bpm": a.bpm, "bar1": a.bar1, "form": a.form, "bars": nb, "tempo": tempo_info, **({"beats": nbeat} if nbeat != 4 else {})}
 
     var = {}
     for name, g in grids.items():
@@ -159,7 +163,7 @@ def main():
     out["variety"] = var
 
     def beatpos(t):
-        return np.interp(t, edges, np.arange(nb + 1) * 4.0)
+        return np.interp(t, edges, np.arange(nb + 1) * float(nbeat))
 
     def timing(name, grid_beats, window):
         t, h = pk[name]
@@ -186,7 +190,7 @@ def main():
     nch = int(np.ceil(nb / a.form))
     chor = []
     for c in range(nch):
-        sel = (rel >= c * a.form * 4) & (rel < (c + 1) * a.form * 4)
+        sel = (rel >= c * a.form * nbeat) & (rel < (c + 1) * a.form * nbeat)
         fracs = rel[sel] % 1
         off = fracs[(fracs > 0.45) & (fracs < 0.85)]
         chor.append(round(float(np.median(off)), 3) if len(off) > 10 else None)
@@ -194,7 +198,7 @@ def main():
     # spread of the offbeat position, bar by bar (how much the swing breathes)
     perbar = []
     for b in range(nb):
-        sel = (rel >= b * 4) & (rel < b * 4 + 4)
+        sel = (rel >= b * nbeat) & (rel < b * nbeat + nbeat)
         fracs = rel[sel] % 1
         off = fracs[(fracs > 0.45) & (fracs < 0.85)]
         if len(off) >= 2:
@@ -207,7 +211,7 @@ def main():
         for c in range(nch):
             rows = [g[b] for b in range(c * a.form, min(nb, (c + 1) * a.form)) if alive[b]]
             if rows:
-                m = np.mean(rows, 0)[[0, 6, 12, 18]]
+                m = np.mean(rows, 0)[beat_steps]
                 res.append([round(float(v / m.max()), 2) for v in m])
         return res
     out["hat_beat_accents_by_chorus"] = accent_profile("hat")
@@ -216,8 +220,8 @@ def main():
         v = grids[name][alive][:, steps].ravel()
         v = v[v > 0.05 * v.max()]
         return round(float(v.std() / v.mean()), 3)
-    out["strength_cv"] = {"hat_beats": strength_cv("hat", [0, 6, 12, 18]), "sub_beats": strength_cv("sub", [0, 6, 12, 18]),
-                          "mid_all": strength_cv("mid", list(range(0, 24, 3)) + [4, 10, 16, 22])}
+    out["strength_cv"] = {"hat_beats": strength_cv("hat", beat_steps), "sub_beats": strength_cv("sub", beat_steps),
+                          "mid_all": strength_cv("mid", list(range(0, steps, 3)) + [s + 4 for s in beat_steps])}
 
     sel = (f >= 3000) & (f < 11000)
     hp = P[:, sel].sum(1)
@@ -228,7 +232,7 @@ def main():
     crash = np.zeros(nb)
     for b in range(1, nb):
         first = hp[fr(starts[b]):fr(starts[b] + beat)].sum()
-        prv = hp[fr(starts[b - 1]):fr(starts[b])].sum() / 4
+        prv = hp[fr(starts[b - 1]):fr(starts[b])].sum() / nbeat
         crash[b] = 10 * np.log10((first + 1e-12) / (prv + 1e-12))
 
     hu = (hits["upper"] + hits["lowmid"]).astype(float)

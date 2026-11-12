@@ -111,7 +111,7 @@ export class Player {
       schedule.events.map((e): [string, NoteEvent] => [ticks(e.time), e]),
     );
     this.clock = new Tone.Part<[string, BeatMark]>((time, mark) => {
-      if (mark.click && (mark.countIn || (this.metronomeOn && clicksOn(this.clickMode, mark.beat)))) {
+      if (mark.click && (mark.countIn || (this.metronomeOn && clicksOn(this.clickMode, mark.beat, schedule.beatsPerBar)))) {
         this.click.triggerAttackRelease(mark.beat === 0 ? "E6" : "A5", 0.03, time, mark.beat === 0 ? 0.9 : 0.55);
       }
       Tone.getDraw().schedule(() => {

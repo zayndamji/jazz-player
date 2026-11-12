@@ -1,6 +1,6 @@
 # Jazz Player
 
-A framework for practicing jazz tunes in the browser. You add your tunes as chord charts (and lead sheets, if you like); it shows the chart or the lead sheet and plays a backing band (bass, piano and drums, plus guitar in bossa nova) that follows the chords. Styles so far: bossa nova, swing (slow-medium to up-tempo, with an optional two-feel) and ballad. The repo holds the framework only: tunes are your own content, kept out of git, and one made-up example (a blues in F) ships with it.
+A framework for practicing jazz tunes in the browser. You add your tunes as chord charts (and lead sheets, if you like); it shows the chart or the lead sheet and plays a backing band (bass, piano and drums, plus guitar in bossa nova) that follows the chords. Styles so far: bossa nova, swing (slow-medium to up-tempo, with an optional two-feel), ballad and jazz waltz. The repo holds the framework only: tunes are your own content, kept out of git, and one made-up example (a blues in F) ships with it.
 
 ## What it does
 
@@ -10,6 +10,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 - Lead sheet view: the melody in notation with the chords above it, drawn in the same colours and font as the chart, with the same highlight. Same band, same controls.
 - Bossa nova band: upright bass on 1 and 3 with anticipations, light piano comping in front of a quiet nylon guitar (the two push chord changes together), and a light sampled kit: soft hi-hat eighths in two-bar figures, cross-stick clave, short fills, the ride in the bridge and through the peak chorus.
 - Swing band: a piano trio. Walking bass with half-step approaches and the odd ghosted note; piano comping in rootless voicings on rhythms that change every bar (2 and 4, Charleston, pushes on the ands that anticipate the next chord); the ride in two-bar figures around a pattern picked per chorus (the head sometimes on closed hi-hat), the hi-hat on 2 and 4, snare comping in the piano's gaps, crashes and kick set-ups into sections, and fills at phrase, section and chorus ends picked from a set. The comping changes register, voicing size and note length with the chorus. A chart can add four-to-the-bar guitar. It follows the tempo: the swing straightens and the comping thins out as it gets faster, and fills move to eighth notes. A two-feel option plays the intro and first chorus with half-note bass and cross-stick on 4, then walks.
+- Jazz waltz band (3/4): bass on 1 with a note on 3 now and then, walking from the second chorus; piano on 2 and 3 or the and of 1; ride, hi-hat on 2 and 3, fills at section ends.
 - Ballad band: bass in half notes that starts walking in the bridge and later choruses, rolled piano chords held through each change with soft triplet fills, and brushes (a sweep on 1 and 3, a stroke on 2 and 4) made from shaped noise, since the drum samples have no brushes.
 - Player bar at the bottom: play and pause (or Space; pausing keeps your place, and Play counts you back in there; Home, 0 or "From the top" goes back to the start), a progress line over the whole performance (intro, every chorus, ending) that you can click to jump to a bar in its chorus, or use as a slider with Left and Right (a bar), Page Up and Page Down (a section), Home and End, tempo from 40 to 320 BPM, Loop, Metronome, Mute (remembered between visits; the band keeps playing silently), and More.
 - Tempo: click the BPM number to type a tempo; hold − or + to keep stepping. When the tempo isn't the chart's and the band is stopped, "Back to 140 BPM" (the chart's tempo) shows under the readout.
@@ -23,7 +24,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
   - Written for: prints the chart and lead sheet for a concert, B♭, E♭ or F instrument without changing the sound. A trumpet player picks B♭ and sees a tune in C printed in D while the band plays in C. The site remembers this choice between tunes and visits.
 - Key each chorus: More can move the key up a fourth, or a half or whole step either way, on every chorus (chorus 2 of a fourths cycle is 5 half steps up, folded back into the written range). The chart, the lead sheet and the key in the title follow the chorus that's playing. Loops and "until stopped" stay in one key.
 - Mixer: an S button next to M solos a part (only soloed parts sound; the metronome is never affected), and a "Band" menu sets the mutes: Full band, No piano, No bass, No drums, Bass and drums, Drums only. It reads "Custom" when the mutes match none of them.
-- The mixer in More shows the parts that play. More also has the band's style (any tune can play in any style; the chart names its original, and a change applies while playing), a two-feel first chorus (swing), the number of choruses or until stopped (changeable while playing; if you lower it the band finishes the chorus it's in), switches to leave out the intro or the ending (for tunes that have them), a count-in of none, one or two bars, scale names under each chord, "Speed up" (+1 to +10 BPM every time a loop comes round, up to 320; stopping keeps the new tempo), a click on every beat, on 2 and 4, or on beat 1 only (the count-in always clicks every beat), and a mixer with volume and mute for each part.
+- The mixer in More shows the parts that play. More also has the band's style (any tune can play in any style; the chart names its original, and a change applies while playing), a two-feel first chorus (swing), the number of choruses or until stopped (changeable while playing; if you lower it the band finishes the chorus it's in), switches to leave out the intro or the ending (for tunes that have them), a count-in of none, one or two bars, scale names under each chord, "Speed up" (+1 to +10 BPM every time a loop comes round, up to 320; stopping keeps the new tempo), a click on every beat, on 2 and 4 (2 and 3 in a waltz), or on beat 1 only (the count-in always clicks every beat), and a mixer with volume and mute for each part.
 - Share a setup: "Copy link" in More copies an address like `#/tune/<id>?bpm=120&key=-2&style=bossa&for=Bb&choruses=4`. Opening it sets those for that visit only (they don't overwrite what the tune remembers).
 - Each tune remembers its own settings in the browser (tempo, key, style, choruses, view, mixer and the rest of More). "Reset to original" at the bottom of the settings puts the chart's own back. Mute and the instrument you write for are shared by all tunes.
 - While playing, the player bar shows the bar, chorus, and a scale for the current chord with its notes, then the next chord when it changes within two bars.
@@ -34,6 +35,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 ## How it works
 
 - A chart is one JSON file, `tunes/<id>/chart.json`: key, tempo, style, optionally `twoFeel` and `band` (the parts that play, when not the style's own: add guitar to a swing tune, or leave out piano for a trio), and sections of bars written as chord symbols. A form section with `"play": "head"` or `"play": "solos"` plays only in head or only in solo choruses. The site collects every tune in `tunes/` and the example in `examples/`; tests check each one.
+- Charts are in 4/4 or 3/4 (`beatsPerBar`). In a 3/4 bar three chords get a beat each and two chords get two beats and one, as in a jazz waltz. A 3/4 count-in clicks "1 . . | 1 2 3". Each style lists the meters it plays, and the Style menu offers only the styles that fit the chart.
 - The timeline lays it out in playing order: count-in, intro, choruses, tag, final bar. Looping plays the section or form twice and repeats the second copy, so playback can start on any bar.
 - A style turns the timeline into notes for a tempo and feel, names its band, and can set its own mix. Every part follows one shared shape: swing and bossa play a lighter head, build through the solo choruses to a peak and come back for the last chorus; the ballad lifts a little each chorus. Notes are placed off the grid as players place them: each part in its own pocket (bass a little ahead, piano behind), the band drifting by a few milliseconds, and the piano's top note louder with the chord's notes a few milliseconds apart. Tempo changes regenerate the notes in place once the presses settle. Each style is modelled on a measured reference recording (`scripts/analyze_reference.py`).
 - Piano and guitar use rootless voicings, each chord voice-led from the last: open drop-2 shapes for bossa, close shapes with the 3rd or 7th at the bottom for swing.
@@ -49,7 +51,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 | `src/charts/` | The loader for charts and lead sheets, and the chart checks |
 | `src/fixtures/` | Made-up charts the tests use |
 | `src/engine/` | Timeline, voicings, playback schedule |
-| `src/styles/` | Backing styles (bossa nova, swing, ballad) |
+| `src/styles/` | Backing styles (bossa nova, swing, ballad, jazz waltz) |
 | `src/audio/player.ts` | Tone.js playback, sampled and synthesized instruments, mixer |
 | `src/pages/` | The library and the tune page |
 | `src/components/` | Chord chart, lead sheet, player bar, mixer |
@@ -107,7 +109,7 @@ Measures a reference recording: tempo, swing, rhythm per frequency band, band ba
 python3 scripts/analyze_timeline.py TRACK --bpm 140 --bar1 3.06 --form 32 --json out.json
 ```
 
-Follows a whole track bar by bar: how varied each part is, how far notes sit from the grid, how the swing, accents, comping register and dynamics change from chorus to chorus, and where fills and crashes fall in the form.
+Follows a whole track bar by bar (add `--beats 3` for a waltz, to either analyzer): how varied each part is, how far notes sit from the grid, how the swing, accents, comping register and dynamics change from chorus to chorus, and where fills and crashes fall in the form.
 
 `scripts/record-site.js` records what the site plays into `tunes/<id>/analysis/` (dev server only; run it in the page while a tune plays), so the same analyzer measures our band and a reference side by side.
 

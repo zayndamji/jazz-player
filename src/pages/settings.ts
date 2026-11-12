@@ -4,7 +4,7 @@ import type { View } from "../components/ControlBar";
 import { TEMPO, type Chart } from "../chart/types";
 import { CLICK_MODES, type ClickMode, type Repeat } from "../engine/schedule";
 import { KEY_STEPS, type KeyStep } from "../engine/timeline";
-import { STYLES } from "../styles";
+import { STYLES, playableStyle } from "../styles";
 import { forget, readStored, store } from "./storage";
 
 /** The numbers of choruses the Choruses setting offers. */
@@ -137,7 +137,10 @@ const parseJson = (text: string | null): unknown => {
 /** The stored settings of a tune, as a partial; empty when there are none or they're unreadable. */
 export const storedSettings = (chartId: string): Partial<TuneSettings> => parseSettings(parseJson(readStored(tuneKey(chartId))));
 
-export const loadSettings = (chart: Chart): TuneSettings => ({ ...defaultSettings(chart), ...storedSettings(chart.id) });
+export const loadSettings = (chart: Chart): TuneSettings => {
+  const s = { ...defaultSettings(chart), ...storedSettings(chart.id) };
+  return { ...s, style: playableStyle(chart, s.style) };
+};
 
 /** Remember a tune's settings; when they all match the defaults, the entry is removed instead. */
 export function saveSettings(chart: Chart, settings: TuneSettings) {

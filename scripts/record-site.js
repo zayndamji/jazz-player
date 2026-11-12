@@ -41,7 +41,8 @@
   const name = NAME || `site-${style || "band"}`;
   const post = (file, body) => fetch(`/__recording?tune=${tune}&name=${file}`, { method: "POST", body }).then((r) => r.text());
   const saved = await post(`${name}.webm`, new Blob(chunks, { type: "audio/webm" }));
-  const info = { tune, bpm, bar1: Number(bar1.toFixed(3)), formBars, seconds: SECONDS, recordedFromBeat: startBeat };
+  const beats = schedule.beatsPerBar;
+  const info = { tune, bpm, bar1: Number(bar1.toFixed(3)), formBars, seconds: SECONDS, recordedFromBeat: startBeat, ...(beats !== 4 && { beatsPerBar: beats }) };
   await post(`${name}.json`, JSON.stringify(info, null, 1));
-  return { saved, ...info, analyze: `python3 scripts/analyze_reference.py ${saved} --bpm ${bpm} --bar1 ${info.bar1} --form ${formBars}` };
+  return { saved, ...info, analyze: `python3 scripts/analyze_reference.py ${saved} --bpm ${bpm} --bar1 ${info.bar1} --form ${formBars}${beats !== 4 ? ` --beats ${beats}` : ""}` };
 })();

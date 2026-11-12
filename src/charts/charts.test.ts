@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STYLES } from "../styles";
+import { STYLES, playsMeter } from "../styles";
 import { CHARTS, CHART_FILES, validateChart } from ".";
 import { FIXTURES } from "../fixtures";
 import { buildSchedule } from "../engine/schedule";
@@ -17,8 +17,8 @@ describe("charts", () => {
   });
 
   // Any tune can be played in any style, at its own tempo, fast, and in two.
-  it.each([...CHARTS, ...FIXTURES].map((c) => [c.id, c] as const))("%s plays in every style", (_, chart) => {
-    for (const style of Object.values(STYLES)) {
+  it.each([...CHARTS, ...FIXTURES].map((c) => [c.id, c] as const))("%s plays in every style that plays its meter", (_, chart) => {
+    for (const style of Object.values(STYLES).filter((s) => playsMeter(s, chart.beatsPerBar))) {
       for (const feel of [{}, { tempo: 260 }, { twoFeel: true }]) {
         const s = buildSchedule(chart, style, { choruses: 2, countIn: true, transpose: 3, ...feel });
         expect(s.events.length, style.id).toBeGreaterThan(s.bars.length);

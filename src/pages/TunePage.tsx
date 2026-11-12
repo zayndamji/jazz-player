@@ -10,9 +10,9 @@ import { ControlBar, type ProgressStep, type View } from "../components/ControlB
 import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
-import { bandFor, buildSchedule, chorusesFor, performanceBeats, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
+import { bandFor, buildSchedule, chorusesFor, clickLabel, performanceBeats, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
 import { chartBars, chorusTranspose, chordAt, fold, itemAtFraction, nextChord, performanceFraction, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
-import { STYLES } from "../styles";
+import { STYLES, playableStyle, stylesFor } from "../styles";
 import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
 import { shareUrl, rememberable, withLink, type LinkSettings } from "./share";
@@ -58,8 +58,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   /** What the tune remembers, and with a shared link's settings on top for this visit. */
   const stored = useMemo(() => loadSettings(chart), [chart]);
   const initial = useMemo(() => withLink(stored, link), [stored, link]);
-  const [styleId, setStyleId] = useState(initial.style);
-  const style = STYLES[styleId] ?? STYLES[chart.style];
+  const [styleId, setStyleId] = useState(playableStyle(chart, initial.style));
+  const style = STYLES[playableStyle(chart, styleId)];
   const chartKeyPc = keyPitchClass(chart.key);
   const minor = isMinorKey(chart.key);
   const bars = useMemo(() => chartBars(chart), [chart]);
@@ -627,7 +627,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       <label className="field">
         <span>Style</span>
         <select value={styleId} onChange={(e) => setStyleId(e.target.value)}>
-          {Object.values(STYLES).map((s) => (
+          {stylesFor(chart).map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
               {s.id === chart.style ? " (original)" : ""}
@@ -709,7 +709,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         <span>Click</span>
         <select value={clickMode} onChange={(e) => setClickMode(e.target.value as ClickMode)}>
           <option value="every">Every beat</option>
-          <option value="two-four">2 and 4</option>
+          <option value="two-four">{clickLabel("two-four", chart.beatsPerBar)}</option>
           <option value="one">Beat 1 only</option>
         </select>
       </label>

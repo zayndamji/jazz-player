@@ -15,7 +15,7 @@ export interface Chart {
   key: string;
   /** Default tempo in quarter notes per minute. */
   tempo: number;
-  /** Beats per bar. Only 4 is supported by the styles so far. */
+  /** Beats per bar: 4 or 3. A style plays the meters in its `meters` (4 only, unless it says otherwise). */
   beatsPerBar: number;
   /** Id of the default backing style, e.g. "bossa". */
   style: string;
