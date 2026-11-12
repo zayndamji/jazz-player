@@ -221,6 +221,16 @@ export function navOrder(chart: Chart, choruses: number | "loop", loopSection: n
   return playOrder(chart, choruses, intro, ending, true);
 }
 
+/** How far through a performance a place is, 0 to 1 (null when it isn't in it). Falls back to the same bar in any chorus. */
+export function performanceFraction(order: PlayItem[], place: PlayItem, beat: number, beatsPerBar: number): number | null {
+  let i = order.findIndex((x) => sameRef(x.ref, place.ref) && x.chorus === place.chorus);
+  if (i < 0) i = order.findIndex((x) => sameRef(x.ref, place.ref));
+  return i < 0 ? null : (i + beat / beatsPerBar) / order.length;
+}
+
+/** The bar a fraction of the way through a performance (the progress line's seek). */
+export const itemAtFraction = (order: PlayItem[], fraction: number): PlayItem => order[Math.min(order.length - 1, Math.max(0, Math.floor(fraction * order.length)))];
+
 function indexIn(order: PlayItem[], from: PlayItem | null): number {
   if (!from) return 0;
   const exact = order.findIndex((i) => sameRef(i.ref, from.ref) && i.chorus === from.chorus);

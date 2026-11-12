@@ -6,12 +6,12 @@ import { chordScale } from "../chart/scales";
 import { TEMPO, type Chart } from "../chart/types";
 import { hasHead } from "../charts/heads";
 import { ChordGrid } from "../components/ChordGrid";
-import { ControlBar, type View } from "../components/ControlBar";
+import { ControlBar, type ProgressStep, type View } from "../components/ControlBar";
 import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
 import { bandFor, buildSchedule, chorusesFor, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
-import { chartBars, chorusTranspose, chordAt, fold, nextChord, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
+import { chartBars, chorusTranspose, chordAt, fold, itemAtFraction, nextChord, performanceFraction, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
@@ -416,10 +416,28 @@ export function TunePage({ chart }: { chart: Chart }) {
     playFrom(next !== null && !inSection ? sectionStart(target).ref : (here ?? sectionStart(target).ref), nextLoop);
   };
 
+  /** Every bar of the performance in order: intro, all the choruses, ending (one chorus when they repeat until stopped). */
+  const performance = useMemo(
+    () => (repeat === "loop" ? playOrder(chart, 1, intro, false, false) : playOrder(chart, repeat, intro, ending, true)),
+    [chart, repeat, intro, ending],
+  );
+
+  /** The progress line: go to the bar that fraction of the way through the whole performance, in its chorus. */
   const onSeek = (fraction: number) => {
-    // Seek within one pass of the chart: intro, form, ending.
-    const b = bars[Math.min(bars.length - 1, Math.max(0, Math.floor(fraction * bars.length)))];
-    onBar(b.ref);
+    const item = itemAtFraction(performance, fraction);
+    setPicked(item.ref);
+    const keepLoop = loop !== null && inLoop(item.ref, loop);
+    if (!keepLoop && loop !== null) setLoop(null);
+    begin(item, playing ? false : countIn, keepLoop ? loop : null);
+  };
+
+  /** Keys on the progress line: a bar, a section, or the start or end. */
+  const onStep = (kind: ProgressStep) => {
+    if (kind === "bar-back" || kind === "bar-on") return move(kind === "bar-on" ? 1 : -1);
+    if (kind === "section-back" || kind === "section-on") return moveSection(kind === "section-on" ? 1 : -1);
+    const from = fromHere();
+    const order = loopRange ? rangeOrder(chart, loopRange, 1) : repeat === "loop" && loopSection === null ? performance : navOrder(chart, repeat, loopSection, from?.chorus ?? 1, intro, ending);
+    go(kind === "start" ? order[0] : order[order.length - 1], loop);
   };
 
   const changeMix = (track: Mixable, state: MixState) => setMix((m) => ({ ...m, [track]: state }));
@@ -526,7 +544,7 @@ export function TunePage({ chart }: { chart: Chart }) {
     const seconds = Math.round((totalBeats * 60) / tempo);
     where = repeat === "loop" ? "Repeats until stopped" : `${repeat} ${repeat === 1 ? "chorus" : "choruses"} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   }
-  const progress = nowNumber ? (bars.indexOf(nowNumber) + (nowBar ? (position?.beat ?? 0) : 0) / chart.beatsPerBar) / bars.length : null;
+  const progress = placeShown && !nowBar?.countIn ? performanceFraction(performance, placeShown, nowBar ? (position?.beat ?? 0) : 0, chart.beatsPerBar) : null;
 
   const nowChord = useMemo(() => {
     if (!nowBar || !position || nowBar.countIn) return null;
@@ -747,6 +765,8 @@ export function TunePage({ chart }: { chart: Chart }) {
         detail={nowChord}
         progress={progress}
         onSeek={onSeek}
+        onStep={onStep}
+        progressText={where}
         beat={position?.beat ?? null}
         beats={chart.beatsPerBar}
         view={view}

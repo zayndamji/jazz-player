@@ -4,6 +4,18 @@ import { TempoControl } from "./TempoControl";
 
 export type View = "chords" | "sheet";
 
+/** What a key press on the progress line means. */
+export type ProgressStep = "bar-back" | "bar-on" | "section-back" | "section-on" | "start" | "end";
+
+const PROGRESS_KEYS: Record<string, ProgressStep> = {
+  ArrowLeft: "bar-back",
+  ArrowRight: "bar-on",
+  PageUp: "section-back",
+  PageDown: "section-on",
+  Home: "start",
+  End: "end",
+};
+
 interface Props {
   status: "idle" | "loading" | "playing";
   onPlay: () => void;
@@ -16,6 +28,10 @@ interface Props {
   /** 0 to 1 through the song, or null when stopped. */
   progress: number | null;
   onSeek: (fraction: number) => void;
+  /** Keys on the progress line. */
+  onStep: (step: ProgressStep) => void;
+  /** The readout, for screen readers on the progress line. */
+  progressText: string;
   beat: number | null;
   beats: number;
   view: View;
@@ -76,6 +92,14 @@ export function ControlBar(p: Props) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round((p.progress ?? 0) * 100)}
+        aria-valuetext={p.progressText || undefined}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          const step = e.ctrlKey || e.altKey || e.metaKey || e.shiftKey ? undefined : PROGRESS_KEYS[e.key];
+          if (!step) return;
+          e.preventDefault();
+          p.onStep(step);
+        }}
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           p.onSeek((e.clientX - r.left) / r.width);

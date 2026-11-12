@@ -6,7 +6,7 @@ import { bossa } from "../styles/bossa";
 import { buildSchedule, chorusesFor, clicksOn } from "./schedule";
 import { validateChart } from "../charts";
 import type { Chart } from "../chart/types";
-import { buildTimeline, chartBars, chorusTranspose, navOrder, nextChord, playOrder, rangeBars, stepBar, stepSection, type PlayItem } from "./timeline";
+import { buildTimeline, chartBars, chorusTranspose, itemAtFraction, navOrder, nextChord, performanceFraction, playOrder, rangeBars, stepBar, stepSection, type PlayItem } from "./timeline";
 import { SWING_RANGE, VOICING_HIGH, VOICING_LOW, voiceChord, voicingIntervals } from "./voicing";
 
 const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -465,5 +465,36 @@ describe("changing choruses while playing", () => {
     const a = buildSchedule(chart, bossa, { choruses: 3, countIn: true, transpose: 0 });
     const b = buildSchedule(chart, bossa, { choruses: 5, countIn: true, transpose: 0 });
     expect(b.bars.slice(0, 40).map((x) => x.ref)).toEqual(a.bars.slice(0, 40).map((x) => x.ref));
+  });
+});
+
+describe("progress over the whole performance", () => {
+  const order = playOrder(chart, 3);
+  it("runs from 0 at the intro to 1 at the end", () => {
+    expect(performanceFraction(order, order[0], 0, 4)).toBe(0);
+    const last = order.at(-1)!;
+    expect(performanceFraction(order, last, 0, 4)).toBeCloseTo((order.length - 1) / order.length);
+  });
+
+  it("tells chorus 2 from chorus 1 of the same bar", () => {
+    const ref = { part: "form" as const, section: 0, bar: 0 };
+    const one = performanceFraction(order, { ref, chorus: 1 }, 0, 4)!;
+    const two = performanceFraction(order, { ref, chorus: 2 }, 0, 4)!;
+    expect(two - one).toBeCloseTo(32 / order.length);
+  });
+
+  it("adds the beat within the bar, and falls back to any chorus", () => {
+    const ref = { part: "form" as const, section: 0, bar: 1 };
+    const a = performanceFraction(order, { ref, chorus: 1 }, 0, 4)!;
+    expect(performanceFraction(order, { ref, chorus: 1 }, 2, 4)! - a).toBeCloseTo(0.5 / order.length);
+    expect(performanceFraction(order, { ref, chorus: 9 }, 0, 4)).not.toBeNull();
+  });
+
+  it("seeks to the bar and chorus a fraction lands on", () => {
+    const item = itemAtFraction(order, 0.5);
+    expect(item).toEqual(order[Math.floor(order.length / 2)]);
+    expect(itemAtFraction(order, 1)).toEqual(order.at(-1));
+    expect(itemAtFraction(order, 0)).toEqual(order[0]);
+    expect(item.chorus).toBe(2);
   });
 });
