@@ -10,7 +10,7 @@ import { ControlBar, type ProgressStep, type View } from "../components/ControlB
 import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
-import { bandFor, buildSchedule, chorusesFor, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
+import { bandFor, buildSchedule, chorusesFor, performanceBeats, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
 import { chartBars, chorusTranspose, chordAt, fold, itemAtFraction, nextChord, performanceFraction, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
@@ -242,7 +242,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
 
   const schedule = current.current?.schedule ?? null;
   const totalBeats = useMemo(
-    () => playOrder(chart, repeat === "loop" ? 1 : repeat, intro, ending, true).length * chart.beatsPerBar + countInBars * chart.beatsPerBar,
+    () => performanceBeats(chart, { choruses: repeat === "loop" ? 1 : repeat, countInBars, intro, ending }),
     [chart, repeat, countInBars, intro, ending],
   );
   const nowBar = position && schedule ? schedule.bars[position.bar] : null;
@@ -418,7 +418,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     const nextLoop: Loop = next === null ? null : { section: next };
     setLoop(nextLoop);
     if (!playing) {
-      if (next !== null && cue && !(cue.ref.part === "form" && cue.ref.section === next)) setCue(null);
+      if (next !== null && cue && !(cue.ref.part === "form" && cue.ref.section === next)) setCue(sectionStart(next));
       return;
     }
     const inSection = here?.part === "form" && here.section === target;

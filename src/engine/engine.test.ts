@@ -3,7 +3,7 @@ import { parseChord } from "../chart/chords";
 import { chordScale } from "../chart/scales";
 import { bossaForm } from "../fixtures";
 import { bossa } from "../styles/bossa";
-import { buildSchedule, chorusesFor, clicksOn } from "./schedule";
+import { buildSchedule, chorusesFor, clicksOn, performanceBeats } from "./schedule";
 import { validateChart } from "../charts";
 import type { Chart } from "../chart/types";
 import { buildTimeline, chartBars, chorusTranspose, itemAtFraction, navOrder, nextChord, performanceFraction, playOrder, rangeBars, stepBar, stepSection, type PlayItem } from "./timeline";
@@ -496,5 +496,22 @@ describe("progress over the whole performance", () => {
     expect(itemAtFraction(order, 1)).toEqual(order.at(-1));
     expect(itemAtFraction(order, 0)).toEqual(order[0]);
     expect(item.chorus).toBe(2);
+  });
+});
+
+describe("the idle readout's length", () => {
+  it("matches the real schedule", () => {
+    for (const c of [chart, headAndSolos]) {
+      for (const choruses of [1, 3]) {
+        for (const countInBars of [0, 1, 2] as const) {
+          for (const intro of [true, false]) {
+            for (const ending of [true, false]) {
+              const s = buildSchedule(c, bossa, { choruses, countIn: false, countInBars, transpose: 0, intro, ending });
+              expect(performanceBeats(c, { choruses, countInBars, intro, ending })).toBe(s.totalBeats + 2);
+            }
+          }
+        }
+      }
+    }
   });
 });

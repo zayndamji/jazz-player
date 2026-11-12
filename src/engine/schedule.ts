@@ -132,6 +132,15 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
 }
 
 /**
+ * Beats from the first count-in click until the band stops: the count-in, the intro,
+ * every chorus, the ending, and the two beats the last chord rings. For the readout's duration.
+ */
+export function performanceBeats(chart: Chart, opts: { choruses: number; countInBars: number; intro?: boolean; ending?: boolean }): number {
+  const bars = playOrder(chart, opts.choruses, opts.intro !== false, opts.ending !== false, true).length;
+  return (opts.countInBars + bars) * chart.beatsPerBar + 2;
+}
+
+/**
  * How many choruses to build when the count changes during playback: the band
  * finishes the chorus it's in rather than stopping mid-chorus.
  */
