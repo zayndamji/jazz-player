@@ -32,10 +32,14 @@ describe("5/4", () => {
     expect(ride.some((t) => t > 3.5 && t < 3.8)).toBe(true);
   });
 
-  it("walks the bass over the bridge's changes", () => {
-    const bridge = s.bars.find((b) => b.ref?.part === "form" && b.ref.section === 1 && b.ref.bar === 3)!; // Fmaj7, a whole bar
-    expect(inBar(bridge, "bass").length).toBe(5);
-    const changing = s.bars.find((b) => b.ref?.part === "form" && b.ref.section === 1 && b.ref.bar === 1)!;
-    expect(inBar(changing, "bass").length).toBe(5);
+  it("keeps the ostinato rhythm on the bridge's roots, and walks a bar split another way", () => {
+    for (const n of [1, 3]) {
+      const b = s.bars.find((x) => x.ref?.part === "form" && x.ref.section === 1 && x.ref.bar === n)!;
+      expect(inBar(b, "bass").map((e) => Math.round(e.time - b.startBeat) || 0)).toEqual([0, 3, 4]);
+    }
+    const changing = s.bars.find((x) => x.ref?.part === "form" && x.ref.section === 1 && x.ref.bar === 1)!; // Am7 Dm7
+    expect(inBar(changing, "bass")[1].notes![0] % 12).toBe(2);
+    const walked = buildSchedule({ ...fiveForm, form: [{ label: "A", bars: ["Dm / Am7 / C7", "Dm / Am7 / C7"] }] }, five, { choruses: 1, countIn: false, transpose: 0, intro: false });
+    expect(walked.events.filter((e) => e.track === "bass" && e.time < 4.9).length).toBe(5);
   });
 });

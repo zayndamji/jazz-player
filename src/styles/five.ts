@@ -9,12 +9,12 @@ import type { DrumSound, NoteEvent, Style } from "./types";
 /**
  * Jazz in 5/4, felt as 3+2, swung. Modelled on the separated stems of the 1959 Brubeck
  * quartet record of the 5/4 standard and two backing tracks (context/style-five.md):
- * - Bass: an ostinato over a vamp bar (one chord, or two split 3+2): the root on 1 held
- *   through 3, then the second chord's root (or the fifth) on 4 and again on 5. Over bars
- *   that change chords in the bridge it walks in quarters.
+ * - Bass: an ostinato on every bar of one chord or two split 3+2, vamp and bridge alike (the
+ *   record keeps the rhythm on the bridge's roots): the root on 1 held through 3, then the
+ *   second chord's root (or the fifth) on 4 and again on 5. Bars split any other way are walked.
  * - Piano: the vamp figure, the same every bar with small changes (the record's bars are
  *   alike, likeness 0.28 bar to bar): the and of 1, the and of 2, 3, and the second chord on
- *   5, sometimes on 1, 4 and the and of 5. In the bridge it comps a cell over each chord.
+ *   5, sometimes on 1, 4 and the and of 5. Over changing bars (the bridge) it comps each chord.
  * - Drums: the ride on every beat with swung skips after 2 and 4 (now and then after 5),
  *   the hi-hat foot on 2 and 4, the kick on 1, light snare comping in spells (feel.ts),
  *   short triplet fills at section ends and a longer one at the end of the form.
@@ -93,8 +93,10 @@ export const five: Style = {
       const firstChord = bar.chords[0] ?? chordAt(bar, 0);
       const second = bar.chords.find((c) => c.beat === 3) ?? firstChord;
 
-      // Bass.
-      if (vamp && firstChord) {
+      // Bass: the ostinato on every bar of one chord or two split 3+2, the bridge included (the record
+      // keeps the rhythm there on the chord roots); bars with other splits are walked.
+      const split = bar.chords.length === 1 || (bar.chords.length === 2 && bar.chords[1].beat === 3);
+      if (split && firstChord) {
         const root = nearest(firstChord.chord.bass, 33);
         const two = second !== firstChord;
         const four = two ? nearest(second!.chord.bass, root + 5) : nearest((firstChord.chord.root + 7) % 12, root + 5);
