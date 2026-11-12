@@ -28,6 +28,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 - Each tune remembers its own settings in the browser (tempo, key, style, choruses, view, mixer and the rest of More). "Reset to original" at the bottom of the settings puts the chart's own back. Mute and the instrument you write for are shared by all tunes.
 - While playing, the player bar shows the bar, chorus, and a scale for the current chord with its notes, then the next chord when it changes within two bars.
 - Light theme only, like printed music. Works on phones: on narrow or touch screens the controls are at least 44 px, the player bar gets Prev bar and Next bar buttons, and the More panel sits just above the bar however tall it wraps. A "Skip to player" link is the first thing Tab reaches.
+- Install it from the browser as an app (Add to Home Screen on phones). After the first visit it works offline: the built site and the four sample files are kept on the device, and a new version replaces them the next time it opens online.
 
 ## How it works
 
@@ -81,7 +82,7 @@ Runs the unit tests.
 npm run build
 ```
 
-Type-checks and builds the static site into `dist/`.
+Type-checks and builds the static site into `dist/`, with a service worker (`src/pwa/`) that keeps every built file and sample for offline use. The worker is only registered in a production build, never under `npm run dev`.
 
 ```bash
 python3 scripts/fetch_drum_samples.py
