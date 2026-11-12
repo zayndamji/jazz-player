@@ -560,6 +560,46 @@ input:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+.tempo .tempo-number {
+  width: auto;
+  height: auto;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  cursor: text;
+}
+
+.tempo .tempo-number:hover {
+  background: var(--bar-control);
+}
+
+.tempo-input {
+  width: 56px;
+  padding: 1px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tempo .tempo-original {
+  margin: 0 0 0 4px;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  color: var(--bar-muted);
+}
+
+.tempo button:not(.quiet):not(.tempo-number) {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .tempo-value strong {
   color: var(--bar-ink);
   font-weight: 600;
@@ -726,6 +766,9 @@ input:disabled {
   }
   .tempo-value {
     min-width: 60px;
+  }
+  .tempo .tempo-original {
+    display: none;
   }
   .long {
     display: none;

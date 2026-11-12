@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { TEMPO } from "../chart/types";
-import { shortcut, withKey } from "../pages/shortcuts";
+import { withKey } from "../pages/shortcuts";
+import { TempoControl } from "./TempoControl";
 
 export type View = "chords" | "sheet";
 
@@ -8,6 +8,8 @@ interface Props {
   status: "idle" | "loading" | "playing";
   onPlay: () => void;
   tempo: number;
+  /** The chart's own tempo. */
+  originalTempo: number;
   onTempo: (bpm: number) => void;
   where: string;
   detail: string | null;
@@ -113,17 +115,7 @@ export function ControlBar(p: Props) {
           )}
         </div>
 
-        <div className="tempo" aria-label="Tempo">
-          <button type="button" aria-label="Slower" aria-keyshortcuts={shortcut("slower").aria} title={withKey("Slower", "slower")} onClick={() => p.onTempo(Math.max(TEMPO.min, p.tempo - 5))}>
-            −
-          </button>
-          <span className="tempo-value">
-            <strong>{p.tempo}</strong> BPM
-          </span>
-          <button type="button" aria-label="Faster" aria-keyshortcuts={shortcut("faster").aria} title={withKey("Faster", "faster")} onClick={() => p.onTempo(Math.min(TEMPO.max, p.tempo + 5))}>
-            +
-          </button>
-        </div>
+        <TempoControl tempo={p.tempo} original={p.originalTempo} onTempo={p.onTempo} />
 
         {p.onView && (
           <div className="segmented" role="group" aria-label="View" aria-keyshortcuts="V" title={withKey("Switch view", "view")}>

@@ -557,6 +557,7 @@ export function TunePage({ chart }: { chart: Chart }) {
         status={status}
         onPlay={toggle}
         tempo={tempo}
+        originalTempo={chart.tempo}
         onTempo={setTempo}
         where={where}
         detail={nowChord}
