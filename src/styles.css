@@ -918,8 +918,9 @@ kbd {
   text-align: center;
 }
 
-.settings .quiet {
-  align-self: flex-start;
+.quiet-row {
+  display: flex;
+  gap: 16px;
 }
 
 .quiet,

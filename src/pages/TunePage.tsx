@@ -15,6 +15,7 @@ import { chartBars, chorusTranspose, chordAt, fold, itemAtFraction, nextChord, p
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
+import { shareUrl, rememberable, withLink, type LinkSettings } from "./share";
 import { applyPreset, effectiveMute, PRESETS } from "./mix";
 import { clearSettings, defaultSettings, loadSettings, raisedTempo, REPEATS, saveSettings, SPEED_UPS, type SpeedUp } from "./settings";
 import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
@@ -50,9 +51,11 @@ type Loop = { section: number } | { range: BarRange } | null;
 
 const sectionStart = (section: number): PlayItem => ({ ref: { part: "form", section, bar: 0 }, chorus: 1 });
 
-export function TunePage({ chart }: { chart: Chart }) {
+export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from the address, for this visit only. */ link?: LinkSettings }) {
   /** The band's style: the chart's own by default, any other on request. */
-  const initial = useMemo(() => loadSettings(chart), [chart]);
+  /** What the tune remembers, and with a shared link's settings on top for this visit. */
+  const stored = useMemo(() => loadSettings(chart), [chart]);
+  const initial = useMemo(() => withLink(stored, link), [stored, link]);
   const [styleId, setStyleId] = useState(initial.style);
   const style = STYLES[styleId] ?? STYLES[chart.style];
   const chartKeyPc = keyPitchClass(chart.key);
@@ -66,7 +69,8 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [tempo, setTempo] = useState(initial.tempo);
   const [twoFeel, setTwoFeel] = useState(initial.twoFeel);
   const [transpose, setTranspose] = useState(initial.transpose);
-  const [instrumentId, setInstrumentId] = useState(readInstrument);
+  const [instrumentId, setInstrumentId] = useState(() => link.instrument ?? readInstrument());
+  const linkedInstrument = useRef(link.instrument);
   const [repeat, setRepeat] = useState<Repeat>(initial.choruses);
   const [countInBars, setCountInBars] = useState(initial.countIn);
   const countIn = countInBars > 0;
@@ -117,9 +121,14 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, [muted]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, mix });
+    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, mix }, stored, link));
   }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, clickMode, showScales, speedUp, keyStep, mix]);
-  useEffect(() => store(INSTRUMENT_KEY, instrumentId), [instrumentId]);
+  useEffect(() => {
+    // An instrument that came from a link isn't remembered until the player picks one.
+    if (linkedInstrument.current === instrumentId) return;
+    linkedInstrument.current = undefined;
+    store(INSTRUMENT_KEY, instrumentId);
+  }, [instrumentId]);
   useEffect(() => store(SHORTCUTS_KEY, singleKeys ? "1" : "0"), [singleKeys]);
 
   const instrument = INSTRUMENTS.find((i) => i.id === instrumentId)!;
@@ -453,6 +462,24 @@ export function TunePage({ chart }: { chart: Chart }) {
     });
   }, [mix]);
 
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
+  }, []);
+  /** Copy a link to this tune with the tempo, key, style, instrument and choruses on screen. */
+  const copyLink = async () => {
+    const url = shareUrl(window.location.origin + window.location.pathname, chart.id, { tempo, transpose, style: styleId, instrument: instrumentId, choruses: repeat });
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      return;
+    }
+    setCopied(true);
+    if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
+    copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
+  };
+
   /** Put every setting of this tune back to the chart's own and forget the stored entry. */
   const resetSettings = () => {
     const d = defaultSettings(chart);
@@ -692,9 +719,14 @@ export function TunePage({ chart }: { chart: Chart }) {
         <input type="checkbox" checked={showScales} onChange={(e) => setShowScales(e.target.checked)} />
         Show scales on the chart
       </label>
-      <button type="button" className="quiet" onClick={resetSettings}>
-        Reset to original
-      </button>
+      <div className="quiet-row">
+        <button type="button" className="quiet" onClick={resetSettings}>
+          Reset to original
+        </button>
+        <button type="button" className="quiet" onClick={copyLink}>
+          {copied ? "Copied" : "Copy link"}
+        </button>
+      </div>
       <h3>Mix</h3>
       <Mixer mix={mix} onChange={changeMix} onPreset={changePreset} band={bandFor(chart, style)} />
     </div>

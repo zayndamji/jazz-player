@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getChart } from "./charts";
 import { Library } from "./pages/Library";
+import { parseLink } from "./pages/share";
 import { TunePage } from "./pages/TunePage";
 
 /** Hash routes, so the site works on any static host: #/ is the library, #/tune/<id> a tune. */
@@ -24,5 +25,7 @@ export default function App() {
   useEffect(() => {
     document.title = chart ? `${chart.title} · Jazz Player` : "Jazz Player";
   }, [chart]);
-  return chart ? <TunePage key={chart.id} chart={chart} /> : <Library />;
+  // The address can carry settings after a ?, which the tune reads once when it opens.
+  const link = useMemo(() => parseLink(hash), [hash]);
+  return chart ? <TunePage key={chart.id} chart={chart} link={link} /> : <Library />;
 }
