@@ -25,6 +25,14 @@ export function TempoControl({ tempo, original, onTempo }: Props) {
   const hold = useRef<{ delay: number; every: number } | null>(null);
   /** Set when Escape or a commit has already closed the field, so the blur that follows does nothing. */
   const closed = useRef(false);
+  const number = useRef<HTMLButtonElement>(null);
+  /** Set when Enter or Escape closes the field, so focus goes back to the tempo number instead of the page. */
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (editing || !refocus.current) return;
+    refocus.current = false;
+    number.current?.focus();
+  }, [editing]);
 
   const stop = () => {
     if (!hold.current) return;
@@ -101,15 +109,18 @@ export function TempoControl({ tempo, original, onTempo }: Props) {
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={(e) => {
-              if (e.key === "Enter") commit();
-              else if (e.key === "Escape") {
+              if (e.key === "Enter") {
+                refocus.current = true;
+                commit();
+              } else if (e.key === "Escape") {
                 e.stopPropagation();
+                refocus.current = true;
                 cancel();
               }
             }}
           />
         ) : (
-          <button type="button" className="tempo-number" title="Type a tempo" aria-label={`${tempo} BPM, type a tempo`} onClick={open}>
+          <button type="button" ref={number} className="tempo-number" title="Type a tempo" aria-label={`${tempo} BPM, type a tempo`} onClick={open}>
             <strong>{tempo}</strong>
           </button>
         )}{" "}

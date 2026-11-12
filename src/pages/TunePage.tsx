@@ -706,7 +706,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         </select>
       </label>
       <label className="field">
-        <span>Click</span>
+        <span>Metronome plays</span>
         <select value={clickMode} onChange={(e) => setClickMode(e.target.value as ClickMode)}>
           <option value="every">Every beat</option>
           <option value="two-four">{clickLabel("two-four", chart.beatsPerBar)}</option>

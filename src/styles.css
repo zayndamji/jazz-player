@@ -8,15 +8,18 @@
   --bg: #ffffff;
   --surface: #f3f3f1;
   --ink: #18181b;
-  --muted: #6e6e75;
+  --muted: #64646b;
   --faint: #a4a4aa;
   --line: #dcdcd8;
+  /* Borders of form controls and unlit dots: 3:1 against the page, unlike the light list dividers. */
+  --control-line: #84848a;
+  --error: #c0392b;
   --bar-line: #2a2a2e;
   --accent: #1e5bb8;
   --accent-ink: #ffffff;
   --bar-bg: #f6f6f4;
   --bar-ink: #18181b;
-  --bar-muted: #6e6e75;
+  --bar-muted: #64646b;
   --bar-control: #e6e6e2;
   /* Shared by both views: the bar playing now, and a looped section. */
   --now-bg: rgba(30, 91, 184, 0.13);
@@ -72,7 +75,7 @@ input:disabled {
 .app {
   max-width: 980px;
   margin: 0 auto;
-  padding: 32px 24px 160px;
+  padding: 32px max(24px, env(safe-area-inset-right)) calc(var(--player-h, 144px) + 16px) max(24px, env(safe-area-inset-left));
 }
 
 /* Title */
@@ -91,7 +94,7 @@ input:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 0;
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   color: var(--muted);
 }
 
@@ -106,7 +109,12 @@ input:disabled {
 }
 
 .error {
-  color: #c0392b;
+  color: var(--error);
+}
+
+.loading {
+  margin: 0;
+  color: var(--muted);
 }
 
 .back {
@@ -118,7 +126,8 @@ input:disabled {
 }
 
 .back::before {
-  content: "‹ ";
+  content: "‹";
+  margin-right: 0.3em;
 }
 
 .back:hover {
@@ -126,7 +135,7 @@ input:disabled {
 }
 
 /* Library */
-.library {
+.app.library {
   padding-bottom: 48px;
 }
 
@@ -139,9 +148,9 @@ input:disabled {
 
 .filters input,
 .filters select {
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--control-line);
+  border-radius: 4px;
   background: var(--bg);
   color: var(--ink);
 }
@@ -172,7 +181,7 @@ input:disabled {
   align-items: baseline;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 4px;
+  padding: 12px 4px;
   color: var(--ink);
   text-decoration: none;
 }
@@ -192,7 +201,7 @@ input:disabled {
 }
 
 .tunes .empty {
-  padding: 14px 4px;
+  padding: 12px 4px;
   color: var(--muted);
 }
 
@@ -200,7 +209,7 @@ input:disabled {
 .grid {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .row {
@@ -223,7 +232,7 @@ input:disabled {
   min-width: 26px;
   padding: 1px 6px;
   border: 1.5px solid var(--ink);
-  border-radius: 3px;
+  border-radius: 4px;
   background: none;
   font-weight: 700;
   font-size: 14px;
@@ -268,12 +277,12 @@ input:disabled {
   align-items: center;
   gap: 8px;
   min-height: 68px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: 0;
   border-right: 1.5px solid var(--bar-line);
   background: none;
   text-align: left;
-  scroll-margin: 24px 0 140px;
+  scroll-margin: 24px 0 calc(var(--player-h, 124px) + 16px);
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
@@ -296,6 +305,12 @@ input:disabled {
 
 .part-ending:last-child .row:last-child .bar.section-end::after {
   right: 6px;
+}
+
+.bar:focus-visible,
+.sheet-bar:focus-visible,
+.progress:focus-visible {
+  outline-offset: -2px;
 }
 
 .bar:hover {
@@ -405,7 +420,7 @@ input:disabled {
 .sheet-loop {
   position: absolute;
   pointer-events: none;
-  scroll-margin: 24px 0 140px;
+  scroll-margin: 24px 0 calc(var(--player-h, 124px) + 16px);
 }
 
 .sheet-loop {
@@ -437,9 +452,11 @@ input:disabled {
   background: var(--bar-bg);
   color: var(--bar-ink);
   border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .progress {
+  position: relative;
   height: 6px;
   background: var(--bar-control);
   cursor: pointer;
@@ -448,7 +465,12 @@ input:disabled {
 .progress-fill {
   height: 100%;
   background: var(--accent);
-  transition: width 120ms linear;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .progress-fill {
+    transition: width 120ms linear;
+  }
 }
 
 .controlbar-row {
@@ -457,7 +479,7 @@ input:disabled {
   gap: 8px 16px;
   max-width: 980px;
   margin: 0 auto;
-  padding: 10px 24px 12px;
+  padding: 8px max(24px, env(safe-area-inset-right)) 12px max(24px, env(safe-area-inset-left));
 }
 
 .play {
@@ -509,7 +531,7 @@ input:disabled {
 .position-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -549,7 +571,7 @@ input:disabled {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--bar-control);
+  background: var(--control-line);
 }
 
 .beat.on {
@@ -566,7 +588,7 @@ input:disabled {
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--bar-control);
   line-height: 1;
 }
@@ -617,15 +639,15 @@ input:disabled {
 
 .segmented {
   display: inline-flex;
-  padding: 2px;
-  border-radius: 7px;
+  padding: 4px;
+  border-radius: 8px;
   background: var(--bar-control);
 }
 
 .segmented button {
-  padding: 5px 10px;
+  padding: 4px 12px;
   border: 0;
-  border-radius: 5px;
+  border-radius: 4px;
   background: none;
   color: var(--bar-muted);
   white-space: nowrap;
@@ -638,9 +660,9 @@ input:disabled {
 }
 
 .toggle {
-  padding: 6px 12px;
+  padding: 8px 12px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--bar-control);
   white-space: nowrap;
 }
@@ -660,13 +682,14 @@ input:disabled {
   bottom: calc(100% + 12px);
   width: 352px;
   max-height: 70vh;
+  max-height: 70dvh;
   overflow: auto;
   padding: 16px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--bg);
   color: var(--ink);
   border: 1px solid var(--line);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .settings {
@@ -695,9 +718,9 @@ input:disabled {
 
 .field select {
   width: 100%;
-  padding: 5px 6px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--control-line);
+  border-radius: 4px;
   background: var(--bg);
 }
 
@@ -715,7 +738,7 @@ input:disabled {
 
 .strip {
   display: grid;
-  grid-template-columns: 96px 1fr 30px 30px;
+  grid-template-columns: 84px 1fr 48px 48px;
   align-items: center;
   gap: 8px;
 }
@@ -729,9 +752,9 @@ input:disabled {
 }
 
 .mute {
-  height: 26px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
+  height: 28px;
+  border: 1px solid var(--control-line);
+  border-radius: 4px;
   background: none;
   font-size: 12px;
   font-weight: 600;
@@ -756,7 +779,7 @@ input:disabled {
     display: inline;
   }
   .app {
-    padding: 20px 12px 200px;
+    padding: 16px max(12px, env(safe-area-inset-right)) calc(var(--player-h, 184px) + 16px) max(12px, env(safe-area-inset-left));
   }
   .head {
     margin-bottom: 24px;
@@ -764,14 +787,9 @@ input:disabled {
   .head h1 {
     font-size: 24px;
   }
-  .controlbar-row {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 8px 12px 12px;
-  }
   .toggle,
   .segmented button {
-    padding: 5px 9px;
+    padding: 4px 8px;
     font-size: 14px;
   }
   .tempo-value {
@@ -780,31 +798,12 @@ input:disabled {
   .long {
     display: none;
   }
-  /* First row: play, the readout and More; then tempo and view; then the toggles. */
-  .controlbar-row > * {
-    order: 2;
-  }
-  .controlbar-row > .play,
-  .controlbar-row > .position {
-    order: 0;
-  }
-  .controlbar-row > .more {
-    order: 1;
-  }
-  /* Play and More take about 136 px; the readout fills the rest, so the tempo starts row two. */
-  .position {
-    flex: 1 1 calc(100% - 136px);
-    min-width: 0;
-  }
-  .tempo {
-    flex-basis: auto;
-  }
   .row {
     grid-template-columns: 30px repeat(4, minmax(0, 1fr));
   }
   .bar {
     min-height: 56px;
-    padding: 14px 5px 5px;
+    padding: 16px 4px 4px;
     gap: 2px;
   }
   .bar.split {
@@ -840,12 +839,11 @@ input:disabled {
     font-size: 10px;
   }
   .panel {
-    position: fixed;
     left: 12px;
     right: 12px;
     width: auto;
-    bottom: calc(var(--player-h, 112px) + 8px);
     max-height: calc(100vh - var(--player-h, 112px) - 24px);
+    max-height: calc(100dvh - var(--player-h, 112px) - 24px);
   }
 }
 
@@ -866,12 +864,13 @@ input:disabled {
 .shortcut-help {
   width: min(480px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);
+  max-height: calc(100dvh - 64px);
   padding: 24px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--bg);
   color: var(--ink);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .shortcut-help::backdrop {
@@ -962,7 +961,7 @@ kbd {
   z-index: 5;
   padding: 8px 12px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--bg);
   color: var(--ink);
   transform: translateY(-200%);
@@ -977,6 +976,42 @@ kbd {
   display: none;
 }
 
+/* The one-row player bar needs about 1000 px; below that, or on touch screens, it wraps. */
+@media (max-width: 1000px), (pointer: coarse) {
+  .controlbar-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left));
+  }
+  /* First row: play, the readout and More; then tempo and view; then the toggles. */
+  .controlbar-row > * {
+    order: 2;
+  }
+  .controlbar-row > .play,
+  .controlbar-row > .position {
+    order: 0;
+  }
+  .controlbar-row > .more {
+    order: 1;
+  }
+  /* Play and More take about 136 px; the readout fills the rest, so the tempo starts row two. */
+  .position {
+    flex: 1 1 calc(100% - 136px);
+    min-width: 0;
+  }
+  .tempo {
+    flex-basis: auto;
+  }
+  /* The More panel sits just above the bar, whatever height the bar wraps to. */
+  .panel {
+    position: fixed;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(var(--player-h, 112px) + 8px);
+    max-height: calc(100vh - var(--player-h, 112px) - 24px);
+    max-height: calc(100dvh - var(--player-h, 112px) - 24px);
+  }
+}
+
 /* Phones and touch screens: controls at least 44 px to hit. */
 @media (max-width: 760px), (pointer: coarse) {
   .nav-touch {
@@ -989,7 +1024,47 @@ kbd {
     min-height: 44px;
   }
   .segmented button {
-    min-height: 40px;
+    min-height: 44px;
+  }
+  .back,
+  .filters input,
+  .filters select {
+    min-height: 44px;
+  }
+  .back {
+    display: inline-flex;
+    align-items: center;
+  }
+  /* A small readout link and the thin progress line keep their looks; the hit area is larger. */
+  .from-top,
+  .progress {
+    position: relative;
+  }
+  .from-top::after {
+    content: "";
+    position: absolute;
+    inset: -13px -8px;
+  }
+  .quiet-links,
+  .position-detail.quiet-links {
+    overflow: visible;
+  }
+  .tempo,
+  .segmented {
+    position: relative;
+  }
+  .progress::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -28px;
+    bottom: -8px;
+  }
+  /* 16 px stops iOS Safari zooming the page when a field gets focus. */
+  input:not([type="checkbox"]):not([type="range"]),
+  select {
+    font-size: 16px;
   }
   .tempo button:not(.quiet) {
     min-width: 44px;
@@ -1000,7 +1075,7 @@ kbd {
     min-width: 44px;
   }
   .strip {
-    grid-template-columns: 96px 1fr 44px 44px;
+    grid-template-columns: 84px 1fr 48px 48px;
   }
   .mute {
     min-height: 44px;

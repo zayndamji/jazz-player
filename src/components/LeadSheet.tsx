@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import { loadHead } from "../charts/heads";
-import { useBarPress } from "./barPress";
+import { scrollBehavior, useBarPress, useFocusFollow } from "./barPress";
 
 interface Props {
   chartId: string;
@@ -147,20 +147,26 @@ export function LeadSheet({ chartId, shift, bar, cue, loopBars, onBar, onRange }
   const box = bar !== null ? boxes[bar - 1] : undefined;
   const cueBox = bar === null && cue !== null ? boxes[cue - 1] : undefined;
   useEffect(() => {
-    mark.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    mark.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
   }, [box?.top, cueBox?.top]);
+
+  // One Tab stop for the bars: the current, cued or first. Focus follows it after the keyboard moves it.
+  const stop = bar ?? cue ?? 1;
+  const page = useRef<HTMLDivElement>(null);
+  const follow = useFocusFollow(page, () => page.current?.querySelector<HTMLElement>(`[data-bar="${stop}"]`) ?? null, String(stop));
 
   const at = (b: Box) => ({ left: b.left, top: b.top, width: b.width, height: b.height });
   return (
     <div className="lead-sheet">
       {error && <p className="error">{error}</p>}
-      <div className="lead-sheet-page">
+      {!ready && !error && <p className="loading">Loading lead sheet</p>}
+      <div className="lead-sheet-page" ref={page} {...follow}>
         {loopBars.map((n) => boxes[n - 1] && <div key={n} className="sheet-loop" style={at(boxes[n - 1])} />)}
         {box && <div ref={mark} className="sheet-now" style={at(box)} />}
         {cueBox && <div ref={mark} className="sheet-cued" style={at(cueBox)} />}
         <div ref={host} className="sheet-music" />
         {boxes.map((b, i) => (
-          <button type="button" key={i} className="sheet-bar" style={at(b)} aria-label={`Bar ${i + 1}. Play from here.`} {...press(i + 1)} />
+          <button type="button" key={i} className="sheet-bar" data-bar={i + 1} tabIndex={i + 1 === stop ? 0 : -1} style={at(b)} aria-label={`Bar ${i + 1}. Play from here.`} {...press(i + 1)} />
         ))}
       </div>
     </div>

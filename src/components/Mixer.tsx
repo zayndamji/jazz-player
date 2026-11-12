@@ -31,7 +31,7 @@ export function Mixer({ mix, onChange, onPreset, band }: Props) {
   return (
     <div className="mixer">
       <label className="field">
-        <span>Band</span>
+        <span>Mix</span>
         <select value={preset?.id ?? "custom"} onChange={(e) => onPreset(e.target.value)}>
           {presetsFor(band).map((p) => (
             <option key={p.id} value={p.id}>
@@ -58,13 +58,13 @@ export function Mixer({ mix, onChange, onPreset, band }: Props) {
             onChange={(e) => onChange(id, { ...mix[id], level: Number(e.target.value) })}
           />
           <button type="button" className="mute" aria-pressed={mix[id].mute} aria-label={`Mute ${name}`} onClick={() => onChange(id, { ...mix[id], mute: !mix[id].mute })}>
-            M
+            Mute
           </button>
           {id === "metronome" ? (
             <span />
           ) : (
             <button type="button" className="mute" aria-pressed={mix[id].solo} aria-label={`Solo ${name}`} onClick={() => onChange(id, { ...mix[id], solo: !mix[id].solo })}>
-              S
+              Solo
             </button>
           )}
         </div>

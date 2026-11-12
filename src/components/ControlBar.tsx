@@ -82,16 +82,18 @@ export function ControlBar(p: Props) {
       window.addEventListener("click", swallow, { capture: true, once: true });
       window.setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 600);
     };
+    // Capture phase, and preventDefault so the page's Escape (clear the loop) skips this press.
     const esc = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || (e.target as HTMLElement | null)?.closest?.(".tempo-input")) return;
+      e.preventDefault();
       setOpen(false);
       moreButton.current?.focus();
     };
     window.addEventListener("pointerdown", close);
-    window.addEventListener("keydown", esc);
+    window.addEventListener("keydown", esc, true);
     return () => {
       window.removeEventListener("pointerdown", close);
-      window.removeEventListener("keydown", esc);
+      window.removeEventListener("keydown", esc, true);
     };
   }, [open]);
 
@@ -187,11 +189,13 @@ export function ControlBar(p: Props) {
           </div>
         )}
 
-        <button type="button" className="toggle nav-touch" aria-keyshortcuts="ArrowLeft" onClick={p.onPrevBar}>
-          Prev bar
+        <button type="button" className="toggle nav-touch" aria-label="Previous bar" aria-keyshortcuts="ArrowLeft" onClick={p.onPrevBar}>
+          <span className="long">Prev bar</span>
+          <span className="short">Prev</span>
         </button>
-        <button type="button" className="toggle nav-touch" aria-keyshortcuts="ArrowRight" onClick={p.onNextBar}>
-          Next bar
+        <button type="button" className="toggle nav-touch" aria-label="Next bar" aria-keyshortcuts="ArrowRight" onClick={p.onNextBar}>
+          <span className="long">Next bar</span>
+          <span className="short">Next</span>
         </button>
 
         <button type="button" className="toggle" aria-pressed={!!p.loopLabel} aria-keyshortcuts="L" title={withKey("Loop", "loop")} onClick={p.onLoop}>
@@ -220,6 +224,8 @@ export function ControlBar(p: Props) {
                   aria-keyshortcuts="Shift+?"
                   onClick={() => {
                     setOpen(false);
+                    // The panel unmounts, so the dialog would hand focus back to the page; give it More to return to.
+                    moreButton.current?.focus();
                     p.onHelp();
                   }}
                 >

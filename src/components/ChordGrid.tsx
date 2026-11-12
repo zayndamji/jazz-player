@@ -3,7 +3,7 @@ import { BEAT, barTokens, displayParts, parseBar, parseChord, transposeSymbol } 
 import { chordScale } from "../chart/scales";
 import type { Chart, Section } from "../chart/types";
 import { chartBars, sameRef, type BarRef } from "../engine/timeline";
-import { useBarPress } from "./barPress";
+import { neighbourRow, scrollBehavior, tabStop, useBarPress, useFocusFollow } from "./barPress";
 
 interface Props {
   chart: Chart;
@@ -44,9 +44,27 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, loopS
   const numbers = new Map(chartBars(chart).map((b) => [`${b.ref.part}${b.ref.section}.${b.ref.bar}`, b.number]));
   const activeEl = useRef<HTMLButtonElement | null>(null);
 
+  const grid = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    activeEl.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    activeEl.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
   }, [active, cued]);
+
+  // Focus follows the current bar after Left or Right moves it (those keys are handled once, on the page).
+  const follow = useFocusFollow(grid, () => activeEl.current, `${active?.part}${active?.section}.${active?.bar}/${cued?.part}${cued?.section}.${cued?.bar}`);
+
+  // Up and Down move focus by a row; the playhead stays where it is.
+  const rowKeys = (e: React.KeyboardEvent) => {
+    if ((e.key !== "ArrowUp" && e.key !== "ArrowDown") || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+    const from = (e.target as HTMLElement).closest<HTMLElement>(".bar");
+    const rows = Array.from(grid.current?.querySelectorAll<HTMLElement>(".row") ?? []);
+    const row = rows.findIndex((r) => r.contains(from));
+    if (!from || row < 0) return;
+    const bars = (r: HTMLElement) => Array.from(r.querySelectorAll<HTMLElement>(".bar"));
+    const to = neighbourRow(rows.map((r) => bars(r).length), row, bars(rows[row]).indexOf(from), e.key === "ArrowDown" ? 1 : -1);
+    e.preventDefault();
+    if (to) bars(rows[to.row])[to.col]?.focus();
+  };
 
   const sections: { part: BarRef["part"]; index: number; section: Section }[] = [
     ...(chart.intro ? [{ part: "intro" as const, index: 0, section: chart.intro }] : []),
@@ -54,8 +72,12 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, loopS
     ...(chart.ending ?? []).map((section, index) => ({ part: "ending" as const, index, section })),
   ];
 
+  // One Tab stop for all the bars (the current, cued or first bar), and one for the section letters.
+  const allBars: BarRef[] = sections.flatMap(({ part, index, section }) => section.bars.map((_, bar) => ({ part, section: index, bar })));
+  const stop = allBars[tabStop(allBars, active, cued, sameRef)];
+
   return (
-    <div className="grid">
+    <div className="grid" ref={grid} onKeyDown={rowKeys} {...follow}>
       {sections.map(({ part, index, section }) => {
         const rows: string[][] = [];
         for (let i = 0; i < section.bars.length; i += 4) rows.push(section.bars.slice(i, i + 4));
@@ -94,6 +116,7 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, loopS
                     <button
                       type="button"
                       ref={isActive || isCued ? activeEl : undefined}
+                      tabIndex={sameRef(stop, ref) ? 0 : -1}
                       aria-current={isActive || isCued ? "true" : undefined}
                       className={`bar${isActive ? " active" : ""}${isCued ? " cued" : ""}${inRange ? " in-range" : ""}${barTokens(text).length > 1 ? " split" : ""}${bar === section.bars.length - 1 ? " section-end" : ""}`}
                       key={bar}
