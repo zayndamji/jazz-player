@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { bossaForm, swingForm } from "../fixtures";
-import { clearSettings, defaultSettings, loadSettings, parseSettings, saveSettings, tuneKey } from "./settings";
+import { TEMPO } from "../chart/types";
+import { clearSettings, defaultSettings, loadSettings, parseSettings, raisedTempo, saveSettings, tuneKey } from "./settings";
 
 const data = new Map<string, string>();
 beforeEach(() => {
@@ -62,5 +63,16 @@ describe("tune settings", () => {
     expect(loadSettings(bossaForm)).toEqual(defaultSettings(bossaForm));
     data.set(tuneKey(bossaForm.id), "[1,2]");
     expect(loadSettings(bossaForm)).toEqual(defaultSettings(bossaForm));
+  });
+});
+
+describe("speed up each pass", () => {
+  it("adds the step and stops at the top tempo", () => {
+    expect(raisedTempo(100, 5)).toBe(105);
+    expect(raisedTempo(TEMPO.max - 2, 5)).toBe(TEMPO.max);
+  });
+  it("accepts only the offered steps", () => {
+    expect(parseSettings({ speedUp: 5 }).speedUp).toBe(5);
+    expect(parseSettings({ speedUp: 3 }).speedUp).toBeUndefined();
   });
 });

@@ -15,7 +15,7 @@ import { chartBars, chordAt, navOrder, playOrder, rangeBars, rangeOrder, sameRef
 import { STYLES } from "../styles";
 import type { Style } from "../styles/types";
 import { keyLabel, keyWords } from "./format";
-import { clearSettings, defaultSettings, loadSettings, REPEATS, saveSettings } from "./settings";
+import { clearSettings, defaultSettings, loadSettings, raisedTempo, REPEATS, saveSettings, SPEED_UPS, type SpeedUp } from "./settings";
 import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
 import { readStored, store } from "./storage";
 
@@ -75,6 +75,11 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [intro, setIntro] = useState(initial.intro);
   const [ending, setEnding] = useState(initial.ending);
   const [clickMode, setClickMode] = useState<ClickMode>(initial.click);
+  const [speedUp, setSpeedUp] = useState<SpeedUp>(initial.speedUp);
+  /** Read by the player's callbacks, which outlive a render. */
+  const speedUpNow = useRef(speedUp);
+  speedUpNow.current = speedUp;
+  const lastBar = useRef<number | null>(null);
   const [metronome, setMetronome] = useState(false);
   const [showScales, setShowScales] = useState(initial.showScales);
   const [view, setView] = useState<View>(initial.view);
@@ -113,8 +118,8 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, [muted]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, mix });
-  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, clickMode, showScales, mix]);
+    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, speedUp, mix });
+  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, clickMode, showScales, speedUp, mix]);
   useEffect(() => store(INSTRUMENT_KEY, instrumentId), [instrumentId]);
   useEffect(() => store(SHORTCUTS_KEY, singleKeys ? "1" : "0"), [singleKeys]);
 
@@ -129,8 +134,20 @@ export function TunePage({ chart }: { chart: Chart }) {
   const getPlayer = () => {
     if (!sharedPlayer) sharedPlayer = new Player();
     const p = sharedPlayer;
-    p.onPosition = setPosition;
-    p.onLoop = () => setLoops((n) => n + 1);
+    // Each pass of a loop can raise the tempo: at the wrap, and where the first copy of the loop hands over to the second.
+    const speedUpOnce = () => {
+      if (speedUpNow.current > 0) setTempo((t) => raisedTempo(t, speedUpNow.current));
+    };
+    p.onPosition = (pos) => {
+      setPosition(pos);
+      const loopAt = current.current?.schedule.loop;
+      if (pos && loopAt && lastBar.current === loopAt.start / current.current!.schedule.beatsPerBar - 1 && pos.bar === lastBar.current + 1) speedUpOnce();
+      lastBar.current = pos ? pos.bar : null;
+    };
+    p.onLoop = () => {
+      setLoops((n) => n + 1);
+      speedUpOnce();
+    };
     p.onEnd = (finished) => {
       setStatus("idle");
       current.current = null;
@@ -403,6 +420,7 @@ export function TunePage({ chart }: { chart: Chart }) {
     setView(d.view);
     setClickMode(d.click);
     setShowScales(d.showScales);
+    setSpeedUp(d.speedUp);
     setMix(d.mix);
     clearSettings(chart.id);
   };
@@ -592,6 +610,16 @@ export function TunePage({ chart }: { chart: Chart }) {
           <option value="every">Every beat</option>
           <option value="two-four">2 and 4</option>
           <option value="one">Beat 1 only</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>Speed up each pass</span>
+        <select value={speedUp} onChange={(e) => setSpeedUp(Number(e.target.value) as SpeedUp)}>
+          {SPEED_UPS.map((n) => (
+            <option key={n} value={n}>
+              {n === 0 ? "Off" : `+${n} BPM`}
+            </option>
+          ))}
         </select>
       </label>
       <label className="check">

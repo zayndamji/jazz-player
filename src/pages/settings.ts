@@ -9,6 +9,13 @@ import { forget, readStored, store } from "./storage";
 /** The numbers of choruses the Choruses setting offers. */
 export const REPEATS: Repeat[] = [1, 2, 3, 4, 5, 6, 8, "loop"];
 
+/** BPM added to the tempo on each pass of a loop: off, or a step. */
+export const SPEED_UPS = [0, 1, 2, 5, 10] as const;
+export type SpeedUp = (typeof SPEED_UPS)[number];
+
+/** The tempo after a pass of a loop: a step faster, never past the top tempo. */
+export const raisedTempo = (tempo: number, step: number) => Math.min(TEMPO.max, tempo + step);
+
 export const MIXABLES: Mixable[] = ["bass", "guitar", "piano", "drums", "metronome"];
 
 export const initialMix = (): Record<Mixable, MixState> => ({
@@ -34,6 +41,7 @@ export interface TuneSettings {
   view: View;
   click: ClickMode;
   showScales: boolean;
+  speedUp: SpeedUp;
   mix: Record<Mixable, MixState>;
 }
 
@@ -52,6 +60,7 @@ export function defaultSettings(chart: Chart): TuneSettings {
     view: "chords",
     click: "every",
     showScales: false,
+    speedUp: 0,
     mix: initialMix(),
   };
 }
@@ -100,6 +109,7 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   if (isBool(raw.ending)) out.ending = raw.ending;
   if (raw.view === "chords" || raw.view === "sheet") out.view = raw.view;
   if (CLICK_MODES.includes(raw.click as ClickMode)) out.click = raw.click as ClickMode;
+  if (SPEED_UPS.includes(raw.speedUp as SpeedUp)) out.speedUp = raw.speedUp as SpeedUp;
   if (isBool(raw.showScales)) out.showScales = raw.showScales;
   const mix = parseMix(raw.mix);
   if (mix) out.mix = mix;
