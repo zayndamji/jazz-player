@@ -26,6 +26,8 @@ export interface Feel {
   tempo: number;
   /** Play the intro and first chorus in two (half-note bass, lighter drums), then walk. Styles without a two-feel ignore it. */
   twoFeel: boolean;
+  /** The chart's comping colour (swing reads it; other styles ignore it). */
+  comp?: "sparse" | "busy" | "blues";
 }
 
 /**

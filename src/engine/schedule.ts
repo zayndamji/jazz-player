@@ -165,7 +165,7 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   }
 
   const band = bandFor(chart, style);
-  const played = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false }).filter((e) => band.includes(e.track));
+  const played = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp }).filter((e) => band.includes(e.track));
   const events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"));
   return { bars, events, beats, totalBeats, beatsPerBar, loop, passes, cycle, mix: style.mix ?? {}, band };
 }

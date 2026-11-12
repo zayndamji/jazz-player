@@ -140,4 +140,13 @@ describe("swing style", () => {
     );
     expect(figures.size).toBeGreaterThan(12);
   });
+  it("comps in the chart's colour: sparse, busy or blues", () => {
+    const hits = (comp?: "sparse" | "busy" | "blues") =>
+      buildSchedule({ ...chart, comp }, swing, { choruses: 4, countIn: false, transpose: 0 }).events.filter((e) => e.track === "piano");
+    expect(hits("sparse").length).toBeLessThan(hits().length);
+    expect(hits("busy").length).toBeGreaterThan(hits().length);
+    // Blues: crushed notes, a half step under the third, just before the chord.
+    const blues = hits("blues");
+    expect(blues.some((e) => e.notes!.length === 1 && e.duration < 0.1)).toBe(true);
+  });
 });

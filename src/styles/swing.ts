@@ -164,7 +164,7 @@ export function nearest(pc: number, near: number): number {
 }
 
 /** Pitch classes of a chord's scale, from its root. */
-function scalePcs(chord: ParsedChord): number[] {
+export function scalePcs(chord: ParsedChord): number[] {
   const steps: Record<string, number[]> = {
     Major: [0, 2, 4, 5, 7, 9, 11],
     Lydian: [0, 2, 4, 6, 7, 9, 11],
@@ -484,11 +484,20 @@ export const swing: Style = {
       const changes = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord;
       const place = bar.ref ? `${bar.ref.part}.${bar.ref.section}.${bar.ref.bar}` : "";
       const recalled = bar.chorus >= 2 ? memory.get(place) : undefined;
+      // The chart's comping colour: sparse cells and strolled bars, busy ones, or blues riffs
+      // (a cell repeated, weighted to the ands of 2 and 4 where Kelly-style blues comping sits).
+      const colour = feel.comp;
+      const density = plan.density * (colour === "sparse" ? 0.82 : colour === "busy" ? 1.15 : colour === "blues" ? 1.08 : 1);
+      const bluesWeight = (hits: Figure["hits"]) => (colour === "blues" && hits.some(([slot]) => slot === 3 || slot === 7) ? 1.4 : 1);
       const cell = inTwo
         ? weighted(COMP_TWO.map((c) => ({ weight: c.weight, value: c.hits })), random)
-        : recalled && recalled !== lastCell && random() < 0.3
-          ? recalled
-          : weighted((fast ? COMP_FAST : COMP).map((c) => ({ weight: fast ? c.weight : forDensity(c, plan.density), value: c.hits })), random, lastCell);
+        : colour === "sparse" && (plan.role === "solo" || plan.role === "peak") && random() < 0.1
+          ? []
+          : colour === "blues" && lastCell && inPhrase !== 0 && random() < 0.4
+            ? lastCell
+            : recalled && recalled !== lastCell && random() < 0.3
+              ? recalled
+              : weighted((fast ? COMP_FAST : COMP).map((c) => ({ weight: fast ? c.weight : forDensity(c, density) * bluesWeight(c.hits), value: c.hits })), random, lastCell);
       lastCell = cell;
       if (place) memory.set(place, cell);
       // The register moves with the chorus and drifts every eight bars, often every four
@@ -529,14 +538,15 @@ export const swing: Style = {
         if (!fast && duration < 0.5 && plan.density < 1 && random() < 0.2) notes = [piano[0], piano[2], piano[3]];
         else if (plan.energy >= 1 && duration >= 0.6 && random() < 0.28 * plan.density && piano[1] + 12 > piano[3] && piano[1] + 12 <= 84) notes = [...piano, piano[1] + 12];
         // Anticipations are accented a little, as pianists push them.
-        events.push({
-          track: "piano",
-          time: t + beat + clock.at("piano"),
-          duration,
-          velocity: human((velocity + (slot % 2 ? 0.04 : 0)) * lift * pianoGain, 0.12),
-          notes,
-          ...pianoTouch(notes, random, duration >= 1.5 && random() < 0.3),
-        });
+        // Blues: laid back a few milliseconds more, and now and then a crushed note, the
+        // minor third struck just before the major third of a dominant chord.
+        const time = t + beat + clock.at("piano") + (colour === "blues" ? (0.006 * feel.tempo) / 60 : 0);
+        const hitVelocity = human((velocity + (slot % 2 ? 0.04 : 0)) * lift * pianoGain, 0.12);
+        if (colour === "blues" && c.chord.intervalNames.includes("3M") && c.chord.intervalNames.includes("7m") && random() < 0.22) {
+          const third = notes.find((n) => (((n - c.chord.root) % 12) + 12) % 12 === 4);
+          if (third !== undefined) events.push({ track: "piano", time: time - 0.05, duration: 0.07, velocity: hitVelocity * 0.75, notes: [third - 1] });
+        }
+        events.push({ track: "piano", time, duration, velocity: hitVelocity, notes, ...pianoTouch(notes, random, duration >= 1.5 && random() < 0.3) });
         pianoBeats.push(beat);
         if (ahead) pushes = true;
       });

@@ -29,6 +29,7 @@ export function validateChart(chart: Chart): string[] {
   if (!(chart.tempo >= TEMPO.min && chart.tempo <= TEMPO.max)) errors.push(`tempo ${chart.tempo} out of range`);
   if (chart.beatsPerBar !== 4 && chart.beatsPerBar !== 3) errors.push("beatsPerBar must be 3 or 4");
   if (!chart.form?.length) errors.push("form has no sections");
+  if (chart.comp !== undefined && !["sparse", "busy", "blues"].includes(chart.comp)) errors.push(`comp "${chart.comp}" must be sparse, busy or blues`);
   const sections = [...(chart.intro ? [chart.intro] : []), ...(chart.form ?? []), ...(chart.ending ?? [])];
   let first = true;
   for (const section of sections) {

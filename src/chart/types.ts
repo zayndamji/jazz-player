@@ -26,6 +26,12 @@ export interface Chart {
   band?: ("bass" | "guitar" | "piano" | "drums")[];
   /** Start in two: the intro and first chorus with half-note bass, walking after (swing). Default false. */
   twoFeel?: boolean;
+  /**
+   * How the piano comps in swing, when the tune's records differ from the style's middle
+   * ground: "sparse" (few, longer chords and space), "busy" (on most beats), "blues"
+   * (laid back, riffs repeated, crushed notes into the third).
+   */
+  comp?: "sparse" | "busy" | "blues";
   /** Played once before the first chorus. */
   intro?: Section;
   /** The repeating form, in playing order. */
