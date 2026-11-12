@@ -27,7 +27,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 - Share a setup: "Copy link" in More copies an address like `#/tune/<id>?bpm=120&key=-2&style=bossa&for=Bb&choruses=4`. Opening it sets those for that visit only (they don't overwrite what the tune remembers).
 - Each tune remembers its own settings in the browser (tempo, key, style, choruses, view, mixer and the rest of More). "Reset to original" at the bottom of the settings puts the chart's own back. Mute and the instrument you write for are shared by all tunes.
 - While playing, the player bar shows the bar, chorus, and a scale for the current chord with its notes, then the next chord when it changes within two bars.
-- Light theme only, like printed music. Works on phones.
+- Light theme only, like printed music. Works on phones: on narrow or touch screens the controls are at least 44 px, the player bar gets Prev bar and Next bar buttons, and the More panel sits just above the bar however tall it wraps. A "Skip to player" link is the first thing Tab reaches.
 
 ## How it works
 

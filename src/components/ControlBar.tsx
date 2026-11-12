@@ -46,6 +46,9 @@ interface Props {
   onFromTop: (() => void) | null;
   /** Everything that isn't needed while playing. */
   settings: ReactNode;
+  /** A bar back or on, for narrow and touch screens where there are no arrow keys. */
+  onPrevBar: () => void;
+  onNextBar: () => void;
   /** Open the keyboard shortcuts list. */
   onHelp: () => void;
 }
@@ -54,6 +57,7 @@ interface Props {
 export function ControlBar(p: Props) {
   const [open, setOpen] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLElement>(null);
   const moreButton = useRef<HTMLButtonElement>(null);
   // Only offer the shortcuts list where there's likely a keyboard (not on phones).
   const [keyboard, setKeyboard] = useState(() => matchMedia("(any-pointer: fine)").matches);
@@ -91,8 +95,23 @@ export function ControlBar(p: Props) {
     };
   }, [open]);
 
+  // The More panel on a phone sits just above the bar, whatever height the bar wraps to.
+  useEffect(() => {
+    const el = bar.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const root = document.documentElement.style;
+    const measure = () => root.setProperty("--player-h", `${el.offsetHeight}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.removeProperty("--player-h");
+    };
+  }, []);
+
   return (
-    <section className="controlbar" aria-label="Player">
+    <section className="controlbar" aria-label="Player" id="player" ref={bar}>
       <div
         className="progress"
         role="slider"
@@ -160,6 +179,13 @@ export function ControlBar(p: Props) {
             </button>
           </div>
         )}
+
+        <button type="button" className="toggle nav-touch" aria-keyshortcuts="ArrowLeft" onClick={p.onPrevBar}>
+          Prev bar
+        </button>
+        <button type="button" className="toggle nav-touch" aria-keyshortcuts="ArrowRight" onClick={p.onNextBar}>
+          Next bar
+        </button>
 
         <button type="button" className="toggle" aria-pressed={!!p.loopLabel} aria-keyshortcuts="L" title={withKey("Loop", "loop")} onClick={p.onLoop}>
           {p.loopLabel ?? "Loop"}

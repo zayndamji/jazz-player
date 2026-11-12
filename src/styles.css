@@ -834,7 +834,8 @@ input:disabled {
     left: 12px;
     right: 12px;
     width: auto;
-    bottom: 120px;
+    bottom: calc(var(--player-h, 112px) + 8px);
+    max-height: calc(100vh - var(--player-h, 112px) - 24px);
   }
 }
 
@@ -941,4 +942,73 @@ kbd {
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
+}
+
+/* Skip link: the first thing Tab reaches, shown only while it has focus. */
+.skip {
+  position: absolute;
+  left: 16px;
+  top: 8px;
+  z-index: 5;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  transform: translateY(-200%);
+}
+
+.skip:focus {
+  transform: none;
+}
+
+/* Previous and next bar are for screens without arrow keys. */
+.nav-touch {
+  display: none;
+}
+
+/* Phones and touch screens: controls at least 44 px to hit. */
+@media (max-width: 760px), (pointer: coarse) {
+  .nav-touch {
+    display: inline-block;
+  }
+  .toggle,
+  .quiet,
+  .field select,
+  .check {
+    min-height: 44px;
+  }
+  .segmented button {
+    min-height: 40px;
+  }
+  .tempo button:not(.quiet) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .tempo .tempo-number {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .strip {
+    grid-template-columns: 96px 1fr 44px 44px;
+  }
+  .mute {
+    min-height: 44px;
+  }
+  .strip input[type="range"] {
+    min-height: 44px;
+  }
+  .check input {
+    width: 20px;
+    height: 20px;
+  }
+  /* The rehearsal letter looks small but its touch area reaches 44 px. */
+  .section-label:not(.static)::after {
+    content: "";
+    position: absolute;
+    inset: -13px -9px;
+  }
+  .section-label {
+    position: relative;
+  }
 }

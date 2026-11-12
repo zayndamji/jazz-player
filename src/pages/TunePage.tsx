@@ -738,6 +738,16 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
 
   return (
     <div className="app">
+      <a
+        className="skip"
+        href={window.location.hash || "#/"}
+        onClick={(e) => {
+          e.preventDefault();
+          document.querySelector<HTMLElement>("#player .play")?.focus();
+        }}
+      >
+        Skip to player
+      </a>
       <header className="head">
         <a className="back" href="#/">
           All tunes
@@ -814,6 +824,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         muted={muted}
         onMuted={setMuted}
         onFromTop={status === "idle" && cue ? toStart : null}
+        onPrevBar={() => move(-1)}
+        onNextBar={() => move(1)}
         settings={settings}
         onHelp={() => setHelpOpen(true)}
       />
