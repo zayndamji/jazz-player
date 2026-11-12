@@ -27,11 +27,19 @@ export interface Chart {
   /** The heads in two: the intro, first chorus and out-head with half-note bass, the solos walking (swing). Default false. */
   twoFeel?: boolean;
   /**
-   * How the piano comps in swing, when the tune's records differ from the style's middle
-   * ground: "sparse" (few, longer chords, and in the solos the piano strolls for whole phrases), "busy" (on most beats), "blues"
-   * (laid back, riffs repeated, crushed notes into the third).
+   * How the piano comps, when the tune's records differ from the style's middle ground. Swing:
+   * "sparse" (few, longer chords, and in the solos the piano strolls for whole phrases), "busy" (on most beats), "blues"
+   * (laid back, riffs repeated, crushed notes into the third). Bossa: "sparse" lays the piano out for most of the
+   * head and keeps the cross-stick for the solos, as on the vocal records.
    */
   comp?: "sparse" | "busy" | "blues";
+  /**
+   * Level changes in dB per part on top of the style's mix, when the tune's record balances
+   * the band differently (Nardis: Motian's brushes well under the bass). Applied only in the chart's own style.
+   */
+  mix?: Partial<Record<"bass" | "guitar" | "piano" | "drums", number>>;
+  /** A note the bass holds under every chord, as a drone ("E": Coltrane's My Favorite Things). The waltz reads it. */
+  pedal?: string;
   /** Played once before the first chorus. */
   intro?: Section;
   /** The repeating form, in playing order. */

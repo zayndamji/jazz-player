@@ -184,7 +184,8 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   }
 
   const band = bandFor(chart, style);
-  const played = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, variation: opts.variation ?? "varied" }).filter((e) => band.includes(e.track));
+  const pedal = chart.pedal ? keyPitchClass(chart.pedal) : undefined;
+  const played = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, pedal, variation: opts.variation ?? "varied" }).filter((e) => band.includes(e.track));
   const events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"));
   const melody = opts.melody && opts.melody.mode !== "off" ? opts.melody : null;
   if (melody) {
@@ -194,7 +195,7 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     events.push(...melodyEvents(chart, bars, melody.measures, (b) => melody.mode === "every" || (!sectionLoop && isHead(b))));
     events.sort((a, b) => a.time - b.time);
   }
-  return { bars, events, beats, totalBeats, beatsPerBar, loop, passes, cycle, mix: style.mix ?? {}, band: melody ? [...band, "melody"] : band };
+  return { bars, events, beats, totalBeats, beatsPerBar, loop, passes, cycle, mix: mixFor(chart, style), band: melody ? [...band, "melody"] : band };
 }
 
 /**
@@ -224,6 +225,13 @@ export function chorusLayoutChanges(chart: Chart, from: number, to: number, at: 
       .map((i) => `${i.ref.section}.${i.ref.bar}`)
       .join();
   return at > 0 && layout(from) !== layout(to);
+}
+
+/** The style's mix with the chart's own level changes (`Chart.mix`), which apply in the chart's own style only. */
+export function mixFor(chart: Chart, style: Style): Partial<Record<Track, number>> {
+  const mix = { ...(style.mix ?? {}) };
+  if (style.id === chart.style) for (const [track, db] of Object.entries(chart.mix ?? {}) as [Track, number][]) mix[track] = (mix[track] ?? 0) + db;
+  return mix;
 }
 
 /** The parts that play a chart in a style. */

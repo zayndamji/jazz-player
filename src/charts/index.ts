@@ -52,6 +52,9 @@ export function validateChart(chart: Chart): string[] {
       first = false;
     });
   }
+  for (const [track, db] of Object.entries(chart.mix ?? {}))
+    if (!["bass", "guitar", "piano", "drums"].includes(track) || typeof db !== "number" || Math.abs(db) > 24) errors.push(`"mix" needs parts (bass, guitar, piano, drums) with a dB change within 24`);
+  if (chart.pedal !== undefined && !/^[A-G][b#]?$/.test(chart.pedal)) errors.push(`pedal "${chart.pedal}" must be a note like E or Bb`);
   for (const track of chart.band ?? []) if (!["bass", "guitar", "piano", "drums"].includes(track)) errors.push(`"band" has an unknown part "${track}"`);
   const plays = chart.form?.map((s) => s.play) ?? [];
   if (plays.some((p) => p !== undefined && p !== "head" && p !== "solos")) errors.push(`"play" must be "head" or "solos"`);

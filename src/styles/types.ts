@@ -28,8 +28,10 @@ export interface Feel {
   tempo: number;
   /** Play the intro, the first chorus and the out-head in two (half-note bass, lighter drums), walking the solos. Styles without a two-feel ignore it. */
   twoFeel: boolean;
-  /** The chart's comping colour (swing reads it; other styles ignore it). */
+  /** The chart's comping colour (swing and bossa read it). */
   comp?: "sparse" | "busy" | "blues";
+  /** Pitch class (0 to 11, in the chart's key before transposing) the bass holds under every chord (the chart's `pedal`). */
+  pedal?: number;
   /**
    * "varied" (the default): the band develops over the performance, as a live band does.
    * "straight": the same groove every bar, one comping figure, steady dynamics; only the

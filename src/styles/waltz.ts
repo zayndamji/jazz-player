@@ -53,13 +53,17 @@ const COMP: Cell[] = [
   { weight: 0.01, hits: [] }, // space
 ];
 
-/** Over a pedal: riff cells on the and of 1, the vamp's figure. */
+/**
+ * Over a pedal: riff cells on the offbeats, the vamp's figure. Tyner on the 1961 record hits the
+ * and of 1 and the and of 2 (each in about a third to a half of the bars), the and of 3 now and
+ * then and beat 3 almost never, 1.5 to 2 hits a bar (context/original-records.md).
+ */
 const VAMP: Cell[] = [
-  { weight: 0.3, hits: [[1, 1.2, 0.56], [4, 0.45, 0.48]] }, // and of 1 held, 3
-  { weight: 0.22, hits: [[0, 0.35, 0.46], [1, 0.9, 0.56], [4, 0.5, 0.5]] }, // 1, and of 1, 3
-  { weight: 0.18, hits: [[1, 0.4, 0.55], [2, 0.4, 0.5], [4, 0.6, 0.5]] }, // and of 1, 2, 3
-  { weight: 0.16, hits: [[0, 0.4, 0.5], [1, 0.5, 0.56], [5, 0.6, 0.5]] }, // 1, and of 1, and of 3
-  { weight: 0.14, hits: [[1, 1.8, 0.54]] }, // and of 1, rung through
+  { weight: 0.25, hits: [[1, 0.9, 0.56], [3, 0.9, 0.52]] }, // and of 1, and of 2
+  { weight: 0.25, hits: [[3, 1.3, 0.54]] }, // and of 2, held
+  { weight: 0.15, hits: [[1, 1.1, 0.56], [5, 0.6, 0.5]] }, // and of 1, and of 3
+  { weight: 0.2, hits: [[0, 0.4, 0.48], [3, 1, 0.54]] }, // 1, and of 2
+  { weight: 0.15, hits: [[1, 1.8, 0.54]] }, // and of 1, rung through
 ];
 
 /** Sparse cells for the up tempo. */
@@ -74,26 +78,28 @@ const forDensity = (c: Cell, density: number) => c.weight * density ** ((c.hits.
 
 /** Pedal figures as [eighth slot, interval above the pedal (0, 7, 12), length, velocity]; `tie` ends on the and of 3, ringing into the next bar. */
 type PedalFigure = { weight: number; hits: [number, number, number, number][]; tie?: boolean };
+// Garrison on the 1961 record: beat 1 strongest, then the and of 1, beat 3 and the and of 3; beat 2 rarely.
 const PEDAL: PedalFigure[] = [
-  { weight: 0.32, hits: [[0, 0, 1.6, 0.86], [5, 0, 0.85, 0.72]], tie: true }, // 1 ... and of 3
-  { weight: 0.18, hits: [[0, 0, 0.9, 0.84], [2, 7, 0.9, 0.68], [4, 0, 0.9, 0.72]] }, // root, fifth, root
+  { weight: 0.28, hits: [[0, 0, 1.6, 0.86], [5, 0, 0.85, 0.72]], tie: true }, // 1 ... and of 3
+  { weight: 0.24, hits: [[0, 0, 0.45, 0.84], [1, 0, 0.9, 0.7], [4, 7, 0.9, 0.7]] }, // 1, and of 1, fifth on 3
   { weight: 0.14, hits: [[0, 0, 2.7, 0.86]] }, // the drone
-  { weight: 0.2, hits: [[0, 0, 1.3, 0.82], [3, 12, 0.5, 0.62], [4, 7, 0.9, 0.7]] }, // 1, octave on the and of 2, fifth on 3
-  { weight: 0.16, hits: [[0, 0, 0.9, 0.84], [2, 12, 0.6, 0.66], [5, 0, 0.8, 0.7]], tie: true }, // 1, octave on 2, and of 3
+  { weight: 0.16, hits: [[0, 0, 0.45, 0.82], [1, 0, 1.3, 0.66], [5, 0, 0.8, 0.7]], tie: true }, // 1, and of 1, and of 3
+  { weight: 0.18, hits: [[0, 0, 1.8, 0.84], [4, 12, 0.5, 0.64], [5, 7, 0.5, 0.62]] }, // 1, octave on 3, fifth on the and of 3
 ];
 /** After a tie the next bar doesn't strike 1 again. */
 const PEDAL_AFTER_TIE: PedalFigure[] = [
-  { weight: 0.5, hits: [[2, 7, 0.9, 0.66], [4, 12, 0.6, 0.7], [5, 0, 0.5, 0.6]] }, // fifth on 2, octave on 3, and of 3
-  { weight: 0.5, hits: [[2, 0, 0.9, 0.68], [4, 7, 0.9, 0.7]] }, // root on 2, fifth on 3
+  { weight: 0.5, hits: [[1, 7, 0.9, 0.66], [4, 12, 0.6, 0.7], [5, 0, 0.5, 0.6]] }, // fifth on the and of 1, octave on 3, and of 3
+  { weight: 0.5, hits: [[1, 0, 1.3, 0.68], [4, 7, 0.9, 0.7]] }, // root on the and of 1, fifth on 3
 ];
 
 /** Ride figures as [beat, place in the beat, velocity]: 0 on the beat, 1 the swung skip, 2 and 3 the second and third triplet. */
 type Ride = { id: string; hits: [number, 0 | 1 | 2 | 3, number][] };
+// Beat 1 lighter than 2 and 3, as Elvin plays it on the 1961 record.
 const RIDES: Ride[] = [
-  { id: "two-and", hits: [[0, 0, 0.52], [1, 0, 0.62], [1, 1, 0.48], [2, 0, 0.58]] }, // 1, 2 and 3
-  { id: "three-and", hits: [[0, 0, 0.52], [1, 0, 0.62], [2, 0, 0.58], [2, 1, 0.52]] }, // 1, 2, 3 and
-  { id: "both", hits: [[0, 0, 0.52], [1, 0, 0.62], [1, 1, 0.46], [2, 0, 0.58], [2, 1, 0.5]] }, // 1, 2 and 3 and
-  { id: "quarters", hits: [[0, 0, 0.54], [1, 0, 0.6], [2, 0, 0.58]] },
+  { id: "two-and", hits: [[0, 0, 0.44], [1, 0, 0.62], [1, 1, 0.48], [2, 0, 0.58]] }, // 1, 2 and 3
+  { id: "three-and", hits: [[0, 0, 0.44], [1, 0, 0.62], [2, 0, 0.58], [2, 1, 0.54]] }, // 1, 2, 3 and
+  { id: "both", hits: [[0, 0, 0.44], [1, 0, 0.62], [1, 1, 0.46], [2, 0, 0.58], [2, 1, 0.52]] }, // 1, 2 and 3 and
+  { id: "quarters", hits: [[0, 0, 0.46], [1, 0, 0.6], [2, 0, 0.58]] },
   { id: "roll", hits: [[0, 0, 0.56], [0, 2, 0.28], [0, 3, 0.34], [1, 0, 0.6], [2, 0, 0.56], [2, 1, 0.48]] }, // a triplet roll off 1
   { id: "cross", hits: [[0, 0, 0.6], [0, 1, 0.4], [1, 0, 0.4], [1, 1, 0.56], [2, 0, 0.42], [2, 1, 0.44]] }, // two dotted quarters against the three
   { id: "lead", hits: [[0, 0, 0.52], [0, 1, 0.44], [1, 0, 0.62], [2, 0, 0.58], [2, 1, 0.48]] }, // 1 and, 2, 3 and
@@ -227,7 +233,8 @@ export const waltz: Style = {
     const fast = feel.tempo >= UP;
     const straight = feel.variation === "straight";
     const shapes = straight ? steadyBars(music) : shapeBars(music, random, true);
-    const pedalOf = pedals(music);
+    // The chart's pedal holds under every bar (moved with each bar's key); else runs of one bass note.
+    const pedalOf = feel.pedal !== undefined ? music.map((b) => (b.final ? null : (((feel.pedal! + b.transpose) % 12) + 12) % 12)) : pedals(music);
 
     let piano: number[] | null = null;
     let bassNote = 40;
@@ -245,7 +252,8 @@ export const waltz: Style = {
     const homes = new Map<number, { ride: Ride; accent: "one" | "twoThree" | "even"; hat: number[] }>();
     const homeFor = (chorus: number, peak: boolean) => {
       if (!homes.has(chorus)) {
-        const ride = fast ? RIDES[0] : weighted([{ weight: 0.35, value: RIDES[0] }, { weight: 0.3, value: RIDES[1] }, { weight: 0.15, value: RIDES[2] }, { weight: 0.2, value: RIDES[4] }], random);
+        // Mostly with the and of 3 (on in 46 to 93% of the record's bars).
+        const ride = fast ? RIDES[0] : weighted([{ weight: 0.22, value: RIDES[0] }, { weight: 0.36, value: RIDES[1] }, { weight: 0.27, value: RIDES[2] }, { weight: 0.15, value: RIDES[4] }], random);
         const accent = weighted<"one" | "twoThree" | "even">([{ weight: 0.4, value: "one" }, { weight: peak ? 0.4 : 0.35, value: "twoThree" }, { weight: 0.25, value: "even" }], random);
         homes.set(chorus, { ride, accent, hat: random() < 0.6 ? [1, 2] : [1] });
       }
