@@ -128,11 +128,6 @@ export function TempoControl({ tempo, original, onTempo }: Props) {
       >
         +
       </button>
-      {tempo !== original && (
-        <button type="button" className="quiet tempo-original" title={`Back to ${original} BPM`} aria-label={`Reset tempo to ${original} BPM`} onClick={() => onTempo(original)}>
-          {original}
-        </button>
-      )}
     </div>
   );
 }

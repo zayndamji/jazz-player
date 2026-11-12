@@ -526,6 +526,11 @@ input:disabled {
   flex: none;
 }
 
+.quiet-links {
+  display: flex;
+  gap: 12px;
+}
+
 .position-detail {
   margin-top: 2px;
   color: var(--bar-muted);
@@ -598,14 +603,6 @@ input:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-.tempo .tempo-original {
-  margin: 0 0 0 4px;
-  width: auto;
-  height: auto;
-  border-radius: 0;
-  background: none;
-  color: var(--bar-muted);
-}
 
 .tempo button:not(.quiet):not(.tempo-number) {
   touch-action: manipulation;
@@ -661,7 +658,7 @@ input:disabled {
   position: absolute;
   right: 0;
   bottom: calc(100% + 12px);
-  width: 320px;
+  width: 352px;
   max-height: 70vh;
   overflow: auto;
   padding: 16px;
@@ -687,7 +684,7 @@ input:disabled {
 
 .field {
   display: grid;
-  grid-template-columns: 96px 1fr;
+  grid-template-columns: 128px 1fr;
   align-items: center;
   gap: 8px;
 }
@@ -780,14 +777,27 @@ input:disabled {
   .tempo-value {
     min-width: 60px;
   }
-  .tempo .tempo-original {
-    display: none;
-  }
   .long {
     display: none;
   }
+  /* First row: play, the readout and More; then tempo and view; then the toggles. */
+  .controlbar-row > * {
+    order: 2;
+  }
+  .controlbar-row > .play,
+  .controlbar-row > .position {
+    order: 0;
+  }
+  .controlbar-row > .more {
+    order: 1;
+  }
+  /* Play and More take about 136 px; the readout fills the rest, so the tempo starts row two. */
   .position {
-    flex-basis: calc(100% - 60px);
+    flex: 1 1 calc(100% - 136px);
+    min-width: 0;
+  }
+  .tempo {
+    flex-basis: auto;
   }
   .row {
     grid-template-columns: 30px repeat(4, minmax(0, 1fr));

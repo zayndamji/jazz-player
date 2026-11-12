@@ -157,11 +157,18 @@ export function ControlBar(p: Props) {
             <span className="where">{p.status === "loading" ? "Loading sounds…" : p.where || "Ready"}</span>
           </div>
           {p.detail && <div className="position-detail">{p.detail}</div>}
-          {p.onFromTop && (
-            <div className="position-detail">
-              <button type="button" className="from-top" aria-keyshortcuts="Home" title={withKey("From the top", "start")} onClick={p.onFromTop}>
-                From the top
-              </button>
+          {(p.onFromTop || (!playing && p.tempo !== p.originalTempo)) && (
+            <div className="position-detail quiet-links">
+              {p.onFromTop && (
+                <button type="button" className="from-top" aria-keyshortcuts="Home" title={withKey("From the top", "start")} onClick={p.onFromTop}>
+                  From the top
+                </button>
+              )}
+              {!playing && p.tempo !== p.originalTempo && (
+                <button type="button" className="from-top" onClick={() => p.onTempo(p.originalTempo)}>
+                  Back to {p.originalTempo} BPM
+                </button>
+              )}
             </div>
           )}
         </div>

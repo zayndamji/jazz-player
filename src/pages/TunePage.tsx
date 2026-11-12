@@ -466,7 +466,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     });
   }, [mix]);
 
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"copied" | "address" | null>(null);
   const copiedTimer = useRef<number | null>(null);
   useEffect(() => () => {
     if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
@@ -476,12 +476,14 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     const url = shareUrl(window.location.origin + window.location.pathname, chart.id, { tempo, transpose, style: styleId, instrument: instrumentId, choruses: repeat });
     try {
       await navigator.clipboard.writeText(url);
+      setCopied("copied");
     } catch {
-      return;
+      // No clipboard (blocked or not allowed): put the link in the address bar to copy from there.
+      window.history.replaceState(null, "", url);
+      setCopied("address");
     }
-    setCopied(true);
     if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
-    copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
+    copiedTimer.current = window.setTimeout(() => setCopied(null), 2500);
   };
 
   /** Put every setting of this tune back to the chart's own and forget the stored entry. */
@@ -710,11 +712,11 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         </select>
       </label>
       <label className="field">
-        <span>Speed up each pass</span>
+        <span>Speed up</span>
         <select value={speedUp} onChange={(e) => setSpeedUp(Number(e.target.value) as SpeedUp)}>
           {SPEED_UPS.map((n) => (
             <option key={n} value={n}>
-              {n === 0 ? "Off" : `+${n} BPM`}
+              {n === 0 ? "Off" : `+${n} BPM each pass`}
             </option>
           ))}
         </select>
@@ -728,7 +730,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
           Reset to original
         </button>
         <button type="button" className="quiet" onClick={copyLink}>
-          {copied ? "Copied" : "Copy link"}
+          {copied === "copied" ? "Copied" : copied === "address" ? "Link in the address bar" : "Copy link"}
         </button>
       </div>
       <h3>Mix</h3>
