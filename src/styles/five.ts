@@ -132,11 +132,17 @@ export const five: Style = {
       let hits: Hit[];
       if (vamp) {
         // The vamp: the and of 1, the and of 2, 3, and 5 (the core), plus now and then 1, 4 or the and of 5.
-        hits = [[sw, 0.4, 0.44], [1 + sw, 0.5, 0.5], [2, 0.6, 0.46], [4, 0.55, 0.5]];
+        // Brubeck on the 1959 record leaves out each core hit in 15 to 60% of the bars and adds the
+        // others often, about 4.5 hits a bar (context/original-records.md).
+        const core: [Hit, number][] = [[[sw, 0.4, 0.44], 0.8], [[1 + sw, 0.5, 0.5], 0.85], [[2, 0.6, 0.46], 0.65], [[4, 0.55, 0.5], 0.75]];
+        hits = straight ? core.map(([h]) => h) : core.filter(([, keep]) => random() < keep).map(([h]) => h);
         if (!straight) {
-          if (random() < 0.25) hits.unshift([0, 0.3, 0.4]);
-          if (random() < 0.35) hits.splice(-1, 0, [3, 0.4, 0.42]);
-          if (random() < 0.2 * plan.density) hits[hits.length - 1] = [4 + sw, 0.8, 0.5]; // pushed: the next bar's chord on the and of 5
+          if (random() < 0.35) hits.unshift([0, 0.3, 0.4]);
+          if (random() < 0.45) hits.push([3, 0.4, 0.42]);
+          if (hits.length < 2) hits.push([1 + sw, 0.5, 0.5]);
+          hits.sort((a, b) => a[0] - b[0]);
+          if (random() < 0.25 * plan.density) hits.push([4 + sw, 0.8, 0.5]); // pushed: the next bar's chord on the and of 5
+          hits = hits.filter((h, k) => k === 0 || h[0] - hits[k - 1][0] > 0.1);
         }
       } else {
         // The bridge: a hit near each chord's start (a swung and before it now and then) and one more inside.
@@ -183,7 +189,7 @@ export const five: Style = {
       if (crash) drum(t, "crash", crash, 0.05);
       // The ride: every beat, swung skips after 2 and 4, sometimes after 5.
       const ride: [number, number][] = [[0, 0.56], [1, 0.6], [1 + sw, 0.4], [2, 0.54], [3, 0.6], [3 + sw, 0.4], [4, 0.56]];
-      if (!straight && random() < 0.35) ride.push([4 + sw, 0.36]);
+      if (!straight && random() < 0.5) ride.push([4 + sw, 0.36]); // in about half the record's bars
       const level = (plan.role === "peak" ? 1.08 : solo ? 1 : 0.92) * lift;
       for (const [at, v] of ride) if (at < rideEnd - 0.01 && !(crash && at < 0.01)) drum(t + at, "ride", v * level, 0.2);
       for (const b of [1, 3]) drum(t + b, "pedal", 0.46, 0.1);

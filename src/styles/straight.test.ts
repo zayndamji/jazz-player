@@ -28,8 +28,8 @@ describe("straight feel", () => {
       it(`keeps one drum groove in ${style.id} over ${chart.id}`, () => {
         const straight = new Set(drumBars(chart.id, style.id, "straight"));
         const varied = new Set(drumBars(chart.id, style.id, "varied"));
-        // Bossa's groove is a two-bar figure (the clave); the others repeat every bar.
-        expect(straight.size).toBe(style.id === "bossa" ? 2 : 1);
+        // Every style's straight groove repeats every bar (bossa's cross-stick is on 2 and 4, not a two-bar clave).
+        expect(straight.size).toBe(1);
         expect(varied.size).toBeGreaterThan(1);
       });
     }

@@ -11,14 +11,18 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  * measured Band-in-a-Box bossa track (context/reference-backing-track.md):
  * - Bass: 1, and of 2, 3, and of 4. The eighths anticipate the next note.
  * - Guitar: short syncopated chords on a two-bar figure, picked per cycle from a
- *   few variations, kept soft in the background (the maintainer's reference, a
- *   Luc Maes Band-in-a-Box track: "the guitar is subtle").
- * - Piano: in front of the guitar but light: its own sparse two-bar figure of
- *   medium-length chords, so the comping has two voices that answer each other.
+ *   few variations, Gilberto's 1, 2, 3, and of 3, and of 4 among them. It leads the
+ *   comping, as on the Getz/Gilberto records (context/original-records.md).
+ * - Piano: under the guitar and light: its own sparse two-bar figure of medium-length
+ *   chords, so the comping has two voices that answer each other. With the chart's
+ *   `comp: "sparse"` it lays out for most of the heads, as Jobim does under the voice,
+ *   and plays fewer chords in the solos. A tune whose record has no guitar (Henderson's
+ *   Blue Bossa) leaves it out with the chart's `band` and puts the piano back up.
  * - Pushes: about half the chord changes are anticipated on the and of 4, by
  *   guitar and piano together, so they never play different chords at once.
- * - Drums: light. Soft eighths on the hi-hat with 2 and 4 accented, a soft kick with
- *   the bass, cross-stick on the bossa clave, a short fill at most section ends and
+ * - Drums: light. Straight eighths on the hi-hat, the ands nearly as strong as the beats
+ *   and 2 and 4 accented, a soft kick with the bass, cross-stick on 2 and 4 (with `comp:
+ *   "sparse"` only in the solos, as on the vocal records), a short fill at most section ends and
  *   at the end of the form, a soft crash at the top of a chorus, the ride cymbal in
  *   the bridge from the second chorus.
  * - Dynamics and texture follow the chorus plan (`shapeBars` with its arc): the head on
@@ -31,10 +35,11 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  *   pushes, one level and register; a short fill and a crash only at the end of the form.
  */
 
-const CLAVE: number[][] = [
-  [0, 1.5, 3],
-  [1, 2.5],
-];
+/** Cross-stick on 2 and 4: the records' rim lands there, not on a clave. */
+const RIM = [1, 3];
+
+/** Added to the hats' offbeat eighths: on the records the ands sit nearly level with the beats. */
+const ANDS = 0.1;
 
 type Hit = [beat: number, length: number, velocity: number];
 
@@ -44,24 +49,32 @@ type Hit = [beat: number, length: number, velocity: number];
  */
 const GUITAR_FIGURES: { weight: number; bars: Hit[][] }[] = [
   {
-    weight: 0.6,
+    weight: 0.35,
     bars: [
       [[0, 0.45, 0.75], [1, 0.4, 0.85], [2.5, 0.45, 0.8], [3, 0.35, 0.55]],
       [[0.5, 0.4, 0.75], [2, 0.45, 0.85], [2.5, 0.4, 0.65], [3, 0.5, 0.8]],
     ],
   },
   {
-    weight: 0.25,
+    weight: 0.2,
     bars: [
       [[0, 0.45, 0.8], [1.5, 0.4, 0.75], [2.5, 0.4, 0.75], [3.5, 0.35, 0.6]],
       [[1, 0.4, 0.8], [2, 0.45, 0.85], [3, 0.5, 0.75]],
     ],
   },
   {
-    weight: 0.15,
+    weight: 0.1,
     bars: [
       [[0, 0.7, 0.75], [1.5, 0.4, 0.7], [3, 0.6, 0.7]],
       [[1, 0.5, 0.7], [2.5, 0.9, 0.75]],
+    ],
+  },
+  {
+    // Gilberto on the 1964 records: 1, 2, 3, the and of 3, the and of 4, beat 4 left open.
+    weight: 0.35,
+    bars: [
+      [[0, 0.45, 0.8], [1, 0.45, 0.75], [2, 0.45, 0.8], [2.5, 0.4, 0.7], [3.5, 0.4, 0.72]],
+      [[0, 0.45, 0.78], [1, 0.45, 0.75], [2.5, 0.45, 0.78], [3.5, 0.4, 0.72]],
     ],
   },
 ];
@@ -155,8 +168,9 @@ export const bossa: Style = {
   id: "bossa",
   name: "Bossa nova",
   band: ["bass", "guitar", "piano", "drums"],
-  // The references: bass in front, piano over a quiet guitar, light drums.
-  mix: { bass: 3, guitar: -6, piano: 1.5, drums: 0 },
+  // Bass in front, the guitar leading the comping and the piano under it, light drums: the
+  // Getz/Gilberto records (the guitar 4.5 dB up and the piano 5 dB down from the backing tracks' balance).
+  mix: { bass: 3, guitar: -1.5, piano: -3.5, drums: 0 },
   generate(bars, seed, feel) {
     const random = seededRandom(seed);
     const human = (v: number, spread = 0.08) => Math.min(1, Math.max(0.05, v + (random() - 0.5) * spread));
@@ -187,6 +201,8 @@ export const bossa: Style = {
     const hatHome = new Map<number, number>();
     const memory = new Map<string, Hit[][]>();
     let hatFigure = 0;
+    const sparse = feel?.comp === "sparse";
+    let layOut = false;
     let registerDrift = 0;
     let phraseDb = 0;
     let phraseSlope = 0;
@@ -207,12 +223,14 @@ export const bossa: Style = {
         figure = bar.ref?.part === "intro" ? SPARSE : pick();
         const place = bar.ref ? `${bar.ref.part}.${bar.ref.section}.${bar.ref.bar}` : "";
         const recalled = bar.chorus >= 2 ? memory.get(place) : undefined;
+        // Sparse: the piano lays out for most of the head (two bars at a time) and comps less in the solos.
+        layOut = sparse && !solos && random() < 0.65;
         pianoFigure =
           bar.ref?.part === "intro"
             ? PIANO_FIGURES[1].value
             : recalled && recalled !== pianoFigure && random() < 0.3
               ? recalled
-              : weighted(PIANO_FIGURES.map((f) => ({ weight: forDensity(f, plan.density), value: f.value })), random, pianoFigure);
+              : weighted(PIANO_FIGURES.map((f) => ({ weight: forDensity(f, plan.density * (sparse ? 0.75 : 1)), value: f.value })), random, pianoFigure);
         if (place) memory.set(place, pianoFigure);
         if (!hatHome.has(bar.chorus)) hatHome.set(bar.chorus, weighted(HAT_FIGURES.map((f, k) => ({ weight: k === 0 ? 0.6 : f.weight, value: k })), random));
         const home = hatHome.get(bar.chorus)!;
@@ -281,8 +299,8 @@ export const bossa: Style = {
 
       // Piano: its own two-bar figure; every hit takes the chord sounding then, so a change
       // inside the bar is played where it falls, and pushes match the guitar's.
-      const hits = [...pianoFigure[cycle]];
-      for (const c of bar.chords) if (c.attack && c.beat > 0 && !hits.some(([b]) => Math.abs(b - c.beat) < 0.6)) hits.push([c.beat, Math.min(c.length, 1.5), 0.42]);
+      const hits = layOut ? [] : [...pianoFigure[cycle]];
+      if (!layOut) for (const c of bar.chords) if (c.attack && c.beat > 0 && !hits.some(([b]) => Math.abs(b - c.beat) < 0.6)) hits.push([c.beat, Math.min(c.length, 1.5), 0.42]);
       for (const [beat, length, velocity] of hits) {
         if (push && beat >= 3) continue;
         if (pushedIn && beat < 1) continue;
@@ -294,7 +312,7 @@ export const bossa: Style = {
         const duration = Math.max(0.4, Math.min(length, until - beat) - 0.1);
         events.push({ track: "piano", time: t + beat + clock.at("piano"), duration, velocity: human(velocity * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random, !straight && duration >= 2 && random() < 0.3) });
       }
-      if (push) {
+      if (push && !layOut) {
         piano = voiceChord(nextChord!.chord, piano, range);
         events.push({ track: "piano", time: t + 3.5 + clock.at("piano"), duration: 1.4, velocity: human(0.44 * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random) });
       }
@@ -310,10 +328,10 @@ export const bossa: Style = {
       const ride = !straight && ((bar.contrast && bar.chorus >= 2) || plan.role === "peak");
       const hats = ride ? HAT : HAT_FIGURES[hatFigure].bars[cycle];
       const hatLevel = plan.role === "head" || plan.role === "outhead" || plan.role === "intro" ? 0.94 : 1;
-      for (let e = 0; e < hatEnd; e++) if (hats[e] > 0) drum(t + e * 0.5, ride ? "ride" : "hat", hats[e] * lift * hatLevel * (ride ? 0.85 : 1), 0.16);
+      for (let e = 0; e < hatEnd; e++) if (hats[e] > 0) drum(t + e * 0.5, ride ? "ride" : "hat", (hats[e] + (e % 2 ? ANDS : 0)) * lift * hatLevel * (ride ? 0.85 : 1), 0.16);
       if (ride) [1, 3].forEach((b) => drum(t + b, "pedal", 0.4));
       for (const k of KICK) if (!(bigFill && k.beat >= 3)) drum(t + k.beat, "kick", k.velocity * lift);
-      for (const beat of CLAVE[cycle]) if (beat < (bigFill ? 3 : fill ? 3.5 : 4)) drum(t + beat, "rim", 0.5 * lift);
+      if (!sparse || solos) for (const beat of RIM) if (beat < (bigFill ? 3 : fill ? 3.5 : 4)) drum(t + beat, "rim", 0.5 * lift);
 
       // A soft crash at the top of each chorus, sometimes at other sections.
       if (i > 0 && prev && endsSection(prev, bar) && (bigFillBefore(prev, bar) || (!straight && random() < (solos ? 0.5 : 0.35)))) drum(t, "crash", bigFillBefore(prev, bar) ? 0.6 : 0.46, 0.05);

@@ -59,20 +59,27 @@ export const ballad: Style = {
     let register = 0;
     let phraseDb = 0;
     let slope = 0;
+    let chorus = -1;
+    let pastBridge = false;
 
     music.forEach((bar: TimelineBar, i) => {
       const t = bar.startBeat;
       const next = music[i + 1];
       clock.bar();
+      // The form builds: Garner's 1954 record plays the bridge and the last A loudest (per-bar
+      // level -22 to -12 dB), so the bridge lifts 1.5 dB and the section after it 2.5.
+      if (bar.chorus !== chorus) [chorus, pastBridge] = [bar.chorus, false];
+      if (bar.contrast) pastBridge = true;
+      const sectionDb = straight || bar.ref?.part !== "form" ? 0 : bar.contrast ? 1.5 : pastBridge ? 2.5 : 0;
       // The phrase breathes: each four bars hold, swell or fall back a little, and the
       // piano's hand moves up or down now and then.
       const inPhrase = (bar.ref?.bar ?? i) % 4;
       if (!straight && inPhrase === 0) {
-        phraseDb = gauss(random) * 0.7;
-        slope = weighted([{ weight: 0.45, value: 0 }, { weight: 0.35, value: 0.6 }, { weight: 0.2, value: -0.6 }], random);
+        phraseDb = gauss(random) * 1.1;
+        slope = weighted([{ weight: 0.45, value: 0 }, { weight: 0.35, value: 0.9 }, { weight: 0.2, value: -0.9 }], random);
         if (random() < 0.5) register = weighted([{ weight: 0.6, value: -3 }, { weight: 1, value: 0 }, { weight: 0.8, value: 3 }, { weight: 0.3, value: 5 }], random, register);
       }
-      const lift = straight ? 1 : (bar.chorus <= 1 ? 0.94 : 1.04) * 10 ** ((phraseDb + slope * (inPhrase - 1.5) + gauss(random) * 0.5) / 20);
+      const lift = straight ? 1 : (bar.chorus <= 1 ? 0.94 : 1.04) * 10 ** ((sectionDb + phraseDb + slope * (inPhrase - 1.5) + gauss(random) * 0.5) / 20);
       const range: VoicingRange = { ...PIANO_RANGE, low: PIANO_RANGE.low + register, high: PIANO_RANGE.high + register, center: PIANO_RANGE.center + register };
 
       if (bar.final) {

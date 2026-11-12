@@ -637,6 +637,8 @@ export const swing: Style = {
       const { home, accent } = straight ? { home: SPANG, accent: "twoFour" as Accent } : homeFor(bar.chorus, plan);
       let ride: RideCell;
       if (fast || straight) ride = SPANG;
+      // In two: quarters with a skip only into 1, as on the So What head.
+      else if (inTwo) ride = RIDE[2];
       else if (phraseEnd && !theFill && random() < 0.25) ride = LONG;
       else if (plan.role === "peak" && random() < 0.1) ride = DOUBLE;
       else if (random() < (ridePrev && ridePrev !== home ? 0.42 : 0.25)) ride = home;
@@ -675,7 +677,7 @@ export const swing: Style = {
       const talkBase = (slow ? 1.15 : fast ? 0.7 : 1) * (plan.role === "head" || plan.role === "outhead" ? 0.8 : 1) * Math.sqrt(plan.density * lift);
       const figures = straight ? 0 : talk(bar.ref?.bar ?? i, talkBase) + (plan.role === "peak" && random() < 0.1 ? 1 : 0);
       if (inTwo) {
-        if (!fill) drum(t + 3, "rim", 0.34, 0.05); // cross-stick on 4
+        if (!fill && colour !== "sparse") drum(t + 3, "rim", 0.34, 0.05); // cross-stick on 4 (none under a sparse head)
       } else if (!theFill && !straight) {
         // Snare comping in spells that build into each phrase end (`drumTalk`), mostly in the
         // piano's gaps; into a phrase end the figures lean to the back of the bar.

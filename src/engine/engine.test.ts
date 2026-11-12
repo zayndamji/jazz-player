@@ -200,12 +200,12 @@ describe("bossa style", () => {
     expect(pcs(bass.slice(0, 2).map((e) => e.notes![0]))).toEqual(["D", "G#"]); // Ab
   });
 
-  it("plays eight hi-hats, 2 and 4 accented, and the clave", () => {
+  it("plays eight hi-hats, 2 and 4 accented, and cross-stick on 2 and 4", () => {
     const drums = inBar(3, "drums");
     const hats = drums.filter((e) => e.drum === "hat");
     expect(hats.length).toBe(8);
     expect(hats[2].velocity).toBeGreaterThan(hats[1].velocity);
-    expect(drums.filter((e) => e.drum === "rim").length).toBe(2);
+    expect(drums.filter((e) => e.drum === "rim").map((e) => Math.round(e.time % 4))).toEqual([1, 3]);
   });
 
   it("plays guitar on every bar and a light fill at the end of the form", () => {
