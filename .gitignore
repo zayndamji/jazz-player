@@ -33,3 +33,6 @@ tunes/
 
 # Local working files (the source-gathering brief and tools, backups, drafts)
 local/
+
+# Agent and measurement worktrees
+.claude/worktrees/

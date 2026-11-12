@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { defineConfig, type Plugin } from "vite";
+import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import saveRecordings from "./scripts/save-recordings.mjs";
 import { renderWorker, type PrecacheFile } from "./src/pwa/precache";
@@ -38,4 +39,6 @@ function pwa(): Plugin {
 
 export default defineConfig({
   plugins: [react(), saveRecordings(), pwa()],
+  // Agent worktrees live in .claude/worktrees; their tests are theirs to run.
+  test: { exclude: [...configDefaults.exclude, ".claude/**"] },
 });
