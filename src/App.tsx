@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getChart } from "./charts";
+import { findChart } from "./charts/imported";
 import { Library } from "./pages/Library";
 import { parseLink } from "./pages/share";
 import { TunePage } from "./pages/TunePage";
@@ -30,7 +30,8 @@ const safe = (id: string) => {
 export default function App() {
   const hash = useHash();
   const id = /^#\/tune\/([^/?#]+)/.exec(hash)?.[1];
-  const chart = id ? getChart(id) : undefined;
+  // Looked up once per tune, so the chart keeps its identity while the address changes settings.
+  const chart = useMemo(() => (id ? findChart(id) : undefined), [id]);
   useEffect(() => {
     document.title = chart ? `${chart.title} · Jazz Player` : "Jazz Player";
   }, [chart]);

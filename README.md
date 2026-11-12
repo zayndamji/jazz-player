@@ -5,6 +5,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 ## What it does
 
 - Library: every tune in a list you can search by title, filter by style and sort A to Z or by when you opened them. The search and filter stay when you open a tune and come back. The count reads "4 of 11 tunes" when filtered, and tunes with a lead sheet say so. An address with an unknown tune shows the list with a note. Each tune has its own address (`#/tune/<id>`).
+- Import: the library's Import button takes an uncompressed MusicXML file (choose or drop it) or a pasted iReal Pro link (`irealb://` or `irealbook://`; a playlist adds every song). It reads the title, key (a transposed part comes in at concert pitch), meter, tempo, sections, repeats and endings, and chords placed by beat, and maps iReal styles to ours. Imported tunes stay in your browser, show "Imported" in the list and can be removed there. Meters other than 3/4 and 4/4, meter changes and zipped .mxl files are refused with a sentence saying why.
 - Chord chart view: four bars per line, rehearsal letters, bar numbers, repeat bars, double barlines at section ends. The bar that's playing is highlighted.
 - Head and solo choruses: a tune whose solo changes differ from the head plays the head in the first and last chorus and the solo changes in between; the chart marks those sections "head" and "solos".
 - Lead sheet view: the melody in notation with the chords above it, drawn in the same colours and font as the chart, with the same highlight. Same band, same controls.
@@ -49,6 +50,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 | --- | --- |
 | `src/chart/` | Chart types, chord parsing and transposing, scales, transposing instruments |
 | `src/charts/` | The loader for charts and lead sheets, and the chart checks |
+| `src/import/` | MusicXML and iReal Pro importers |
 | `src/fixtures/` | Made-up charts the tests use |
 | `src/engine/` | Timeline, voicings, playback schedule |
 | `src/styles/` | Backing styles (bossa nova, swing, ballad, jazz waltz) |
