@@ -68,7 +68,15 @@ export function ControlBar(p: Props) {
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent) => {
-      if (!panel.current?.contains(e.target as Node)) setOpen(false);
+      if (panel.current?.contains(e.target as Node)) return;
+      setOpen(false);
+      // The tap only closes the panel: swallow the click that follows so it doesn't also play from the bar under it.
+      const swallow = (c: Event) => {
+        c.stopPropagation();
+        c.preventDefault();
+      };
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      window.setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 600);
     };
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;

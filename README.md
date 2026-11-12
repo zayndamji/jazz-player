@@ -15,6 +15,7 @@ A framework for practicing jazz tunes in the browser. You add your tunes as chor
 - Tempo: click the BPM number to type a tempo; hold − or + to keep stepping. When the tempo isn't the chart's, the original tempo shows next to the control and puts it back.
 - Click any bar, in either view, to play from there.
 - Keyboard: Space plays and pauses, Home or 0 goes to the start, `-` and `=` change the tempo, L loops, C turns on the metronome, M mutes, V switches the view, and `?` lists every shortcut. The list has a switch to turn off the single-letter keys.
+- Space and the arrows also work while More is open, except when a menu, field or slider has focus. A tap outside More only closes it.
 - Left and Right arrows move a bar back or on, Shift with them a whole section; while playing the band jumps there, while paused the place moves. With Loop on they stay inside the loop, and Shift moves the loop to the next or previous section.
 - Loop: repeats the section that's playing (or the last one clicked). Clicking a rehearsal letter loops that section. To loop any run of bars, click the first bar, then Shift-click the last (on a touch screen, press and hold the last bar); the button then reads "Bars 9-12". Loop or Esc stops it.
 - Every tune is stored in its original concert key. Two separate settings in More change it:

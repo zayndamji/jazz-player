@@ -92,14 +92,14 @@ if (typeof window !== "undefined") {
 
 /**
  * Whether the page should leave a key press alone: typing in a field, using a
- * control that owns its keys, inside the More panel or the help dialog, or
- * Space on a button the user reached with the keyboard (it presses that button).
+ * control that owns its keys (a select, input or slider, also inside the More
+ * panel), inside the help dialog, or Space on a button the user reached with the keyboard (it presses that button).
  * A button that only has focus because it was clicked doesn't keep Space.
  */
 export function leaveAlone(e: KeyboardEvent): boolean {
   const target = e.target as HTMLElement | null;
   if (!target?.closest) return false;
-  if (target.closest('input, select, textarea, [contenteditable="true"], [role="slider"], [role="spinbutton"], .panel, dialog')) return true;
+  if (target.closest('input, select, textarea, [contenteditable="true"], [role="slider"], [role="spinbutton"], dialog')) return true;
   const control = target.closest("button, a");
   if (e.code === "Space" && control && control !== clicked) return true;
   return false;
