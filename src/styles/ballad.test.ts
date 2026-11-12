@@ -15,8 +15,10 @@ describe("ballad style", () => {
     const first = inBar(formBar(1, 0, 0).index, "bass"); // Ebmaj7, a whole bar
     expect(first.map((e) => Math.round(e.time % 4) % 4)).toEqual([0, 2]);
     expect(first[0].notes![0] % 12).toBe(3); // Eb
-    expect(inBar(formBar(2, 0, 0).index, "bass").length).toBe(4);
-    expect(inBar(formBar(1, 2, 0).index, "bass").length).toBe(4); // the bridge walks
+    // Walking: four quarters on the beats (a triplet skip may sit between them).
+    const onBeats = (index: number) => inBar(index, "bass").filter((e) => Math.abs(e.time - Math.round(e.time)) < 0.05).length;
+    expect(onBeats(formBar(2, 0, 0).index)).toBe(4);
+    expect(onBeats(formBar(1, 2, 0).index)).toBe(4); // the bridge walks
   });
 
   it("has no guitar", () => {
