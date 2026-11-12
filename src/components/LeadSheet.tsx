@@ -13,6 +13,8 @@ interface Props {
   cue: number | null;
   /** Printed bars of the section being looped. */
   loopBars: number[];
+  /** Leave the chord symbols off the page (to play from memory). */
+  hideChords?: boolean;
   /** Called with the printed bar number (from 1) when a bar is clicked. */
   onBar: (number: number) => void;
   /** Loop from the bar last clicked to this one (Shift-click, or press and hold on touch). */
@@ -35,7 +37,7 @@ const zoomFor = (width: number) => (width < NARROW ? Math.min(0.75, width / 500)
  * Renders the head from MusicXML with OpenSheetMusicDisplay, in the page's
  * own colours and font, with the same current-bar and loop marks as the chord chart.
  */
-export function LeadSheet({ chartId, shift, bar, cue, loopBars, onBar, onRange }: Props) {
+export function LeadSheet({ chartId, shift, bar, cue, loopBars, hideChords = false, onBar, onRange }: Props) {
   const press = useBarPress(onBar, onRange);
   const host = useRef<HTMLDivElement>(null);
   const osmd = useRef<OpenSheetMusicDisplay | null>(null);
@@ -44,9 +46,13 @@ export function LeadSheet({ chartId, shift, bar, cue, loopBars, onBar, onRange }
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
+  const hide = useRef(hideChords);
+  hide.current = hideChords;
+
   const draw = () => {
     const o = osmd.current;
     if (!o || !host.current) return;
+    o.EngravingRules.RenderChordSymbols = !hide.current;
     const ink = cssVar("--ink");
     const width = host.current.clientWidth;
     // Four bars per line as printed (the file's line breaks); on a phone OSMD fits
@@ -129,6 +135,11 @@ export function LeadSheet({ chartId, shift, bar, cue, loopBars, onBar, onRange }
     o.updateGraphic();
     draw();
   }, [ready, shift]);
+
+  // Chord symbols are drawn with the page, so showing or hiding them draws it again.
+  useEffect(() => {
+    if (ready && osmd.current) draw();
+  }, [hideChords]);
 
   // Redraw when the width changes.
   useEffect(() => {

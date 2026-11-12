@@ -18,6 +18,10 @@ export type SpeedUp = (typeof SPEED_UPS)[number];
 /** The tempo after a pass of a loop: a step faster, never past the top tempo. */
 export const raisedTempo = (tempo: number, step: number) => Math.min(TEMPO.max, tempo + step);
 
+/** When the chart shows its chords: always, hidden after the first chorus (to play from memory), or never. */
+export type ChordsShown = "always" | "after-first" | "hidden";
+export const CHORDS_SHOWN: ChordsShown[] = ["always", "after-first", "hidden"];
+
 export const MIXABLES: Mixable[] = ["bass", "guitar", "piano", "drums", "metronome"];
 
 export const initialMix = (): Record<Mixable, MixState> => ({
@@ -48,6 +52,7 @@ export interface TuneSettings {
   keyStep: KeyStep;
   /** Trading with the drums in the solo choruses. */
   trade: TradeMode;
+  chords: ChordsShown;
   mix: Record<Mixable, MixState>;
 }
 
@@ -69,6 +74,7 @@ export function defaultSettings(chart: Chart): TuneSettings {
     speedUp: 0,
     keyStep: 0,
     trade: "off",
+    chords: "always",
     mix: initialMix(),
   };
 }
@@ -124,6 +130,7 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   if (SPEED_UPS.includes(raw.speedUp as SpeedUp)) out.speedUp = raw.speedUp as SpeedUp;
   if (KEY_STEPS.includes(raw.keyStep as KeyStep)) out.keyStep = raw.keyStep as KeyStep;
   if (TRADE_MODES.includes(raw.trade as TradeMode)) out.trade = raw.trade as TradeMode;
+  if (CHORDS_SHOWN.includes(raw.chords as ChordsShown)) out.chords = raw.chords as ChordsShown;
   if (isBool(raw.showScales)) out.showScales = raw.showScales;
   const mix = parseMix(raw.mix);
   if (mix) out.mix = mix;

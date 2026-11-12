@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { leaveAlone } from "./shortcuts";
+import { leaveAlone, shortcutFor } from "./shortcuts";
 
 /** A stand-in for a focused element: `closest` finds it when its tag or role is in the selector. */
 const key = (code: string, tags: string[], inPanel = false) => {
@@ -27,5 +27,13 @@ describe("keys inside the More panel", () => {
 
   it("stay with the shortcuts dialog", () => {
     expect(leaveAlone(key("ArrowRight", ["dialog"]))).toBe(true);
+  });
+});
+
+describe("the chords key", () => {
+  it("is H, and a single-key shortcut", () => {
+    const e = { key: "h", code: "KeyH" } as KeyboardEvent;
+    expect(shortcutFor(e, true)).toBe("chords");
+    expect(shortcutFor(e, false)).toBeNull();
   });
 });

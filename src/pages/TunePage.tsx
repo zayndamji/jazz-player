@@ -19,7 +19,7 @@ import { TRADE_LABELS, TRADE_MODES, tradeLabel, type TradeMode } from "../engine
 import { shareUrl, rememberable, withLink, type LinkSettings } from "./share";
 import { recordOpened } from "./tuneList";
 import { applyPreset, effectiveMute, PRESETS } from "./mix";
-import { clearSettings, defaultSettings, loadSettings, raisedTempo, REPEATS, saveSettings, SPEED_UPS, type SpeedUp } from "./settings";
+import { CHORDS_SHOWN, clearSettings, defaultSettings, loadSettings, raisedTempo, REPEATS, saveSettings, SPEED_UPS, type ChordsShown, type SpeedUp } from "./settings";
 import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
 import { readStored, store } from "./storage";
 import { useWakeLock } from "./useWakeLock";
@@ -90,6 +90,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   speedUpNow.current = speedUp;
   const [keyStep, setKeyStep] = useState<KeyStep>(initial.keyStep);
   const [trade, setTrade] = useState<TradeMode>(initial.trade);
+  const [chordsShown, setChordsShown] = useState<ChordsShown>(initial.chords);
   const [metronome, setMetronome] = useState(false);
   const [showScales, setShowScales] = useState(initial.showScales);
   const [view, setView] = useState<View>(initial.view);
@@ -128,8 +129,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   }, [muted]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, trade, mix }, stored, linkNow.current));
-  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, clickMode, showScales, speedUp, keyStep, trade, mix]);
+    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, trade, chords: chordsShown, mix }, stored, linkNow.current));
+  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, intro, ending, view, clickMode, showScales, speedUp, keyStep, trade, chordsShown, mix]);
   useEffect(() => {
     // An instrument that came from a link isn't remembered until the player picks one.
     if (linkedInstrument.current === instrumentId) return;
@@ -519,7 +520,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   }, []);
   /** Copy a link to this tune with the tempo, key, style, instrument and choruses on screen. */
   const copyLink = async () => {
-    const url = shareUrl(window.location.origin + window.location.pathname, chart.id, { tempo, transpose, style: styleId, instrument: instrumentId, choruses: repeat, trade });
+    const url = shareUrl(window.location.origin + window.location.pathname, chart.id, { tempo, transpose, style: styleId, instrument: instrumentId, choruses: repeat, trade, chords: chordsShown });
     try {
       await navigator.clipboard.writeText(url);
       setCopied("copied");
@@ -549,6 +550,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     setSpeedUp(d.speedUp);
     setKeyStep(d.keyStep);
     setTrade(d.trade);
+    setChordsShown(d.chords);
     setMix(d.mix);
     // The link no longer decides what is kept: with it, a value equal to the link's would put the old stored one back.
     linkNow.current = {};
@@ -558,7 +560,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   /** What each shortcut does (keys in `./shortcuts.ts`). */
   const run = (id: ShortcutId, repeated: boolean) => {
     // Toggles ignore a held key, so holding one doesn't flicker; arrows and tempo repeat.
-    const toggles: ShortcutId[] = ["play", "start", "loop", "click", "mute", "view", "help"];
+    const toggles: ShortcutId[] = ["play", "start", "loop", "click", "mute", "view", "chords", "help"];
     if (repeated && toggles.includes(id)) return;
     if (id === "play") toggle();
     else if (id === "start") toStart();
@@ -569,6 +571,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     else if (id === "click") setMetronome((m) => !m);
     else if (id === "mute") setMuted((m) => !m);
     else if (id === "view" && headAvailable) setView((v) => (v === "chords" ? "sheet" : "chords"));
+    else if (id === "chords") setChordsShown((c) => CHORDS_SHOWN[(CHORDS_SHOWN.indexOf(c) + 1) % CHORDS_SHOWN.length]);
     else if (id === "help") setHelpOpen((o) => !o);
   };
 
@@ -638,8 +641,13 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   })();
   const progress = placeShown && !nowBar?.countIn ? performanceFraction(performance, placeShown, nowBar ? (position?.beat ?? 0) : 0, chart.beatsPerBar, performanceIndex) : null;
 
+  // The chords stay off the page when hidden, or after the first chorus has begun (the intro, count-in and a stopped band show them).
+  const chordsHidden =
+    chordsShown === "hidden" ||
+    (chordsShown === "after-first" && !!nowBar && ((nowBar.ref?.part === "form" && realChorus(nowBar.chorus) >= 2) || (nowBar.ref?.part === "ending" && builtChoruses >= 2)));
+
   const nowChord = useMemo(() => {
-    if (!nowBar || !position || nowBar.countIn) return null;
+    if (!nowBar || !position || nowBar.countIn || chordsHidden) return null;
     const slot = chordAt(nowBar, position.beat);
     if (!slot) return null;
     const spellFor = (t: number) => spellingPc((chartKeyPc + fold(t + instrument.offset) + 12) % 12, minor);
@@ -653,7 +661,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       text += ` · next ${n.root}${n.quality}${n.bass ? "/" + n.bass : ""}`;
     }
     return text;
-  }, [nowBar, position, instrument.offset, chartKeyPc, minor, chart.beatsPerBar]);
+  }, [nowBar, position, instrument.offset, chartKeyPc, minor, chart.beatsPerBar, chordsHidden]);
 
   const sheetBar = nowBar?.ref ? (nowNumber?.sheetNumber ?? null) : null;
   const cueSheetBar = !nowBar?.ref && nowNumber ? nowNumber.sheetNumber : null;
@@ -724,6 +732,14 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
               {TRADE_LABELS[m]}
             </option>
           ))}
+        </select>
+      </label>
+      <label className="field">
+        <span>Chords shown</span>
+        <select value={chordsShown} onChange={(e) => setChordsShown(e.target.value as ChordsShown)}>
+          <option value="always">Always</option>
+          <option value="after-first">After the first chorus: hidden</option>
+          <option value="hidden">Hidden</option>
         </select>
       </label>
       <label className="field">
@@ -852,6 +868,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             bar={sheetBar}
             cue={cueSheetBar}
             loopBars={loopSheetBars}
+            hideChords={chordsHidden}
             onBar={onSheetBar}
             onRange={onSheetRange}
           />
@@ -863,6 +880,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             active={jump?.ref ?? nowBar?.ref ?? null}
             cued={status === "idle" ? (cue?.ref ?? null) : null}
             showScales={showScales}
+            hideChords={chordsHidden}
             loopSection={loopSection}
             loopRange={rangeNumbers.map((b) => b.ref)}
             onBar={onBar}

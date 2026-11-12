@@ -48,4 +48,13 @@ describe("shared links", () => {
     expect(shareUrl("", "t", { ...s, trade: "off" })).not.toContain("trade=");
     expect(withLink(defaultSettings(swingForm), { trade: "fours" }).trade).toBe("fours");
   });
+
+  it("carries which chords show", () => {
+    expect(parseLink("#/tune/x?chords=hidden")).toEqual({ chords: "hidden" });
+    expect(parseLink("#/tune/x?chords=none")).toEqual({});
+    const s = { tempo: 130, transpose: 0, style: "swing", instrument: "C", choruses: 3 as const };
+    expect(parseLink(shareUrl("", "t", { ...s, chords: "after-first" }).slice(1)).chords).toBe("after-first");
+    expect(shareUrl("", "t", { ...s, chords: "always" })).not.toContain("chords=");
+    expect(withLink(defaultSettings(swingForm), { chords: "hidden" }).chords).toBe("hidden");
+  });
 });

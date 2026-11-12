@@ -15,6 +15,8 @@ interface Props {
   /** The bar the band will start from when paused. */
   cued: BarRef | null;
   showScales: boolean;
+  /** Keep the bars, numbers and beat marks but not the chord symbols (the layout stays the same). */
+  hideChords?: boolean;
   loopSection: number | null;
   /** The bars of a looped run, when one is set. */
   loopRange: BarRef[];
@@ -39,7 +41,7 @@ function ChordSymbol({ symbol, showScale, keyPc }: { symbol: string; showScale: 
   );
 }
 
-export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, loopSection, loopRange, onBar, onRange, onSection }: Props) {
+export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, hideChords = false, loopSection, loopRange, onBar, onRange, onSection }: Props) {
   const press = useBarPress(onBar, onRange);
   const numbers = new Map(chartBars(chart).map((b) => [`${b.ref.part}${b.ref.section}.${b.ref.bar}`, b.number]));
   const activeEl = useRef<HTMLButtonElement | null>(null);
@@ -77,7 +79,7 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, loopS
   const stop = allBars[tabStop(allBars, active, cued, sameRef)];
 
   return (
-    <div className="grid" ref={grid} onKeyDown={rowKeys} {...follow}>
+    <div className={`grid${hideChords ? " chords-hidden" : ""}`} ref={grid} onKeyDown={rowKeys} {...follow}>
       {sections.map(({ part, index, section }) => {
         const rows: string[][] = [];
         for (let i = 0; i < section.bars.length; i += 4) rows.push(section.bars.slice(i, i + 4));
@@ -121,7 +123,7 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, loopS
                       className={`bar${isActive ? " active" : ""}${isCued ? " cued" : ""}${inRange ? " in-range" : ""}${barTokens(text).length > 1 ? " split" : ""}${bar === section.bars.length - 1 ? " section-end" : ""}`}
                       key={bar}
                       {...press(ref)}
-                      aria-label={`Bar ${number}: ${parsed.repeat ? "same chord" : parsed.chords.map((c) => c.symbol).join(", ")}. Play from here.`}
+                      aria-label={`Bar ${number}${hideChords ? "" : `: ${parsed.repeat ? "same chord" : parsed.chords.map((c) => c.symbol).join(", ")}`}. Play from here.`}
                     >
                       {i === 0 && <span className="bar-number">{number}</span>}
                       {parsed.repeat ? (

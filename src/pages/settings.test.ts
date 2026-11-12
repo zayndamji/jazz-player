@@ -36,6 +36,13 @@ describe("tune settings", () => {
     expect(parseSettings({ trade: "sixes" }).trade).toBeUndefined();
   });
 
+  it("remembers which chords show and ignores a bad value", () => {
+    saveSettings(bossaForm, { ...defaultSettings(bossaForm), chords: "after-first" });
+    expect(loadSettings(bossaForm).chords).toBe("after-first");
+    expect(defaultSettings(bossaForm).chords).toBe("always");
+    expect(parseSettings({ chords: "some" }).chords).toBeUndefined();
+  });
+
   it("clears the entry", () => {
     saveSettings(bossaForm, { ...defaultSettings(bossaForm), tempo: 90 });
     clearSettings(bossaForm.id);

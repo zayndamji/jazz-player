@@ -17,6 +17,7 @@ export type ShortcutId =
   | "click"
   | "mute"
   | "view"
+  | "chords"
   | "help";
 
 export interface Shortcut {
@@ -46,6 +47,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "click", keys: ["C"], aria: "C", label: "Metronome", group: "Settings", singleKey: true },
   { id: "mute", keys: ["M"], aria: "M", label: "Mute", group: "Settings", singleKey: true },
   { id: "view", keys: ["V"], aria: "V", label: "Chords or lead sheet", group: "Settings", singleKey: true },
+  { id: "chords", keys: ["H"], aria: "H", label: "Chords: always, hidden after the first chorus, hidden", group: "Settings", singleKey: true },
   { id: "help", keys: ["?"], aria: "Shift+?", label: "This list", group: "Settings", singleKey: true },
 ];
 
@@ -74,7 +76,7 @@ export function shortcutFor(e: KeyboardEvent, singleKeys: boolean): ShortcutId |
   if (e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") return "slower";
   if (e.key === "=" || e.key === "+" || e.code === "NumpadAdd") return "faster";
   if (e.shiftKey) return null;
-  return ({ l: "loop", c: "click", m: "mute", v: "view" } as Record<string, ShortcutId>)[letter(e)] ?? null;
+  return ({ l: "loop", c: "click", m: "mute", v: "view", h: "chords" } as Record<string, ShortcutId>)[letter(e)] ?? null;
 }
 
 /**
