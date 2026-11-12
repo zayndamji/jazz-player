@@ -108,21 +108,48 @@ const COMP_TWO: Figure[] = [
 /** A cell's weight for the chorus: busier cells when the band builds, sparser in the head. */
 const forDensity = (f: Figure, density: number) => f.weight * density ** ((f.hits.length - 2) * 3) * (f.hits.length >= 3 ? 1.25 : 1);
 
-/** Ride cells over one bar, as [beat, on the swung skip after it, velocity]. */
-type RideCell = { id: string; hits: [number, boolean, number][] };
-const SPANG: RideCell = { id: "spang", hits: [[0, false, 0.5], [1, false, 0.62], [1, true, 0.36], [2, false, 0.5], [3, false, 0.62], [3, true, 0.36]] };
+/**
+ * Ride cells over one bar, as [beat, where in the beat, velocity]: 0 on the beat, 1 the
+ * swung skip after it, 2 the middle triplet (a "ding-da-da" figure).
+ */
+type RideCell = { id: string; hits: [number, 0 | 1 | 2, number][] };
+const SPANG: RideCell = { id: "spang", hits: [[0, 0, 0.5], [1, 0, 0.62], [1, 1, 0.36], [2, 0, 0.5], [3, 0, 0.62], [3, 1, 0.36]] };
+/** Variations around the home pattern; the full references play 4 to 16 distinct cymbal bars per 32 (context/whole-track-comparison.md). */
 const RIDE: RideCell[] = [
   SPANG,
-  { id: "quarters", hits: [[0, false, 0.52], [1, false, 0.58], [2, false, 0.52], [3, false, 0.58]] },
-  { id: "skip4", hits: [[0, false, 0.5], [1, false, 0.62], [2, false, 0.5], [3, false, 0.62], [3, true, 0.38]] },
-  { id: "skip2", hits: [[0, false, 0.5], [1, false, 0.62], [1, true, 0.38], [2, false, 0.5], [3, false, 0.62]] },
-  { id: "extra", hits: [[0, false, 0.5], [1, false, 0.62], [1, true, 0.36], [2, false, 0.5], [2, true, 0.32], [3, false, 0.62], [3, true, 0.36]] },
-  { id: "lead", hits: [[0, false, 0.5], [0, true, 0.32], [1, false, 0.62], [1, true, 0.36], [2, false, 0.5], [3, false, 0.62], [3, true, 0.36]] },
+  { id: "quarters", hits: [[0, 0, 0.52], [1, 0, 0.58], [2, 0, 0.52], [3, 0, 0.58]] },
+  { id: "skip4", hits: [[0, 0, 0.5], [1, 0, 0.62], [2, 0, 0.5], [3, 0, 0.62], [3, 1, 0.38]] },
+  { id: "skip2", hits: [[0, 0, 0.5], [1, 0, 0.62], [1, 1, 0.38], [2, 0, 0.5], [3, 0, 0.62]] },
+  { id: "extra", hits: [[0, 0, 0.5], [1, 0, 0.62], [1, 1, 0.36], [2, 0, 0.5], [2, 1, 0.32], [3, 0, 0.62], [3, 1, 0.36]] },
+  { id: "lead", hits: [[0, 0, 0.5], [0, 1, 0.32], [1, 0, 0.62], [1, 1, 0.36], [2, 0, 0.5], [3, 0, 0.62], [3, 1, 0.36]] },
+  { id: "skip3", hits: [[0, 0, 0.5], [1, 0, 0.62], [2, 0, 0.52], [2, 1, 0.38], [3, 0, 0.62]] },
+  { id: "skip1", hits: [[0, 0, 0.52], [0, 1, 0.36], [1, 0, 0.6], [2, 0, 0.5], [3, 0, 0.62], [3, 1, 0.34]] },
+  { id: "triplet", hits: [[0, 0, 0.5], [1, 0, 0.62], [1, 2, 0.3], [1, 1, 0.36], [2, 0, 0.5], [3, 0, 0.62], [3, 1, 0.36]] },
+  { id: "space3", hits: [[0, 0, 0.52], [1, 0, 0.64], [1, 1, 0.34], [2, 1, 0.4], [3, 0, 0.62], [3, 1, 0.36]] },
+  { id: "push", hits: [[0, 0, 0.5], [1, 0, 0.6], [1, 1, 0.34], [2, 0, 0.5], [3, 0, 0.56], [3, 1, 0.5]] },
 ];
 /** Swung eighths all through: only at the peak. */
-const DOUBLE: RideCell = { id: "double", hits: [0, 1, 2, 3].flatMap((b): [number, boolean, number][] => [[b, false, b % 2 ? 0.6 : 0.52], [b, true, 0.36]]) };
+const DOUBLE: RideCell = { id: "double", hits: [0, 1, 2, 3].flatMap((b): [number, 0 | 1, number][] => [[b, 0, b % 2 ? 0.6 : 0.52], [b, 1, 0.36]]) };
 /** Rings through 3 and leaves beat 4 open: a phrase end without a fill. */
-const LONG: RideCell = { id: "long", hits: [[0, false, 0.56], [1, false, 0.6], [1, true, 0.36], [2, false, 0.58]] };
+const LONG: RideCell = { id: "long", hits: [[0, 0, 0.56], [1, 0, 0.6], [1, 1, 0.36], [2, 0, 0.58]] };
+
+/**
+ * How the bassist touches a bar: note length per beat (in beats) and how much each beat
+ * leans. Players change this from bar to bar (legato, bouncing, pulling on 2 and 4), which
+ * is most of what makes a recorded walking line vary (sub-band onset novelty 0.6 to 0.8 in
+ * the references against 0.26 for a flat line).
+ */
+type BassTouch = { length: (beat: number) => number; lean: number[] };
+const BASS_TOUCH: { weight: number; value: BassTouch }[] = [
+  { weight: 0.3, value: { length: () => 0.92, lean: [0.08, -0.06, 0.03, -0.05] } }, // legato, on 1
+  { weight: 0.2, value: { length: () => 0.55, lean: [0.05, -0.02, 0.04, -0.02] } }, // short, bouncing
+  { weight: 0.2, value: { length: (b) => (b % 2 ? 0.5 : 0.95), lean: [-0.02, 0.1, -0.05, 0.1] } }, // long-short, 2 and 4 pulled
+  { weight: 0.15, value: { length: () => 0.8, lean: [0.15, -0.09, 0.08, -0.07] } }, // heavy downbeats
+  { weight: 0.15, value: { length: (b) => (b === 3 ? 0.45 : 0.9), lean: [0.02, -0.03, 0.02, 0.12] } }, // into the barline
+];
+
+/** Things a walking bassist adds on top of the quarters, at most once or twice a bar. */
+type BassOrnament = "skip" | "rake" | "dead" | "turn";
 
 type Accent = "twoFour" | "even" | "skip";
 
@@ -302,6 +329,7 @@ export const swing: Style = {
     let lastCell: Figure["hits"] | undefined;
     let lastFill: Fill | undefined;
     let ridePrev: RideCell | undefined;
+    let touch: BassTouch | undefined;
     let crashAhead = false; // a set-up crash on the and of 4 already marked this bar's downbeat
     const music = bars.filter((b) => !b.countIn);
     const shapes = shapeBars(music, random, true);
@@ -323,6 +351,10 @@ export const swing: Style = {
     // What the piano played at each place in the form, to recall now and then.
     const memory = new Map<string, Figure["hits"]>();
     let registerDrift = 0;
+    let phraseDb = 0;
+    let phraseSlope = 0;
+    let crashRide = false; // riding on the crash for a phrase at the peak
+    let feathering = true;
 
     music.forEach((bar, i) => {
       const t = bar.startBeat;
@@ -352,7 +384,11 @@ export const swing: Style = {
       }
 
       // Bass: walk each chord, aiming at the next one; or half notes in two.
-      const ghostChance = fast ? 0 : plan.role === "peak" ? 0.16 : plan.role === "solo" ? 0.12 : 0.06;
+      // The bassist's touch holds for a while and changes most often at a phrase start.
+      if (!touch || random() < (inPhrase === 0 ? 0.6 : 0.2)) touch = weighted(BASS_TOUCH, random, touch);
+      const barTouch = touch;
+      const ornamentChance = fast ? 0.15 : plan.role === "peak" ? 0.72 : plan.role === "solo" ? 0.62 : plan.role === "outhead" ? 0.46 : 0.4;
+      const walked: { at: number; note: number; ev: NoteEvent }[] = [];
       bar.chords.forEach((c, k) => {
         const following = bar.chords[k + 1] ?? next?.chords[0];
         const target = following ? nearest(following.chord.bass, bassNote) : null;
@@ -381,18 +417,58 @@ export const swing: Style = {
         // Higher and more stepwise as the band builds.
         const line = walk(c.chord, c.length, bassNote, target, random, plan.register * 1.2, plan.role === "head" || plan.role === "outhead" ? 0.6 : 0.5);
         line.forEach((n, b) => {
-          const note: NoteEvent = { track: "bass", time: t + c.beat + b + clock.at("bass"), duration: 0.72 + random() * 0.22, velocity: human((b === 0 ? 0.85 : 0.76) * lift, 0.16), notes: [n] };
-          events.push(note);
-          // Between beats now and then: a ghosted repeat, or a chromatic pickup into the next note.
-          if (b < line.length - 1 && random() < ghostChance) {
-            note.duration = sw - 0.05;
-            const into = line[b + 1];
-            const pitch = random() < 0.55 ? n : Math.min(BASS_HIGH, Math.max(BASS_LOW, into + (into > n ? -1 : 1)));
-            events.push({ track: "bass", time: t + c.beat + b + sw + clock.at("bass"), duration: 1 - sw - 0.05, velocity: human(pitch === n ? 0.4 : 0.55), notes: [pitch] });
-          }
+          const at = c.beat + b;
+          const beat = Math.round(at) % 4;
+          const length = Math.min(0.97, barTouch.length(beat) * (0.92 + random() * 0.14));
+          const velocity = human((0.78 + (at === 0 ? 0.04 : 0) + barTouch.lean[beat] + gauss(random) * 0.085) * lift, 0.06);
+          const ev: NoteEvent = { track: "bass", time: t + at + clock.at("bass"), duration: length, velocity, notes: [n] };
+          events.push(ev);
+          walked.push({ at, note: n, ev });
         });
         bassNote = line.at(-1)!;
       });
+
+      // Ornaments over the quarters: a swung skip, a triplet rake into the next note, a
+      // dead (muted) note, or a triplet turn. The quarters themselves stay on every beat.
+      if (walked.length) {
+        const intoNext = next?.chords[0] ? nearest(next.chords[0].chord.bass, bassNote) : null;
+        const count = random() < ornamentChance ? (plan.role === "peak" && random() < 0.3 ? 2 : 1) : 0;
+        const used = new Set<number>();
+        for (let o = 0; o < count; o++) {
+          const k = Math.floor(random() * walked.length);
+          if (used.has(k)) continue;
+          used.add(k);
+          const { at, note, ev } = walked[k];
+          const into = walked[k + 1]?.note ?? intoNext;
+          const kind = weighted<BassOrnament>([
+            { weight: 0.3, value: "skip" },
+            { weight: into !== null && !fast ? 0.28 : 0, value: "rake" },
+            { weight: at % 2 === 1 ? 0.42 : 0.14, value: "dead" },
+            { weight: fast ? 0 : 0.1, value: "turn" },
+          ], random);
+          const clamp = (p: number) => Math.min(BASS_HIGH, Math.max(BASS_LOW, p));
+          const add = (offset: number, pitch: number, velocity: number, duration: number) =>
+            events.push({ track: "bass", time: t + at + offset + clock.at("bass"), duration, velocity: human(velocity * lift, 0.06), notes: [clamp(pitch)] });
+          if (kind === "skip") {
+            ev.duration = Math.min(ev.duration, sw - 0.06);
+            const approach = into !== null && random() < 0.5;
+            add(sw, approach ? into! + (into! > note ? -1 : 1) : note, approach ? 0.52 : 0.38, 1 - sw - 0.06);
+          } else if (kind === "rake" && into !== null) {
+            // Two ghosted triplets walking chromatically into the next note.
+            const dir = into > note ? -1 : 1;
+            ev.duration = Math.min(ev.duration, 1 / 3 - 0.04);
+            add(1 / 3, into + 2 * dir, 0.36, 0.26);
+            add(2 / 3, into + dir, 0.46, 0.28);
+          } else if (kind === "dead") {
+            ev.duration = 0.16;
+            ev.velocity *= 0.62;
+          } else if (kind === "turn") {
+            ev.duration = 1 / 3 - 0.04;
+            add(1 / 3, note + (random() < 0.5 ? 2 : -1), 0.42, 0.28);
+            add(2 / 3, note, 0.44, 0.3);
+          }
+        }
+      }
 
       // Guitar (only heard when the chart's band has it): four to the bar, short and soft.
       for (let b = 0; b < 4; b++) {
@@ -415,9 +491,20 @@ export const swing: Style = {
           : weighted((fast ? COMP_FAST : COMP).map((c) => ({ weight: fast ? c.weight : forDensity(c, plan.density), value: c.hits })), random, lastCell);
       lastCell = cell;
       if (place) memory.set(place, cell);
-      // The register moves with the chorus and drifts a little every eight bars.
-      if (inPhrase === 0 && (bar.ref?.bar ?? 0) % 8 === 0) registerDrift = weighted([{ weight: 0.6, value: -2 }, { weight: 1, value: -1 }, { weight: 1.4, value: 0 }, { weight: 1, value: 1 }, { weight: 0.8, value: 2 }, { weight: 0.4, value: 3 }], random);
-      const shift = Math.max(-2, Math.min(6, plan.register + registerDrift));
+      // The register moves with the chorus and drifts every eight bars, often every four
+      // (the references' comping register spreads 2.6 to 3.4 dB bar to bar).
+      if (inPhrase === 0 && ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5))
+        registerDrift = weighted([{ weight: 0.4, value: -3 }, { weight: 0.7, value: -2 }, { weight: 1, value: -1 }, { weight: 1.2, value: 0 }, { weight: 1, value: 1 }, { weight: 0.8, value: 2 }, { weight: 0.5, value: 3 }, { weight: 0.3, value: 4 }], random, registerDrift);
+      // ...and the hand moves a little from bar to bar.
+      const shift = Math.max(-3, Math.min(7, plan.register + registerDrift + weighted([{ weight: 0.25, value: -2 }, { weight: 0.5, value: 0 }, { weight: 0.25, value: 2 }], random)));
+      // Comping dynamics: each four-bar phrase holds, swells or falls back, and every bar
+      // has its own touch, in dB (references vary the mid band 2 to 3 dB bar to bar).
+      if (inPhrase === 0) {
+        phraseDb = gauss(random) * 0.9;
+        phraseSlope = weighted([{ weight: 0.4, value: 0 }, { weight: 0.35, value: 0.9 }, { weight: 0.25, value: -0.9 }], random);
+      }
+      const touchDb = phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 1.0;
+      const pianoGain = 10 ** (touchDb / 20);
       const range: VoicingRange = { ...SWING_RANGE, low: SWING_RANGE.low + shift, high: SWING_RANGE.high + shift, center: SWING_RANGE.center + shift };
       // Longer, more legato chords in the head; shorter as the band drives.
       const legato = plan.role === "peak" ? 1.05 : plan.role === "solo" ? 1.25 : 1.5;
@@ -446,7 +533,7 @@ export const swing: Style = {
           track: "piano",
           time: t + beat + clock.at("piano"),
           duration,
-          velocity: human((velocity + (slot % 2 ? 0.04 : 0)) * lift, 0.12),
+          velocity: human((velocity + (slot % 2 ? 0.04 : 0)) * lift * pianoGain, 0.12),
           notes,
           ...pianoTouch(notes, random, duration >= 1.5 && random() < 0.3),
         });
@@ -485,23 +572,33 @@ export const swing: Style = {
       if (fast) ride = SPANG;
       else if (phraseEnd && !theFill && random() < 0.25) ride = LONG;
       else if (plan.role === "peak" && random() < 0.1) ride = DOUBLE;
-      else if (random() < (ridePrev && ridePrev !== home ? 0.65 : 0.45)) ride = home;
-      else ride = weighted(RIDE.filter((r) => r !== home).map((r) => ({ weight: r.id === "quarters" ? 0.18 : 0.2, value: r })), random);
+      else if (random() < (ridePrev && ridePrev !== home ? 0.42 : 0.25)) ride = home;
+      else ride = weighted(RIDE.filter((r) => r !== home && r !== ridePrev).map((r) => ({ weight: r.id === "quarters" ? 0.12 : 0.2, value: r })), random);
       ridePrev = ride;
       const onHat = headHat && (plan.role === "head" || plan.role === "outhead") && !bar.contrast && !inTwo;
+      // At the peak a phrase now and then rides on the crash, the wash drummers build with.
+      if (inPhrase === 0) crashRide = !fast && !onHat && (plan.role === "peak" || shout) && random() < 0.3;
       const level = (inTwo ? 0.85 : fast ? 0.95 : plan.role === "peak" ? 1.08 : plan.role === "solo" ? 1 : 0.9) * lift * (onHat ? 0.85 : 1);
-      for (const [b, skip, v] of ride.hits) {
-        const at = b + (skip ? sw : 0);
+      // An edge accent on the ride: a phrase start, or one beat a bar in the solos.
+      const edge = !onHat && !fast && (inPhrase === 0 ? random() < 0.35 : plan.role !== "head" && random() < 0.15) ? (inPhrase === 0 ? 0 : 1 + Math.floor(random() * 3)) : -1;
+      for (const [b, kind, v] of ride.hits) {
+        const at = b + (kind === 1 ? sw : kind === 2 ? 1 / 3 : 0);
         if (at >= rideEnd - 0.01) continue;
         if (crash && at < 0.01) continue;
-        const accented = accent === "even" && !skip ? 0.57 : accent === "skip" && skip ? v * 1.3 : v;
-        drum(t + at, onHat ? "hat" : "ride", accented * (skip && fast ? 0.83 : 1) * level, 0.18);
+        const accented = accent === "even" && !kind ? 0.57 : accent === "skip" && kind === 1 ? v * 1.3 : v;
+        const hit = accented * (kind && fast ? 0.83 : 1) * level * (kind === 0 && b === edge ? 1.3 : 1);
+        if (crashRide) drum(t + at, "crash", hit * (kind ? 0.45 : 0.6), 0.1);
+        else drum(t + at, onHat ? "hat" : "ride", hit, 0.22);
       }
       [1, 3].forEach((b) => drum(t + b, "pedal", 0.5, 0.12));
       // A feathered kick (only 1 and 3 when fast), heavier as the band builds; accents later on.
       const feather = (plan.role === "peak" ? 0.19 : plan.role === "solo" ? 0.16 : 0.13) * (fast ? 0.85 : 1);
-      for (let b = 0; b < 4; b += fast ? 2 : 1) if (!(crash && b === 0)) drum(t + b, "kick", feather, 0.05);
-      if (!theFill && !inTwo && bar.chorus >= 2 && random() < 0.08 * plan.density) drum(t + 3 + sw, "kick", 0.38);
+      // Feathering is felt more than heard, and not every drummer keeps it up: often off in the head.
+      if (inPhrase === 0) feathering = random() < (plan.role === "head" || plan.role === "outhead" ? 0.5 : 0.75);
+      if (feathering) for (let b = 0; b < 4; b += fast ? 2 : 1) if (!(crash && b === 0) && random() > 0.15) drum(t + b, "kick", feather * (0.75 + random() * 0.4), 0.06);
+      // A "bomb" now and then in the solos: a kick on an offbeat or on 3.
+      if (!theFill && !inTwo && bar.chorus >= 2 && random() < (plan.role === "peak" ? 0.2 : 0.12) * plan.density)
+        drum(t + weighted([{ weight: 0.5, value: 3 + sw }, { weight: 0.3, value: 1 + sw }, { weight: 0.2, value: 2 }], random), "kick", 0.34 + random() * 0.08);
 
       if (inTwo) {
         if (!fill) drum(t + 3, "rim", 0.34, 0.05); // cross-stick on 4

@@ -112,4 +112,32 @@ describe("swing style", () => {
     const onBeats = schedule.events.filter((x) => x.track === "bass" && Math.abs(x.time - Math.round(x.time)) < 0.1);
     for (const e of onBeats) expect(Math.abs(e.time - Math.round(e.time)) * beatMs).toBeLessThanOrEqual(18.5);
   });
+  it("varies the bass touch: note lengths, accents and ornaments between the quarters", () => {
+    const four = buildSchedule(chart, swing, { choruses: 4, countIn: false, transpose: 0 });
+    const bass = four.events.filter((e) => e.track === "bass");
+    const onBeat = bass.filter((e) => Math.abs(e.time - Math.round(e.time)) < 0.05);
+    const between = bass.filter((e) => Math.abs(e.time - Math.round(e.time)) >= 0.05);
+    const lengths = onBeat.map((e) => e.duration);
+    const velocities = onBeat.map((e) => e.velocity);
+    const sd = (x: number[]) => Math.sqrt(x.reduce((a, v) => a + (v - x.reduce((b, w) => b + w, 0) / x.length) ** 2, 0) / x.length);
+    expect(sd(lengths)).toBeGreaterThan(0.12);
+    expect(sd(velocities)).toBeGreaterThan(0.07);
+    expect(onBeat.some((e) => e.duration < 0.2)).toBe(true); // a dead note
+    // Skips, rakes and turns: a few a chorus, not a busy line.
+    expect(between.length / four.bars.length).toBeGreaterThan(0.25);
+    expect(between.length / four.bars.length).toBeLessThan(1);
+  });
+
+  it("rides on more figures than the home pattern, and on the crash now and then at the peak", () => {
+    const six = buildSchedule(chart, swing, { choruses: 6, countIn: false, transpose: 0 });
+    const figures = new Set(
+      six.bars.map((b) =>
+        six.events
+          .filter((e) => e.drum === "ride" && e.time >= b.startBeat - 0.05 && e.time < b.startBeat + 3.95)
+          .map((e) => Math.round((e.time - b.startBeat) * 6))
+          .join(","),
+      ),
+    );
+    expect(figures.size).toBeGreaterThan(12);
+  });
 });

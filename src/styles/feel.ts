@@ -78,14 +78,14 @@ export type Pocket = { offset: number; jitter: number };
  * or late (positive), `jitter` the SD of each note's own error.
  */
 export const POCKETS: Record<string, Pocket> = {
-  ride: { offset: 0, jitter: 8 },
-  hat: { offset: 0, jitter: 8 },
+  ride: { offset: 0, jitter: 10 },
+  hat: { offset: 0, jitter: 10 },
   pedal: { offset: 1, jitter: 4 },
   kick: { offset: -1, jitter: 5 },
   snare: { offset: 4, jitter: 7 },
   fill: { offset: 0, jitter: 5 },
-  bass: { offset: -5, jitter: 8 },
-  piano: { offset: 7, jitter: 9 },
+  bass: { offset: -5, jitter: 10 },
+  piano: { offset: 7, jitter: 10 },
   guitar: { offset: 3, jitter: 6 },
 };
 
