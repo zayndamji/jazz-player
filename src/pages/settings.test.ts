@@ -41,7 +41,7 @@ describe("tune settings", () => {
       transpose: 6,
       style: "polka",
       choruses: 7,
-      countIn: "yes",
+      countIn: 3,
       twoFeel: true,
       view: "poster",
       showScales: 1,
@@ -49,6 +49,12 @@ describe("tune settings", () => {
     });
     expect(got).toEqual({ twoFeel: true, mix: expect.objectContaining({ bass: { level: 1, mute: true }, drums: { level: 0.5, mute: false } }) });
     expect(parseSettings({ tempo: 120, transpose: -6, style: "bossa", choruses: "loop", view: "sheet" })).toEqual({ tempo: 120, transpose: -6, style: "bossa", choruses: "loop", view: "sheet" });
+  });
+
+  it("reads the old yes-or-no count-in", () => {
+    expect(parseSettings({ countIn: true }).countIn).toBe(2);
+    expect(parseSettings({ countIn: false }).countIn).toBe(0);
+    expect(parseSettings({ countIn: 1 }).countIn).toBe(1);
   });
 
   it("survives junk in storage", () => {

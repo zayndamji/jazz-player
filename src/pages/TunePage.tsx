@@ -65,7 +65,8 @@ export function TunePage({ chart }: { chart: Chart }) {
   const [transpose, setTranspose] = useState(initial.transpose);
   const [instrumentId, setInstrumentId] = useState(readInstrument);
   const [repeat, setRepeat] = useState<Repeat>(initial.choruses);
-  const [countIn, setCountIn] = useState(initial.countIn);
+  const [countInBars, setCountInBars] = useState(initial.countIn);
+  const countIn = countInBars > 0;
   const [metronome, setMetronome] = useState(false);
   const [showScales, setShowScales] = useState(initial.showScales);
   const [view, setView] = useState<View>(initial.view);
@@ -101,8 +102,8 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, [muted]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn, twoFeel, view, showScales, mix });
-  }, [chart, tempo, transpose, styleId, repeat, countIn, twoFeel, view, showScales, mix]);
+    saveSettings(chart, { tempo, transpose, style: styleId, choruses: repeat, countIn: countInBars, twoFeel, view, showScales, mix });
+  }, [chart, tempo, transpose, styleId, repeat, countInBars, twoFeel, view, showScales, mix]);
   useEffect(() => store(INSTRUMENT_KEY, instrumentId), [instrumentId]);
   useEffect(() => store(SHORTCUTS_KEY, singleKeys ? "1" : "0"), [singleKeys]);
 
@@ -134,7 +135,7 @@ export function TunePage({ chart }: { chart: Chart }) {
   }, []);
 
   const start = useCallback(
-    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel">, chorusOffset = 0) => {
+    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "countInBars">, chorusOffset = 0) => {
       const p = getPlayer();
       setError(null);
       setStatus("loading");
@@ -150,7 +151,7 @@ export function TunePage({ chart }: { chart: Chart }) {
         p.setVolume(t, mix[t].level);
         p.setMute(t, mix[t].mute);
       });
-      const full: PlaybackOptions = { ...opts, choruses: repeat, transpose, tempo, twoFeel };
+      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, choruses: repeat, transpose, tempo, twoFeel };
       const schedule = buildSchedule(chart, style, full);
       current.current = { opts: full, schedule, style };
       p.metronomeOn = metronome;
@@ -162,7 +163,7 @@ export function TunePage({ chart }: { chart: Chart }) {
       setCue(null);
       setStatus("playing");
     },
-    [chart, style, mix, repeat, transpose, metronome, tempo, twoFeel, muted],
+    [chart, style, mix, repeat, countInBars, transpose, metronome, tempo, twoFeel, muted],
   );
 
 
@@ -193,8 +194,8 @@ export function TunePage({ chart }: { chart: Chart }) {
 
   const schedule = current.current?.schedule ?? null;
   const totalBeats = useMemo(
-    () => playOrder(chart, repeat === "loop" ? 1 : repeat).length * chart.beatsPerBar + (countIn ? 2 * chart.beatsPerBar : 0),
-    [chart, repeat, countIn],
+    () => playOrder(chart, repeat === "loop" ? 1 : repeat).length * chart.beatsPerBar + countInBars * chart.beatsPerBar,
+    [chart, repeat, countInBars],
   );
   const nowBar = position && schedule ? schedule.bars[position.bar] : null;
   const looping = current.current?.opts.loopSection != null;
@@ -334,7 +335,7 @@ export function TunePage({ chart }: { chart: Chart }) {
     setTranspose(d.transpose);
     setStyleId(d.style);
     setRepeat(d.choruses);
-    setCountIn(d.countIn);
+    setCountInBars(d.countIn);
     setTwoFeel(d.twoFeel);
     setView(d.view);
     setShowScales(d.showScales);
@@ -485,9 +486,13 @@ export function TunePage({ chart }: { chart: Chart }) {
           Two-feel first chorus
         </label>
       )}
-      <label className="check">
-        <input type="checkbox" checked={countIn} onChange={(e) => setCountIn(e.target.checked)} />
-        Two-bar count-in
+      <label className="field">
+        <span>Count-in</span>
+        <select value={countInBars} onChange={(e) => setCountInBars(Number(e.target.value) as 0 | 1 | 2)}>
+          <option value={0}>None</option>
+          <option value={1}>1 bar</option>
+          <option value={2}>2 bars</option>
+        </select>
       </label>
       <label className="check">
         <input type="checkbox" checked={showScales} onChange={(e) => setShowScales(e.target.checked)} />

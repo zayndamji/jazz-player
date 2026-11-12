@@ -26,7 +26,8 @@ export interface TuneSettings {
   transpose: number;
   style: string;
   choruses: Repeat;
-  countIn: boolean;
+  /** Bars of count-in. */
+  countIn: 0 | 1 | 2;
   twoFeel: boolean;
   view: View;
   showScales: boolean;
@@ -41,7 +42,7 @@ export function defaultSettings(chart: Chart): TuneSettings {
     transpose: 0,
     style: chart.style,
     choruses: 3,
-    countIn: true,
+    countIn: 2,
     twoFeel: chart.twoFeel ?? false,
     view: "chords",
     showScales: false,
@@ -85,7 +86,9 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   if (validTranspose(raw.transpose)) out.transpose = raw.transpose;
   if (validStyle(raw.style)) out.style = raw.style;
   if (validChoruses(raw.choruses)) out.choruses = raw.choruses;
-  if (isBool(raw.countIn)) out.countIn = raw.countIn;
+  if (raw.countIn === 0 || raw.countIn === 1 || raw.countIn === 2) out.countIn = raw.countIn;
+  // Entries from before the count-in had a length.
+  else if (isBool(raw.countIn)) out.countIn = raw.countIn ? 2 : 0;
   if (isBool(raw.twoFeel)) out.twoFeel = raw.twoFeel;
   if (raw.view === "chords" || raw.view === "sheet") out.view = raw.view;
   if (isBool(raw.showScales)) out.showScales = raw.showScales;

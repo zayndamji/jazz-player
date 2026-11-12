@@ -279,3 +279,24 @@ describe("stepping with the arrow keys", () => {
     expect(stepBar(navOrder(chart, "loop", null, 5), at("form", 3, 7, 5), 1)).toEqual(at("form", 0, 0, 6));
   });
 });
+
+describe("count-in length", () => {
+  const first = (countInBars: 0 | 1 | 2) => buildSchedule(chart, bossa, { choruses: 1, countIn: false, countInBars, transpose: 0 });
+  it("leads with the asked number of bars", () => {
+    for (const n of [0, 1, 2] as const) {
+      const s = first(n);
+      expect(s.bars.filter((b) => b.countIn).length).toBe(n);
+      expect(s.bars[n].ref).not.toBeNull();
+    }
+  });
+
+  it("clicks every beat in a one-bar count-in and half notes first in a two-bar one", () => {
+    const clicks = (n: 1 | 2) => first(n).beats.filter((b) => b.countIn && b.click).length;
+    expect(clicks(1)).toBe(4);
+    expect(clicks(2)).toBe(6);
+  });
+
+  it("still reads the countIn flag as two bars", () => {
+    expect(buildSchedule(chart, bossa, { choruses: 1, countIn: true, transpose: 0 }).bars.filter((b) => b.countIn).length).toBe(2);
+  });
+});

@@ -8,7 +8,10 @@ export type Repeat = number | "loop";
 export interface PlaybackOptions {
   /** Times through the form, or "loop" to repeat it until stopped. */
   choruses: Repeat;
+  /** Count in two bars when true; `countInBars` says how many exactly. */
   countIn: boolean;
+  /** Bars of count-in: 0, 1 or 2. Overrides `countIn` when set. */
+  countInBars?: 0 | 1 | 2;
   transpose: number;
   /** Start from this bar instead of the top. */
   start?: { ref: BarRef; chorus: number } | null;
@@ -74,7 +77,7 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     if (loopFrom >= 0 && startAt >= loopFrom) startAt -= loopFrom;
   }
 
-  const countInBars = opts.countIn ? 2 : 0;
+  const countInBars = opts.countInBars ?? (opts.countIn ? 2 : 0);
   const countIn: TimelineBar[] = Array.from({ length: countInBars }, (_, i) => ({
     index: i,
     startBeat: i * beatsPerBar,
