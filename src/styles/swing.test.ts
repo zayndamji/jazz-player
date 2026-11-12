@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { swingForm } from "../fixtures";
 import { buildSchedule } from "../engine/schedule";
-import { endsSection, isFormEnd, swing, swingRatio } from "./swing";
+import { endsSection, EVEN_SWING, isFormEnd, swing, swingRatio } from "./swing";
 
 const chart = swingForm;
 const schedule = buildSchedule(chart, swing, { choruses: 2, countIn: false, transpose: 0 });
@@ -48,10 +48,15 @@ describe("swing style", () => {
     expect(pedal).toEqual([1, 3]);
   });
 
-  it("swings harder when slow and straighter when fast", () => {
-    expect(swingRatio(140)).toBeCloseTo(2 / 3, 5);
-    expect(swingRatio(100)).toBeGreaterThan(swingRatio(140));
+  it("swings as hard as the records at medium tempos and straighter when fast", () => {
+    // The records' rides: 0.68 to 0.77 of the beat from 110 to 175 BPM.
+    for (const bpm of [110, 130, 160, 175]) {
+      expect(swingRatio(bpm)).toBeGreaterThanOrEqual(0.68);
+      expect(swingRatio(bpm)).toBeLessThanOrEqual(0.73);
+    }
+    expect(swingRatio(140)).toBeGreaterThan(swingRatio(200));
     expect(swingRatio(260)).toBeLessThan(0.6);
+    expect(swingRatio(140, EVEN_SWING)).toBeCloseTo(2 / 3, 5);
   });
 
   it("thins out at up tempos: no guitar, straighter ride", () => {

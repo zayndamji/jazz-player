@@ -1,7 +1,7 @@
 import type { ParsedChord } from "../chart/chords";
 import { chordAt, sameRef, type TimelineBar } from "../engine/timeline";
 import { GUITAR_RANGE, PIANO_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
-import { gauss, pianoTouch, timing } from "./feel";
+import { drumGain, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
 import type { DrumSound, NoteEvent, Style } from "./types";
@@ -165,8 +165,10 @@ export const bossa: Style = {
       hat: "hat", ride: "ride", kick: "kick", rim: "snare", snare: "snare", pedal: "pedal", crash: "fill", tomHigh: "fill", tomLow: "fill", brush: "snare", brushTap: "snare",
     };
     const events: NoteEvent[] = [];
+    // The chorus's drum level (feel.ts `ChorusPlan.drums`), as a gain that leaves the sample layer alone.
+    let drumLevel = 1;
     const drum = (time: number, sound: DrumSound, velocity: number, spread = 0.08) =>
-      events.push({ track: "drums", drum: sound, time: time + clock.at(pocket[sound]), duration: 0.25, velocity: human(velocity, spread) });
+      events.push({ track: "drums", drum: sound, time: time + clock.at(pocket[sound]), duration: 0.25, velocity: human(velocity, spread), gain: drumLevel });
 
     let piano: number[] | null = null;
     let guitar: number[] | null = null;
@@ -194,6 +196,7 @@ export const bossa: Style = {
       const next = music[i + 1];
       const prev = music[i - 1];
       const { intensity: lift, plan, shout } = shapes[i];
+      drumLevel = drumGain(bar, plan);
       clock.bar();
       const solos = plan.role === "solo" || plan.role === "peak";
       if (cycle === 0 && straight) {

@@ -26,7 +26,7 @@ export interface NoteEvent {
 export interface Feel {
   /** Tempo in BPM the notes are generated for: styles straighten the swing and thin out the comping as it gets faster. */
   tempo: number;
-  /** Play the intro and first chorus in two (half-note bass, lighter drums), then walk. Styles without a two-feel ignore it. */
+  /** Play the intro, the first chorus and the out-head in two (half-note bass, lighter drums), walking the solos. Styles without a two-feel ignore it. */
   twoFeel: boolean;
   /** The chart's comping colour (swing reads it; other styles ignore it). */
   comp?: "sparse" | "busy" | "blues";

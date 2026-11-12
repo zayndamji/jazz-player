@@ -24,7 +24,7 @@ export interface Chart {
    * four-to-the-bar rhythm guitar, or leave out "piano" for a pianoless trio.
    */
   band?: ("bass" | "guitar" | "piano" | "drums")[];
-  /** Start in two: the intro and first chorus with half-note bass, walking after (swing). Default false. */
+  /** The heads in two: the intro, first chorus and out-head with half-note bass, the solos walking (swing). Default false. */
   twoFeel?: boolean;
   /**
    * How the piano comps in swing, when the tune's records differ from the style's middle

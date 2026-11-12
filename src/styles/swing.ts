@@ -2,7 +2,7 @@ import type { ParsedChord } from "../chart/chords";
 import { chordScale } from "../chart/scales";
 import { chordAt, sameRef, type TimelineBar } from "../engine/timeline";
 import { GUITAR_RANGE, SWING_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
-import { drumTalk, gauss, pianoTouch, timing, type ChorusPlan } from "./feel";
+import { drumGain, drumTalk, gauss, pianoTouch, timing, type ChorusPlan } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
 import type { DrumSound, NoteEvent, Style } from "./types";
@@ -30,26 +30,33 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  *   foot on 2 and 4; feathered kick; snare comping in the piano's gaps; crashes and
  *   kick-and-crash set-ups into sections; fills picked from a vocabulary at phrase ends
  *   (small), section ends (medium) and the end of the form (big).
- * - Time: every part in its own pocket (bass a little ahead, piano behind) with a shared
+ * - Time: every part in its own pocket (bass on the ride or a hair behind, piano behind) with a shared
  *   slow drift and per-note error (feel.ts `timing`), instead of the grid.
  * - Up-tempo (from `UP_TEMPO`): sparser, longer piano hits with bars left empty,
  *   the guitar fades out, eighth-note fills instead of triplets.
  * - Straight (`Feel.variation`): spang-a-lang and the Charleston every bar, one bass
  *   touch, one level and register, no snare comping; a short fill and a crash only at
  *   the end of the form.
- * - Two-feel (`Feel.twoFeel`): the intro and first chorus with the bass in half
- *   notes (with a pickup now and then), cross-stick on 4 and sparse comping; the
- *   last bar of the chorus walks into the second.
+ * - Two-feel (`Feel.twoFeel`): the intro, the first chorus and the out-head with the
+ *   bass in half notes (with a pickup now and then), cross-stick on 4 and sparse
+ *   comping; the last bar of a chorus in two walks into the next.
  */
 
+const RECORD_SWING: [number, number][] = [[60, 0.7], [100, 0.7], [120, 0.715], [160, 0.7], [185, 0.685], [220, 0.64], [280, 0.57]];
+
 /**
- * Where the swung offbeat eighth falls in the beat, by tempo. Drummers swing
- * harder when slow and straighter when fast (measured ride ratios run from
- * about 3:1 at slow tempos toward 1:1 near 300 BPM); 2:1 at a medium 140, as the
- * reference track measured.
+ * The waltz and 5/4 curve: 2:1 at 140, which Coltrane's and Brubeck's rides match
+ * (0.66 to 0.67 at 168 to 170).
  */
-export function swingRatio(bpm: number): number {
-  const points: [number, number][] = [[60, 0.71], [140, 2 / 3], [200, 0.62], [280, 0.57]];
+export const EVEN_SWING: [number, number][] = [[60, 0.71], [140, 2 / 3], [200, 0.62], [280, 0.57]];
+
+/**
+ * Where the swung offbeat eighth falls in the beat, by tempo. The rides on the tunes'
+ * original records put it at 0.68 to 0.77 of the beat from 110 to 175 BPM, harder than
+ * backing tracks (2:1, 0.67), and about 0.69 at 80 to 90 (context/original-records.md);
+ * straighter as the tempo rises toward 1:1 near 300 BPM.
+ */
+export function swingRatio(bpm: number, points: [number, number][] = RECORD_SWING): number {
   if (bpm <= points[0][0]) return points[0][1];
   for (let k = 1; k < points.length; k++) {
     const [b1, r1] = points[k];
@@ -329,17 +336,20 @@ export const swing: Style = {
   twoFeel: true,
   // A piano trio, like the reference tracks: rhythm guitar only when a chart asks for it.
   band: ["bass", "piano", "drums"],
-  // Balanced against the references (context/backing-track-design.md): the bass leads,
-  // the piano sits just under it, the cymbals well down.
-  mix: { bass: 9, guitar: -6, piano: 2.5, drums: 2.5 },
+  // The bass leads and the piano sits under it (context/backing-track-design.md); the drums
+  // 3.5 dB nearer the bass than the backing tracks have them, as on the original records
+  // (drums 3 to 7 dB nearer in the solos, context/original-records.md).
+  mix: { bass: 9, guitar: -6, piano: 1.5, drums: 6 },
   generate(bars, seed, feel) {
     const random = seededRandom(seed);
     const human = (v: number, spread = 0.08) => Math.min(1, Math.max(0.05, v + (random() - 0.5) * spread));
     const clock = timing(random, feel.tempo);
     const events: NoteEvent[] = [];
     // The ride and closed hats 2 dB up: eleven swing backing tracks average -25.4 dB in the hat band, the site measured -28.5.
+    // The chorus's drum level (feel.ts `ChorusPlan.drums`), as a gain that leaves the sample layer alone.
+    let drumLevel = 1;
     const drum = (time: number, sound: DrumSound, velocity: number, spread = 0.08) =>
-      events.push({ track: "drums", drum: sound, time: time + clock.at(DRUM_POCKET[sound]), duration: 0.25, velocity: human(velocity, spread), ...(sound === "ride" || sound === "hat" ? { gain: CYMBALS } : {}) });
+      events.push({ track: "drums", drum: sound, time: time + clock.at(DRUM_POCKET[sound]), duration: 0.25, velocity: human(velocity, spread), gain: (sound === "ride" || sound === "hat" ? CYMBALS : 1) * drumLevel });
 
     const base = swingRatio(feel.tempo);
     const fast = feel.tempo >= UP_TEMPO;
@@ -389,14 +399,16 @@ export const swing: Style = {
       const next = music[i + 1];
       const prev = music[i - 1];
       const { intensity: lift, phraseEnd, plan, shout, inPhrase } = shapes[i];
+      drumLevel = drumGain(bar, plan);
       clock.bar();
       // The swing breathes: harder as the solos build, a little different every bar.
       const sw = straight ? base : Math.min(0.75, Math.max(0.55, base + plan.swing * (fast ? 0.5 : 1) + gauss(random) * 0.006));
       /** Time in beats of an eighth-note slot in a bar (0 to 7), swung. */
       const eighth = (n: number) => Math.floor(n / 2) + (n % 2 ? sw : 0);
       const vocab = fills(sw, fast);
-      // In two through the intro and first chorus; the chorus's last bar walks into the next.
-      const inTwo = feel.twoFeel && bar.chorus <= 1 && bar.ref?.part !== "ending" && !(isFormEnd(bar, next) && !!next && !next.final);
+      // In two through the intro, the first chorus and the out-head (as Cannonball's 1958 Autumn
+      // Leaves plays its heads); the first chorus's last bar walks into the solos.
+      const inTwo = feel.twoFeel && (bar.chorus <= 1 || plan.role === "outhead") && bar.ref?.part !== "ending" && !(isFormEnd(bar, next) && !!next && !next.final);
 
       if (bar.final) {
         const chord = bar.chords[0]?.chord;
@@ -614,8 +626,8 @@ export const swing: Style = {
       let crash = 0;
       if (crashAhead) crashAhead = false;
       else if (straight) crash = i > 0 && prev && isFormEnd(prev, bar) ? 0.6 : 0;
-      else if (i > 0 && prev && endsSection(prev, bar)) crash = isFormEnd(prev, bar) ? 0.66 : random() < 0.6 ? 0.5 : 0;
-      else if ((plan.role === "peak" || shout) && inPhrase === 0 && random() < 0.35) crash = 0.4;
+      else if (i > 0 && prev && endsSection(prev, bar)) crash = isFormEnd(prev, bar) ? 0.66 : random() < 0.45 ? 0.5 : 0;
+      else if ((plan.role === "peak" || shout) && inPhrase === 0 && random() < 0.2) crash = 0.4;
       if (crash) {
         drum(t, "crash", crash, 0.05);
         if (crash > 0.4 || random() < 0.5) drum(t, "kick", crash * 0.7);
@@ -631,8 +643,9 @@ export const swing: Style = {
       else ride = weighted(RIDE.filter((r) => r !== home && r !== ridePrev).map((r) => ({ weight: r.id === "quarters" ? 0.12 : 0.2, value: r })), random);
       ridePrev = ride;
       const onHat = !straight && headHat && (plan.role === "head" || plan.role === "outhead") && !bar.contrast && !inTwo;
-      // At the peak a phrase now and then rides on the crash, the wash drummers build with.
-      if (inPhrase === 0) crashRide = !straight && !fast && !onHat && (plan.role === "peak" || shout) && random() < 0.3;
+      // At the peak a phrase now and then rides on the crash, the wash drummers build with
+      // (rarely: the records crash in 5 to 8% of bars in all).
+      if (inPhrase === 0) crashRide = !straight && !fast && !onHat && (plan.role === "peak" || shout) && random() < 0.1;
       const level = (inTwo ? 0.85 : fast ? 0.95 : plan.role === "peak" ? 1.08 : plan.role === "solo" ? 1 : 0.9) * lift * (onHat ? 0.85 : 1);
       // An edge accent on the ride: a phrase start, or one beat a bar in the solos.
       const edge = !straight && !onHat && !fast && (inPhrase === 0 ? random() < 0.35 : plan.role !== "head" && random() < 0.15) ? (inPhrase === 0 ? 0 : 1 + Math.floor(random() * 3)) : -1;
@@ -657,8 +670,10 @@ export const swing: Style = {
         drum(t + weighted([{ weight: 0.5, value: 3 + sw }, { weight: 0.3, value: 1 + sw }, { weight: 0.2, value: 2 }], random), "kick", 0.34 + random() * 0.08);
 
       // How much the snare comps this bar: the spell goes on through fills and two-feel bars.
-      const talkBase = (slow ? 1.15 : fast ? 0.7 : 1) * (plan.role === "head" || plan.role === "outhead" ? 0.8 : 1) * plan.density * lift * lift;
-      const figures = straight ? 0 : talk(bar.ref?.bar ?? i, talkBase) + (plan.role === "peak" && random() < 0.25 ? 1 : 0);
+      // The records' snare comping stays near one hit a bar through the solos instead of
+      // climbing with the band (context/original-records.md).
+      const talkBase = (slow ? 1.15 : fast ? 0.7 : 1) * (plan.role === "head" || plan.role === "outhead" ? 0.8 : 1) * Math.sqrt(plan.density * lift);
+      const figures = straight ? 0 : talk(bar.ref?.bar ?? i, talkBase) + (plan.role === "peak" && random() < 0.1 ? 1 : 0);
       if (inTwo) {
         if (!fill) drum(t + 3, "rim", 0.34, 0.05); // cross-stick on 4
       } else if (!theFill && !straight) {

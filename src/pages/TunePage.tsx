@@ -847,7 +847,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       {style.twoFeel && (
         <label className="check">
           <input type="checkbox" checked={twoFeel} onChange={(e) => setTwoFeel(e.target.checked)} />
-          Two-feel first chorus
+          Two-feel heads
         </label>
       )}
       {chart.intro && (

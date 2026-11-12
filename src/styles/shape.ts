@@ -58,7 +58,7 @@ export function shapeBars(bars: TimelineBar[], random: () => number, arc = false
 }
 
 /** A neutral chorus plan for the straight feel: every chorus the same. */
-export const STEADY: ChorusPlan = { role: "solo", energy: 1, register: 0, density: 1, swing: 0, last: false };
+export const STEADY: ChorusPlan = { role: "solo", energy: 1, register: 0, density: 1, swing: 0, drums: 0, last: false };
 
 /** The straight feel's shape: one level and one plan throughout, no phrase-end swells or shouts. */
 export function steadyBars(bars: TimelineBar[]): BarShape[] {

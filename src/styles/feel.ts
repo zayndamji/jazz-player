@@ -3,10 +3,10 @@ import type { TimelineBar } from "../engine/timeline";
 /**
  * How a band shapes a whole performance and places its notes in time, shared by the
  * styles. Measured against full reference tracks and records (context/whole-track-comparison.md):
- * - Choruses arc: the head is lighter, the solo choruses build to a peak about two
+ * - Choruses arc: the head is lighter (the drums 4 dB under the solos), the solo choruses build to a peak about two
  *   thirds of the way through, and the last chorus comes back to the head's texture.
- * - Timing is never on the grid: each part sits in its own pocket (bass a little
- *   ahead of the ride, piano a little behind), the band drifts together by a few
+ * - Timing is never on the grid: each part sits in its own pocket (bass on the ride
+ *   or a hair behind, piano a little behind), the band drifts together by a few
  *   milliseconds over bars, and every note has its own small error.
  */
 
@@ -20,13 +20,18 @@ export interface ChorusPlan {
   register: number;
   /** How busy the comping and drums are, about 0.85 (head) to 1.15 (peak). */
   density: number;
-  /** Added to the swing ratio: the band swings a little harder as it builds. */
+  /** Added to the swing ratio: the band swings a little harder as it builds, and each chorus a little differently. */
   swing: number;
+  /**
+   * The drums' level for the chorus in dB, on top of velocity: the records play the head 6 to 8 dB
+   * under the solos and build through them (context/original-records.md).
+   */
+  drums: number;
   /** True for the last chorus of a performance that ends (more fills and crashes). */
   last: boolean;
 }
 
-const INTRO: ChorusPlan = { role: "intro", energy: 0.88, register: 0, density: 0.8, swing: 0, last: false };
+const INTRO: ChorusPlan = { role: "intro", energy: 0.88, register: 0, density: 0.8, swing: 0, drums: -3, last: false };
 
 /**
  * The plan for each chorus number in `bars` (0 is the intro and ending). When the
@@ -39,15 +44,19 @@ export function chorusPlans(bars: TimelineBar[], random: () => number): Map<numb
   const n = numbers.at(-1) ?? 0;
   const plans = new Map<number, ChorusPlan>([[0, INTRO]]);
   const wobble = () => (random() - 0.5) * 0.03;
+  // The records' swing moves from chorus to chorus (SD about 0.03 of the beat over a take).
+  const wander = () => (random() - 0.5) * 0.03;
   const solo = (energy: number, role: Role = "solo"): ChorusPlan => ({
     role,
     energy,
     register: Math.max(0, Math.min(5, Math.round((energy - 0.98) * 40))),
     density: Math.max(0.9, Math.min(1.15, energy + 0.03)),
-    swing: Math.max(0, Math.min(0.025, (energy - 0.98) * 0.18)),
+    swing: Math.max(0, Math.min(0.025, (energy - 0.98) * 0.18)) + wander(),
+    // Level with the solos at 0.99, about +2 dB at the peak.
+    drums: Math.max(-0.5, (energy - 0.99) * 18),
     last: false,
   });
-  const head = (last: boolean): ChorusPlan => ({ role: last ? "outhead" : "head", energy: last ? 0.96 : 0.92, register: 0, density: 0.85, swing: -0.004, last });
+  const head = (last: boolean): ChorusPlan => ({ role: last ? "outhead" : "head", energy: last ? 0.96 : 0.92, register: 0, density: 0.85, swing: -0.004 + wander(), drums: last ? -2.5 : -4, last });
   // The peak sits about two thirds of the way through the solo choruses.
   const peak = n >= 3 ? 2 + Math.round((n - 3) * 0.66) : 2;
   const reach = Math.max(1, (n - 2) / 2);
@@ -64,6 +73,9 @@ export function chorusPlans(bars: TimelineBar[], random: () => number): Map<numb
   if (n >= 2 && !open && n < 3) plans.set(n, { ...plans.get(n)!, last: true });
   return plans;
 }
+
+/** The chorus's drum level as a gain; the ending plays at the solos' level (its plan is the intro's). */
+export const drumGain = (bar: TimelineBar, plan: ChorusPlan) => (bar.ref?.part === "ending" ? 1 : 10 ** (plan.drums / 20));
 
 /** A normally distributed number (mean 0, SD 1), from a uniform generator. */
 export function gauss(random: () => number): number {
@@ -84,7 +96,8 @@ export const POCKETS: Record<string, Pocket> = {
   kick: { offset: -1, jitter: 5 },
   snare: { offset: 4, jitter: 7 },
   fill: { offset: 0, jitter: 5 },
-  bass: { offset: -5, jitter: 10 },
+  // On the ride or a hair behind it, as on the records (0 to +14 ms; backing tracks push ahead).
+  bass: { offset: 2, jitter: 10 },
   piano: { offset: 7, jitter: 10 },
   guitar: { offset: 3, jitter: 6 },
 };

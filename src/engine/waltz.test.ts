@@ -125,7 +125,8 @@ describe("the waltz style", () => {
         for (const n of e.notes ?? []) expect(n >= 24 && n <= 96, `note ${n}`).toBe(true);
         expect(Number.isFinite(e.time) && e.duration > 0).toBe(true);
         expect(e.time).toBeGreaterThanOrEqual(firstMusic);
-        if (e.time >= finalStart) continue;
+        // The final chord can sit a few milliseconds early, in its timing pocket.
+        if (e.time >= finalStart - 0.1) continue;
         // A note starts within its timing pocket of a bar and rings at most a beat past it
         // (an anticipation on the and of 3 carries into the next bar).
         const bar = Math.floor((e.time + 0.1) / 3);

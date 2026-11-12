@@ -1,9 +1,9 @@
 import { chordAt, type TimelineBar } from "../engine/timeline";
 import { SWING_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
-import { drumTalk, gauss, pianoTouch, timing } from "./feel";
+import { drumGain, drumTalk, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
-import { endsSection, isFormEnd, nearest, swingRatio, walk } from "./swing";
+import { endsSection, EVEN_SWING, isFormEnd, nearest, swingRatio, walk } from "./swing";
 import type { DrumSound, NoteEvent, Style } from "./types";
 
 /**
@@ -30,9 +30,9 @@ export const five: Style = {
   name: "Jazz in 5",
   band: ["bass", "piano", "drums"],
   meters: [5],
-  // As swing, with the piano 2 dB further down: the vamp's four or five hits a bar measured about
-  // 4 dB over three 5/4 backing tracks in the mid band at swing's level.
-  mix: { bass: 9, piano: 0.5, drums: 2.5 },
+  // Against Brubeck's 1959 record (piano-solo window, rhythm section only): the piano 9.5 dB under
+  // the bass in the mid band and the cymbals about 3 dB louder than the backing tracks had them.
+  mix: { bass: 9, piano: -4, drums: 5.5 },
   generate(bars, seed, feel) {
     const random = seededRandom(seed);
     const human = (v: number, spread = 0.08) => Math.min(1, Math.max(0.05, v + (random() - 0.5) * spread));
@@ -45,12 +45,14 @@ export const five: Style = {
     const pocket: Record<DrumSound, "ride" | "hat" | "pedal" | "kick" | "snare" | "fill"> = {
       ride: "ride", hat: "hat", pedal: "pedal", kick: "kick", snare: "snare", rim: "snare", tomHigh: "fill", tomLow: "fill", crash: "fill", brush: "snare", brushTap: "snare",
     };
+    // The chorus's drum level (feel.ts `ChorusPlan.drums`), as a gain that leaves the sample layer alone.
+    let drumLevel = 1;
     const drum = (time: number, sound: DrumSound, velocity: number, spread = 0.08) =>
-      events.push({ track: "drums", drum: sound, time: place(time, pocket[sound]), duration: 0.25, velocity: human(velocity, spread) });
+      events.push({ track: "drums", drum: sound, time: place(time, pocket[sound]), duration: 0.25, velocity: human(velocity, spread), gain: drumLevel });
 
     const straight = feel.variation === "straight";
     const shapes = straight ? steadyBars(music) : shapeBars(music, random, true);
-    const base = swingRatio(feel.tempo);
+    const base = swingRatio(feel.tempo, EVEN_SWING);
     const talk = drumTalk(random);
     let piano: number[] | null = null;
     let bassNote = 39;
@@ -74,6 +76,7 @@ export const five: Style = {
       const next = music[i + 1];
       const prev = music[i - 1];
       const { intensity: lift, plan, inPhrase, phraseEnd } = shapes[i];
+      drumLevel = drumGain(bar, plan);
       clock.bar();
       const sw = straight ? base : Math.min(0.72, Math.max(0.56, base + plan.swing * 0.6 + gauss(random) * 0.006));
       const solo = plan.role === "solo" || plan.role === "peak";

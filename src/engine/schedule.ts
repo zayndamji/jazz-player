@@ -45,7 +45,7 @@ export interface PlaybackOptions {
   intro?: boolean;
   /** Play the chart's ending after the last chorus (default true). */
   ending?: boolean;
-  /** Play the intro and first chorus in two; the chart's `twoFeel` when left out. */
+  /** Play the intro, first chorus and out-head in two; the chart's `twoFeel` when left out. */
   twoFeel?: boolean;
   /** Trade fours or eights with the drums in the solo choruses (off when left out). */
   trade?: TradeMode;
