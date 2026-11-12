@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Made-up chart for the importer tests. -->
+<score-partwise version="3.1">
+  <work><work-title>Made Up Trumpet Tune</work-title></work>
+  <part-list><score-part id="P1"><part-name>Lead</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1"><attributes><divisions>1</divisions><key><fifths>2</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><transpose><diatonic>-1</diatonic><chromatic>-2</chromatic></transpose></attributes><harmony><root><root-step>D</root-step></root><kind text="maj7">major-seventh</kind></harmony><note><rest/><duration>4</duration></note></measure>
+    <measure number="2"><harmony><root><root-step>E</root-step></root><kind text="m7">minor-seventh</kind></harmony><note><rest/><duration>2</duration></note><harmony><root><root-step>A</root-step></root><kind text="7">dominant</kind></harmony><note><rest/><duration>2</duration></note></measure>
+    <measure number="3"><harmony><root><root-step>D</root-step></root><kind text="maj7">major-seventh</kind></harmony><note><rest/><duration>4</duration></note></measure>
+    <measure number="4"><harmony><root><root-step>G</root-step></root><kind text="maj7">major-seventh</kind><bass><bass-step>B</bass-step></bass></harmony><note><rest/><duration>4</duration></note><barline location="right"><bar-style>light-heavy</bar-style></barline></measure>
+  </part>
+</score-partwise>

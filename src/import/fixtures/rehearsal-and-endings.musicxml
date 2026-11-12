@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Made-up chart for the importer tests. -->
+<score-partwise version="3.1">
+  <work><work-title>Made Up Swing</work-title></work>
+  <part-list><score-part id="P1"><part-name>Lead</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1"><attributes><divisions>1</divisions><key><fifths>-3</fifths><mode>major</mode></key><time><beats>4</beats><beat-type>4</beat-type></time></attributes><barline location="left"><repeat direction="forward"/></barline><direction placement="above"><direction-type><rehearsal>A</rehearsal></direction-type></direction><direction><direction-type><words>Swing</words></direction-type><sound tempo="140"/></direction><harmony><root><root-step>E</root-step><root-alter>-1</root-alter></root><kind text="maj7">major-seventh</kind></harmony><note><rest/><duration>4</duration></note></measure>
+    <measure number="2"><harmony><root><root-step>C</root-step></root><kind text="m7">minor-seventh</kind></harmony><note><rest/><duration>4</duration></note></measure>
+    <measure number="3"><harmony><root><root-step>D</root-step></root><kind text="m7b5">half-diminished</kind></harmony><note><rest/><duration>2</duration></note><harmony><root><root-step>G</root-step></root><kind text="7">dominant</kind><degree><degree-value>9</degree-value><degree-alter>-1</degree-alter><degree-type>alter</degree-type></degree></harmony><note><rest/><duration>2</duration></note></measure>
+    <measure number="4"><barline location="left"><ending number="1" type="start"/></barline><harmony><root><root-step>E</root-step><root-alter>-1</root-alter></root><kind text="maj7">major-seventh</kind></harmony><note><rest/><duration>4</duration></note><barline location="right"><ending number="1" type="stop"/><repeat direction="backward"/></barline></measure>
+    <measure number="5"><barline location="left"><ending number="2" type="start"/></barline><harmony><root><root-step>E</root-step><root-alter>-1</root-alter></root><kind>major</kind><bass><bass-step>G</bass-step></bass></harmony><note><rest/><duration>4</duration></note><barline location="right"><ending number="2" type="stop"/></barline></measure>
+    <measure number="6"><direction placement="above"><direction-type><rehearsal>B</rehearsal></direction-type></direction><harmony><root><root-step>A</root-step><root-alter>-1</root-alter></root><kind text="6">major-sixth</kind></harmony><note><rest/><duration>2</duration></note><harmony><root><root-step>B</root-step><root-alter>-1</root-alter></root><kind text="7">dominant</kind></harmony><note><rest/><duration>2</duration></note></measure>
+    <measure number="7"><note><rest/><duration>4</duration></note></measure>
+    <measure number="8"><harmony><root><root-step>G</root-step></root><kind text="m7">minor-seventh</kind></harmony><note><rest/><duration>2</duration></note><harmony><root><root-step>C</root-step></root><kind text="7alt">dominant</kind></harmony><note><rest/><duration>2</duration></note></measure>
+    <measure number="9"><harmony><root><root-step>F</root-step></root><kind text="m7">minor-seventh</kind></harmony><note><rest/><duration>1</duration></note><harmony><root><root-step>B</root-step><root-alter>-1</root-alter></root><kind text="9">dominant-ninth</kind></harmony><note><rest/><duration>3</duration></note></measure>
+    <measure number="10"><harmony><root><root-step>E</root-step><root-alter>-1</root-alter></root><kind text="6">major-sixth</kind></harmony><note><rest/><duration>4</duration></note><barline location="right"><bar-style>light-heavy</bar-style></barline></measure>
+  </part>
+</score-partwise>
