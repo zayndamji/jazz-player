@@ -1,11 +1,33 @@
 import { describe, expect, it } from "vitest";
 import { FIXTURES, bossaForm, fiveForm, swingForm, waltzForm } from "../fixtures";
 import { STYLES, playsMeter } from "../styles";
+import { POCKETS, jitterAt } from "../styles/feel";
 import { swing } from "../styles/swing";
 import { RING_SECONDS, buildSchedule, chorusLayoutChanges, performanceBeats, ringSeconds, ritardAt, ritardDepth, ritardFor } from "./schedule";
 import { chorusTranspose, playOrder, tonicChord } from "./timeline";
 
 const base = { countIn: false, transpose: 0 } as const;
+
+describe("timing at fast tempos", () => {
+  it("shrinks each note's error with the beat, down to a floor", () => {
+    expect(jitterAt(POCKETS.ride, 120)).toBe(10);
+    expect(jitterAt(POCKETS.ride, 140)).toBe(10);
+    expect(jitterAt(POCKETS.ride, 260)).toBeCloseTo((10 * 140) / 260);
+    expect(jitterAt(POCKETS.ride, 600)).toBe(3);
+    // Never larger at slow tempos, and a part already under the floor keeps its own.
+    expect(jitterAt(POCKETS.ride, 62)).toBe(10);
+    expect(jitterAt({ offset: 0, jitter: 2 }, 300)).toBe(2);
+  });
+
+  it("keeps the ride's skip within a few hundredths of a beat at 260 BPM", () => {
+    // Ride hit offsets in beats against the grid: their spread is the jitter in beats.
+    const s = buildSchedule(swingForm, swing, { ...base, choruses: 3, tempo: 260 });
+    const offsets = s.events.filter((e) => e.track === "drums" && e.drum === "ride").map((e) => e.time - Math.round(e.time * 12) / 12);
+    const mean = offsets.reduce((a, b) => a + b, 0) / offsets.length;
+    const sd = Math.sqrt(offsets.reduce((a, b) => a + (b - mean) ** 2, 0) / offsets.length);
+    expect(sd).toBeLessThan(0.035);
+  });
+});
 
 describe("ending without the ending", () => {
   it("is in the last chorus's key, and minor keys end on m6", () => {

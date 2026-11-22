@@ -105,23 +105,38 @@ export const POCKETS: Record<string, Pocket> = {
 /** No note moves more than this far from the grid (ms). */
 const LIMIT = 18;
 
+/** The tempo the pockets' jitter was measured around; faster, each note's error shrinks with the beat. */
+const JITTER_BPM = 140;
+/** Each note's error never shrinks below this SD (ms), or the part's own when that is smaller. */
+const JITTER_FLOOR = 3;
+
+/** How much a note's own error is scaled at a tempo: 1 up to `JITTER_BPM`, then in proportion to the beat's length. */
+export const jitterScale = (bpm: number) => Math.min(1, JITTER_BPM / Math.max(1, bpm));
+
+/** The SD of a part's per-note error at a tempo, in ms. */
+export const jitterAt = (pocket: Pocket, bpm: number) => Math.max(Math.min(pocket.jitter, JITTER_FLOOR), pocket.jitter * jitterScale(bpm));
+
 /**
  * Timing for one performance: call `bar()` at the start of each bar, then `at(part)`
  * for each note's offset in beats. The band's shared drift is a slow random walk
  * (about ±12 ms), each part drifts a little on its own, and each note adds jitter.
+ * At fast tempos a note's own error and each part's drift shrink with the beat (about
+ * 5 ms SD on the ride at 260 BPM, against 10 up to 140), so the swing ratio holds.
  */
 export function timing(random: () => number, bpm: number) {
   const beats = (ms: number) => (ms / 1000) * (bpm / 60);
+  const scale = jitterScale(bpm);
+  const jitters = Object.fromEntries(Object.entries(POCKETS).map(([k, p]) => [k, jitterAt(p, bpm)]));
   let band = 0;
   const own: Record<string, number> = {};
   return {
     bar() {
       band = Math.max(-12, Math.min(12, band * 0.8 + gauss(random) * 3.5));
-      for (const k of Object.keys(POCKETS)) own[k] = Math.max(-4, Math.min(4, (own[k] ?? 0) * 0.7 + gauss(random) * 1.5));
+      for (const k of Object.keys(POCKETS)) own[k] = Math.max(-4 * scale, Math.min(4 * scale, (own[k] ?? 0) * 0.7 + gauss(random) * 1.5 * scale));
     },
     at(part: keyof typeof POCKETS) {
       const p = POCKETS[part];
-      const jitter = Math.max(-2, Math.min(2, gauss(random))) * p.jitter;
+      const jitter = Math.max(-2, Math.min(2, gauss(random))) * jitters[part];
       const ms = Math.max(-LIMIT, Math.min(LIMIT, band + (own[part] ?? 0) + p.offset + jitter));
       return beats(ms);
     },
