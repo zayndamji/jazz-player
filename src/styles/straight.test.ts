@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FIXTURES } from "../fixtures";
 import { buildSchedule } from "../engine/schedule";
 import { STYLES } from ".";
-import { isFormEnd } from "./swing";
+import { isFormEnd } from "./context";
 import type { Variation } from "./types";
 
 /** The drums' rhythm in each bar (sound and half beat, wide enough for the timing pockets), for the bars inside the form away from its ends. */

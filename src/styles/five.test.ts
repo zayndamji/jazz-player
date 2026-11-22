@@ -42,4 +42,34 @@ describe("5/4", () => {
     const walked = buildSchedule({ ...fiveForm, form: [{ label: "A", bars: ["Dm / Am7 / C7", "Dm / Am7 / C7"] }] }, five, { choruses: 1, countIn: false, transpose: 0, intro: false });
     expect(walked.events.filter((e) => e.track === "bass" && e.time < 4.9).length).toBe(5);
   });
+
+  it("plays both chords of a two-chord last bar and holds the second", () => {
+    const chart = { ...fiveForm, ending: [{ label: "Tag", bars: ["Dm Am7", "Dm Am7"] }] };
+    const sch = buildSchedule(chart, five, { choruses: 1, countIn: false, transpose: 0 });
+    const end = sch.bars.find((b) => b.final)!;
+    const at = (track: string) => sch.events.filter((e) => e.track === track && e.time >= end.startBeat - 0.1);
+    expect(at("bass").map((e) => [Math.round(e.time - end.startBeat), e.notes![0] % 12])).toEqual([[0, 2], [3, 9]]);
+    const piano = at("piano");
+    expect(piano.map((e) => Math.round(e.time - end.startBeat))).toEqual([0, 3]);
+    for (const n of piano[1].notes!) expect([9, 0, 4, 7, 11, 2, 5]).toContain(n % 12); // Am7's notes and tensions
+    expect(piano[1].duration).toBeGreaterThanOrEqual(4);
+  });
+
+  it("varies the vamp: the figure changes bar to bar and no voicing repeats more than three hits", () => {
+    const vamp = { ...fiveForm, intro: undefined, ending: undefined, form: [{ label: "A", bars: Array.from({ length: 32 }, () => "Dm Am7") }] };
+    for (const variation of ["varied", "straight"] as const) {
+      const sch = buildSchedule(vamp, five, { choruses: 2, countIn: false, transpose: 0, variation });
+      const piano = sch.events.filter((e) => e.track === "piano");
+      let run = 1;
+      for (let k = 1; k < piano.length; k++) {
+        run = piano[k].notes!.join() === piano[k - 1].notes!.join() ? run + 1 : 1;
+        expect(run, `${variation} hit ${k}`).toBeLessThanOrEqual(3);
+      }
+      for (const e of [...piano, ...sch.events.filter((x) => x.track === "bass")]) for (const n of e.notes!) expect(n).toBeGreaterThanOrEqual(e.track === "piano" ? 45 : 28);
+      if (variation === "straight") continue;
+      const figure = (b: (typeof sch.bars)[0]) => piano.filter((e) => e.time >= b.startBeat - 0.1 && e.time < b.startBeat + 4.9).map((e) => Math.round((e.time - b.startBeat) * 3)).join();
+      const repeats = sch.bars.filter((b, i) => i > 0 && figure(b) === figure(sch.bars[i - 1])).length;
+      expect(repeats / sch.bars.length).toBeLessThan(0.4);
+    }
+  });
 });

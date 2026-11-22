@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { swingForm } from "../fixtures";
 import { buildSchedule } from "../engine/schedule";
-import { endsSection, EVEN_SWING, isFormEnd, swing, swingRatio } from "./swing";
+import { endsSection, isFormEnd } from "./context";
+import { EVEN_SWING, swing, swingRatio } from "./swing";
 
 const chart = swingForm;
 const schedule = buildSchedule(chart, swing, { choruses: 2, countIn: false, transpose: 0 });
@@ -82,10 +83,11 @@ describe("swing style", () => {
   });
 
   it("arcs over the choruses: a lighter head, a peak in the solos, the head again at the end", () => {
+    // The ride's level is its velocity times its gain (the chorus level rides on the gain, swing.ts `rideDb`).
     const four = buildSchedule(chart, swing, { choruses: 4, countIn: false, transpose: 0 });
     const ride = (chorus: number) => {
       const bars = new Set(four.bars.filter((b) => b.chorus === chorus).map((b) => b.index));
-      const v = four.events.filter((e) => (e.drum === "ride" || e.drum === "hat") && bars.has(Math.floor(e.time / 4))).map((e) => e.velocity);
+      const v = four.events.filter((e) => (e.drum === "ride" || e.drum === "hat") && bars.has(Math.floor(e.time / 4))).map((e) => e.velocity * (e.gain ?? 1));
       return v.reduce((a, b) => a + b, 0) / v.length;
     };
     const top = (chorus: number) => {
@@ -95,7 +97,18 @@ describe("swing style", () => {
     };
     expect(ride(3)).toBeGreaterThan(ride(1) * 1.08);
     expect(ride(4)).toBeLessThan(ride(3));
-    expect(top(3)).toBeGreaterThan(top(1) + 1);
+    // The piano's register, averaged over a few takes (one take's rise spreads 0.3 to 4.5 half steps).
+    const rise = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => {
+      const events = swing.generate(four.bars, seed, { tempo: chart.tempo, twoFeel: false, variation: "varied" });
+      const mean = (chorus: number) => {
+        const bars = new Set(four.bars.filter((b) => b.chorus === chorus).map((b) => b.index));
+        const tops = events.filter((e) => e.track === "piano" && bars.has(Math.floor(e.time / 4))).map((e) => Math.max(...e.notes!));
+        return tops.reduce((a, b) => a + b, 0) / tops.length;
+      };
+      return mean(3) - mean(1);
+    });
+    expect(rise.reduce((a, b) => a + b, 0) / rise.length).toBeGreaterThan(1);
+    expect(top(3)).toBeGreaterThan(top(1));
   });
 
   it("touches each piano chord: the top note loudest, the notes a few milliseconds apart", () => {
@@ -148,8 +161,12 @@ describe("swing style", () => {
   it("comps in the chart's colour: sparse, busy or blues", () => {
     const hits = (comp?: "sparse" | "busy" | "blues") =>
       buildSchedule({ ...chart, comp }, swing, { choruses: 4, countIn: false, transpose: 0 }).events.filter((e) => e.track === "piano");
-    expect(hits("sparse").length).toBeLessThan(hits().length);
-    expect(hits("busy").length).toBeGreaterThan(hits().length);
+    // Counted over a few takes: one take's count moves by a few percent with the seed.
+    const bars = buildSchedule(chart, swing, { choruses: 4, countIn: false, transpose: 0 }).bars;
+    const count = (comp?: "sparse" | "busy" | "blues") =>
+      [1, 2, 3, 4, 5, 6].reduce((n, seed) => n + swing.generate(bars, seed, { tempo: chart.tempo, twoFeel: false, comp, variation: "varied" }).filter((e) => e.track === "piano").length, 0);
+    expect(count("sparse")).toBeLessThan(count());
+    expect(count("busy")).toBeGreaterThan(count());
     // Blues: crushed notes, a half step under the third, just before the chord.
     const blues = hits("blues");
     expect(blues.some((e) => e.notes!.length === 1 && e.duration < 0.1)).toBe(true);
@@ -168,7 +185,13 @@ describe("swing drums over a long take", () => {
   };
 
   it("comps in spells: a bar's snare count follows the bar before", () => {
-    expect(corr(snare.slice(0, -1), snare.slice(1))).toBeGreaterThan(0.1);
+    // Averaged over a few seeds: one take's correlation spreads 0.05 to 0.3.
+    const takes = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => {
+      const events = swing.generate(long.bars, seed, { tempo: chart.tempo, twoFeel: false, variation: "varied" });
+      const count = form.map((b) => new Set(events.filter((e) => e.track === "drums" && (e.drum === "snare" || e.drum === "tomHigh" || e.drum === "tomLow") && e.time >= b.startBeat - 0.1 && e.time < b.startBeat + 3.9).map((e) => Math.round((e.time - b.startBeat) * 6))).size);
+      return corr(count.slice(0, -1), count.slice(1));
+    });
+    expect(takes.reduce((a, b) => a + b, 0) / takes.length).toBeGreaterThan(0.1);
   });
 
   it("doesn't fill at every section end", () => {

@@ -150,6 +150,8 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     startAt = locate(items);
   }
   // Live: end after the chosen chorus, then the ending (or the held tonic without one), instead of looping.
+  // The bars that were repeating copies stay marked, so the band plays them as it did in the loop.
+  const repeatFrom = loopFrom;
   if (opts.choruses === "loop" && opts.liveEnd != null && opts.loopSection == null && !opts.loopRange) {
     const last = items.map((i) => i.chorus).lastIndexOf(opts.liveEnd);
     if (last >= 0) {
@@ -162,6 +164,11 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const full = buildTimeline(chart, items, opts.transpose, keyPc, opts.keyStep ?? 0);
   // A loop never ends the song: no final hit at the end of the repeating copy.
   if (loopFrom >= 0) for (const b of full) b.final = false;
+  // The chorus arc (feel.ts) builds and holds through choruses until stopped, and never ramps into a copy the loop wraps back to.
+  full.forEach((b, i) => {
+    if (opts.choruses === "loop" && opts.loopSection == null && !opts.loopRange) b.open = true;
+    if (repeatFrom >= 0 && i >= repeatFrom && !b.tonic && !(loopFrom < 0 && b.ref?.part === "ending")) b.repeats = true;
+  });
   // Trading goes by the chorus each bar is in: the head choruses and the intro and ending are left alone.
   // A looped section or range has no head to tell apart, so all its passes are solos.
   const lastChorus = Math.max(1, ...full.map((b) => b.chorus));

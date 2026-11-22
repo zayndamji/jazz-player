@@ -1,10 +1,11 @@
-import type { ParsedChord } from "../chart/chords";
+import { resolvesToMinor, type ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
-import { SWING_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
+import { SWING_RANGE, VOICING_LOW, voiceChord, type VoicingRange } from "../engine/voicing";
+import { bassOnsets, bassStruck, chordAfter, endsSection, isFormEnd, keepInRange, moveOn, PIANO_FLOOR, shifted, type VoicingContext } from "./context";
 import { drumGain, drumTalk, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
-import { endsSection, EVEN_SWING, isFormEnd, nearest, scalePcs, swingRatio, walk } from "./swing";
+import { EVEN_SWING, landing, nearest, scalePcs, swingRatio, walk } from "./swing";
 import type { DrumSound, NoteEvent, Style } from "./types";
 
 /**
@@ -154,10 +155,12 @@ const modal = (c: ParsedChord) => (has(c, "3m") && !has(c, "5d")) || (has(c, "3M
 /**
  * A quartal voicing: three or four notes stacked in fourths (a third on top when the
  * next fourth leaves the scale) from the chord's scale, holding the 3rd or the 7th,
- * placed nearest the previous top note. Returns null when no stack fits.
+ * placed nearest the previous top note. Its lowest note stays at least a minor third above
+ * the bass sounding under it (`context.bass`). Returns null when no stack fits.
  */
-export function quartal(chord: ParsedChord, previous: number[] | null, range: VoicingRange): number[] | null {
-  const scale = new Set(scalePcs(chord));
+export function quartal(chord: ParsedChord, previous: number[] | null, range: VoicingRange, context: VoicingContext = {}): number[] | null {
+  const scale = new Set(scalePcs(chord, context.next ?? undefined));
+  const floor = Math.max(range.low, PIANO_FLOOR, context.bass !== undefined ? context.bass + 3 : 0);
   const pc = (n: number) => ((n % 12) + 12) % 12;
   const third = pc(chord.root + (has(chord, "3m") ? 3 : has(chord, "3M") ? 4 : 5));
   const seventh = pc(chord.root + (has(chord, "7M") ? 11 : has(chord, "7m") ? 10 : 9));
@@ -179,7 +182,7 @@ export function quartal(chord: ParsedChord, previous: number[] | null, range: Vo
   for (const o of options) {
     for (let shift = -24; shift <= 36; shift += 12) {
       const notes = o.map((n) => n + 36 + shift);
-      if (notes[0] < range.low || notes.at(-1)! > range.high + 2) continue;
+      if (notes[0] < floor || notes.at(-1)! > range.high + 2) continue;
       const mid = notes.reduce((a, n) => a + n, 0) / notes.length;
       const score = Math.abs(mid - target) + Math.abs(mid - range.center) * 0.35;
       if (score < bestScore) {
@@ -189,6 +192,23 @@ export function quartal(chord: ParsedChord, previous: number[] | null, range: Vo
     }
   }
   return best;
+}
+
+/** The piano's voicing of a chord: quartal on the modal chords, the swing style's rootless shapes otherwise. */
+const voiceFor = (chord: ParsedChord, previous: number[] | null, range: VoicingRange, context: VoicingContext) =>
+  (modal(chord) && quartal(chord, previous, range, context)) || voiceChord(chord, previous, range, context);
+
+/**
+ * On a dominant resolving to a minor chord, the walking line's passing tones come from the
+ * Phrygian dominant: a natural 9th or 13th is lowered to the flat nine or flat thirteen, so the
+ * line doesn't clash with the coming minor chord. A 9th or 13th written in the symbol stays. The
+ * first note (the root) and, when the line approaches a target, the last are left alone.
+ */
+export function phrygianLine(line: number[], chord: ParsedChord, next: ParsedChord | null | undefined, approach: boolean): number[] {
+  if (!next || !resolvesToMinor(chord, next)) return line;
+  const lower = new Set([...(has(chord, "9M") ? [] : [2]), ...(has(chord, "13M") ? [] : [9])]);
+  const pc = (n: number) => (((n - chord.root) % 12) + 12) % 12;
+  return line.map((n, b) => (b === 0 || (approach && b === line.length - 1) || !lower.has(pc(n)) ? n : n - 1));
 }
 
 /** For each bar, the pedal note when it sits in a run of bars on one bass note: eight or more bars, or four or more with a slash chord. */
@@ -238,7 +258,13 @@ export const waltz: Style = {
 
     let piano: number[] | null = null;
     let bassNote = 40;
+    /** The bass note sounding at the end of the previous bar (it rings under a tie). */
+    let lastBass = 40;
+    /** How many piano hits in a row have struck the current voicing. */
+    let run = 0;
     let tied = false;
+    /** The note the previous bar's approach aimed at, where this bar's line starts (see swing.ts `landing`). */
+    let planned: number | null = null;
     let pushedIn = false;
     let lastCell: Cell["hits"] | undefined;
     const talk = drumTalk(random);
@@ -273,17 +299,23 @@ export const waltz: Style = {
       const solo = plan.role === "solo" || plan.role === "peak";
 
       if (bar.final) {
-        const chord = bar.chords[0]?.chord;
-        if (!chord) return;
-        piano = (modal(chord) && quartal(chord, piano, SWING_RANGE)) || voiceChord(chord, piano, SWING_RANGE);
-        events.push({ track: "piano", time: place(t, "piano"), duration: 5, velocity: 0.55, notes: piano, ...pianoTouch(piano, random, true) });
-        events.push({ track: "bass", time: t, duration: 4.5, velocity: 0.85, notes: [nearest(chord.bass, bassNote)] });
-        drum(t, "kick", 0.7);
-        drum(t, "crash", 0.58, 0);
+        // Each chord of the last bar on its beat; the last one held, ringing like a fermata.
+        bar.chords.forEach((c, k) => {
+          const end = k === bar.chords.length - 1;
+          const at = t + c.beat;
+          const low = k === 0 && planned !== null ? planned : landing(c.chord.bass, bassNote);
+          piano = voiceFor(c.chord, piano, shifted(SWING_RANGE, 0, VOICING_LOW), { next: bar.chords[k + 1]?.chord ?? null, bass: low });
+          events.push({ track: "piano", time: place(at, "piano"), duration: end ? 5 : c.length - 0.05, velocity: end ? 0.55 : 0.5, notes: piano, ...pianoTouch(piano, random, end) });
+          events.push({ track: "bass", time: at, duration: end ? 4.5 : c.length - 0.05, velocity: 0.85, notes: [low] });
+          bassNote = low;
+          drum(at, "kick", end ? 0.7 : 0.4);
+          if (end) drum(at, "crash", 0.58, 0);
+        });
         return;
       }
 
       // Bass.
+      const bassFrom = events.length;
       if (pedal !== null) {
         const root = nearest(pedal, 31);
         const figure = straight ? PEDAL[1] : weighted((tied ? PEDAL_AFTER_TIE : PEDAL).map((f) => ({ weight: f.weight * (f.hits.length > 2 && !solo ? 0.7 : 1), value: f })), random);
@@ -294,21 +326,31 @@ export const waltz: Style = {
         }
         tied = !!figure.tie && !!next;
         bassNote = root;
+        planned = null;
       } else {
         tied = false;
+        // Where each chord's line starts and what it aims at, worked out once (as in swing.ts): an
+        // approach and the note it resolves to are always a half or whole step apart.
+        const lean = plan.register;
+        const starts: number[] = [];
+        bar.chords.forEach((c, k) => starts.push(k === 0 ? (planned ?? landing(c.chord.bass, bassNote, lean)) : landing(c.chord.bass, starts[k - 1], lean)));
+        const lastStart = starts.at(-1) ?? bassNote;
+        const nextPedal = pedalOf[i + 1];
+        const nextFirst = !next?.chords[0] ? null : nextPedal !== null && nextPedal !== undefined ? nearest(nextPedal, 31) : landing(next.chords[0].chord.bass, lastStart, next.final ? 0 : lean);
+        planned = nextFirst;
         bar.chords.forEach((c, k) => {
-          const following = bar.chords[k + 1] ?? next?.chords[0];
-          const target = following ? nearest(following.chord.bass, bassNote) : null;
+          const target = k + 1 < bar.chords.length ? starts[k + 1] : nextFirst;
           const at = c.beat;
           if (!solo && !straight && c.length >= 3) {
             // In one: a dotted half, 1 and 3, or 1 with a pickup into the next chord.
-            const root = nearest(c.chord.bass, bassNote);
+            const root = starts[k];
             const kind = weighted([{ weight: 0.4, value: "one" }, { weight: 0.35, value: "three" }, { weight: target !== null ? 0.25 : 0, value: "pickup" }], random);
             const step = has(c.chord, "5d") ? 6 : 7;
             events.push({ track: "bass", time: place(t + at, "bass"), duration: kind === "one" ? 2.85 : kind === "three" ? 1.9 : 2.0, velocity: human(0.84 * lift, 0.08), notes: [root] });
             bassNote = root;
             if (kind === "three") {
-              const n = target !== null && random() < 0.5 ? target + (target > root ? -1 : 1) : nearest((c.chord.root + step) % 12, root);
+              // An approach into the next chord, or the fifth in the octave nearest where the line goes next.
+              const n = target !== null && random() < 0.5 ? target + (target > root ? -1 : 1) : nearest((c.chord.root + step) % 12, target ?? root);
               events.push({ track: "bass", time: place(t + at + 2, "bass"), duration: 0.9, velocity: human(0.72 * lift, 0.08), notes: [n] });
               bassNote = n;
             } else if (kind === "pickup") {
@@ -318,13 +360,14 @@ export const waltz: Style = {
             return;
           }
           if (!solo && !straight) {
-            const root = nearest(c.chord.bass, bassNote);
+            const root = starts[k];
             events.push({ track: "bass", time: place(t + at, "bass"), duration: c.length * 0.9, velocity: human(0.8 * lift, 0.08), notes: [root] });
             bassNote = root;
             return;
           }
           // Walking: quarters, with a skip or a dead note now and then.
-          const line = walk(c.chord, c.length, bassNote, target, random, plan.register, 0.55);
+          const following = chordAfter(music, i, at, 2, 0.01);
+          const line = phrygianLine(walk(c.chord, c.length, bassNote, target, random, lean, 0.55, { start: starts[k], next: following }), c.chord, following, target !== null);
           line.forEach((n, b) => {
             const dead = !straight && b > 0 && random() < 0.08;
             const ev: NoteEvent = { track: "bass", time: place(t + at + b, "bass"), duration: dead ? 0.16 : 0.6 + random() * 0.35, velocity: human((b === 0 ? 0.84 : 0.74) * lift * (dead ? 0.62 : 1) + gauss(random) * 0.06, 0.06), notes: [n] };
@@ -339,11 +382,16 @@ export const waltz: Style = {
         });
       }
 
+      // The bass under each beat of the bar, for the piano to keep clear of.
+      const bassHere = bassOnsets(events.slice(bassFrom), t);
+      const bassAt = (beat: number) => bassStruck(bassHere, beat, 0.1, lastBass);
+      lastBass = bassHere.at(-1)?.[1] ?? lastBass;
+
       // Piano.
       if (!straight && inPhrase === 0 && ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5))
         registerDrift = weighted([{ weight: 0.5, value: -2 }, { weight: 1, value: -1 }, { weight: 1.2, value: 0 }, { weight: 1, value: 1 }, { weight: 0.7, value: 2 }, { weight: 0.4, value: 3 }], random, registerDrift);
       const shift = Math.max(-3, Math.min(6, plan.register + registerDrift));
-      const range: VoicingRange = { ...SWING_RANGE, low: SWING_RANGE.low + shift, high: SWING_RANGE.high + shift, center: SWING_RANGE.center + shift };
+      const range = shifted(SWING_RANGE, shift, VOICING_LOW);
       if (!straight && inPhrase === 0) {
         phraseDb = gauss(random) * 0.6;
         phraseSlope = weighted([{ weight: 0.4, value: 0 }, { weight: 0.35, value: 0.6 }, { weight: 0.25, value: -0.6 }], random);
@@ -365,14 +413,23 @@ export const waltz: Style = {
         const ahead = slot === 5 && changes;
         const c = ahead ? nextChord! : chordAt(bar, beat);
         if (!c) return;
-        piano = (modal(c.chord) && quartal(c.chord, piano, range)) || voiceChord(c.chord, piano, range);
+        // Voiced toward the chord after it, clear of the bass under it (the next bar's, for an anticipation).
+        const context: VoicingContext = ahead
+          ? { next: chordAfter(music, i + 1, 0, 2, 0.01), bass: pedalOf[i + 1] !== null && pedalOf[i + 1] !== undefined ? nearest(pedalOf[i + 1]!, 31) : nearest(c.chord.bass, bassAt(beat)) }
+          : { next: chordAfter(music, i, beat, 2, 0.01), bass: bassAt(beat) };
+        const last = piano;
+        const voiced = voiceFor(c.chord, last, range, context);
+        // On a long vamp the comping moves to the next shape after two or three hits on one voicing.
+        const repeat = !!last && voiced.join() === last.join();
+        piano = moveOn(voiced, last, repeat && (run >= 3 || (!straight && run >= 2 && random() < 0.4)), (from) => voiceFor(c.chord, from, range, context));
+        run = last && piano.join() === last.join() ? run + 1 : 1;
         const changeAt = ahead ? BAR + nextChord!.length : (bar.chords.find((x) => x.beat > beat + 0.01)?.beat ?? (changes ? BAR - 0.4 : BAR + 1));
         const nextHit = cell[h + 1] ? eighth(cell[h + 1][0]) : BAR + 0.5;
         const duration = Math.max(0.25, Math.min(!straight && random() < 0.3 ? nextHit - beat - 0.05 : length * legato * (0.85 + random() * 0.3), 2.6, changeAt - beat - 0.05));
         let notes = piano;
         // Over a pedal, the left hand doubles the bass note with an open fifth on the riff's first chord.
         if (!straight && pedal !== null && h === 0 && random() < 0.45) {
-          const low = 40 + ((pedal - 4 + 12) % 12); // E2 to D#3
+          const low = PIANO_FLOOR + ((pedal - PIANO_FLOOR + 120) % 12); // A2 to G#3, the lowest the piano samples go
           notes = [low, low + 7, ...piano.filter((n) => n > low + 9)];
         }
         events.push({
@@ -457,6 +514,6 @@ export const waltz: Style = {
       }
     });
 
-    return events.sort((a, b) => a.time - b.time);
+    return keepInRange(events).sort((a, b) => a.time - b.time);
   },
 };

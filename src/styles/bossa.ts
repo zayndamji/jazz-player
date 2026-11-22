@@ -1,6 +1,7 @@
 import type { ParsedChord } from "../chart/chords";
-import { chordAt, sameRef, type TimelineBar } from "../engine/timeline";
-import { GUITAR_RANGE, PIANO_RANGE, voiceChord, type VoicingRange } from "../engine/voicing";
+import { chordAt, type TimelineBar } from "../engine/timeline";
+import { GUITAR_RANGE, PIANO_RANGE, voicingIntervals, type VoicingRange } from "../engine/voicing";
+import { BASS_HIGH, BASS_LOW, bassUnder, chordAfter, endsSection, isFormEnd, shifted, voiceClear } from "./context";
 import { drumGain, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
@@ -126,43 +127,79 @@ const PIANO_FIGURES: { weight: number; value: Hit[][] }[] = [
 /** A figure's weight for the chorus: busier figures when the band builds, sparser in the head. */
 const forDensity = (f: { weight: number; value: Hit[][] }, density: number) => f.weight * density ** ((f.value.flat().length - 3.5) * 2.5);
 
-const BASS_LOW = 28; // E1
+/** The line leans back toward A#1 so the roots stay low, where the old fixed roots sat (E1 to D#2). */
+const BASS_HOME = 34;
+/** The widest leap between two bass notes: an octave. */
+const LEAP = 12;
 
-/** Bass note for a pitch class, in the range E1 to D#2. */
-function bassNote(pc: number): number {
-  return BASS_LOW + ((pc - (BASS_LOW % 12) + 12) % 12);
+/**
+ * The bass note of pitch class `pc` nearest `from` (and `to`, when given), never more than an
+ * octave from either, leaning toward `home`; `avoid` (a repeated note) is taken only when nothing else fits.
+ */
+function placeBass(pc: number, from: number, to: number | null = null, home: number | null = BASS_HOME, avoid: number | null = null): number {
+  let best = from;
+  let bestScore = Infinity;
+  for (let n = BASS_LOW + ((pc - BASS_LOW + 120) % 12); n <= BASS_HIGH; n += 12) {
+    const leap = Math.max(Math.abs(n - from), to === null ? 0 : Math.abs(n - to));
+    const score =
+      Math.abs(n - from) + (to === null ? 0 : Math.abs(n - to)) + (home === null ? 0 : 1.5 * Math.abs(n - home)) + (leap > LEAP ? 100 : 0) + (n === avoid ? 20 : 0);
+    if (score < bestScore) [best, bestScore] = [n, score];
+  }
+  return best;
+}
+
+/** True when a pitch class sits a half step from one of the comping's voiced tones. */
+const rubs = (pc: number, chord: ParsedChord, next: ParsedChord | null) =>
+  voicingIntervals(chord, next).some((iv) => [1, 11].includes((((chord.root + iv - pc) % 12) + 12) % 12));
+
+/**
+ * The bar's other chord tone, after the bass note: the fifth; the flat fifth on half-diminished and
+ * diminished chords (Dm7b5 plays D then Ab); the chord's own root over a slash bass. When the comping's
+ * voicing (with `next`, the chord after, as the piano and guitar voice it) has a tone a half step from
+ * the fifth, a b13 or #5 (written, or a dominant into minor) or a #11 or b5 on a dominant, the root again.
+ */
+function otherPc(chord: ParsedChord, next: ParsedChord | null): number {
+  if (chord.bass !== chord.root) return chord.root;
+  const fifth = (chord.root + (chord.intervalNames.includes("5d") && chord.intervalNames.includes("3m") ? 6 : 7)) % 12;
+  return rubs(fifth, chord, next) ? chord.root : fifth;
 }
 
 /**
- * The second note of the bar: the fifth; the flat fifth on half-diminished and
- * diminished chords (Dm7b5 plays D then Ab); the root an octave up on a raised fifth.
+ * Beat 3 when the chord holds: the fifth above the root (the octave on a b13 or #5), or below
+ * when above would sit high or leave the next root more than a fifth or so away. An octave that
+ * doesn't fit either way takes the 3rd instead.
  */
-function fifthNote(chord: ParsedChord): number {
-  const bass = bassNote(chord.bass);
-  if (chord.bass !== chord.root) return bass + 7;
-  if (chord.intervalNames.includes("5A")) return bass + 12;
-  if (chord.intervalNames.includes("5d")) return bass + 6;
-  return bass + 7;
+function fifthNote(chord: ParsedChord, root: number, nextPc: number | null, next: ParsedChord | null): number {
+  const pc = otherPc(chord, next);
+  const above = root + ((((pc - root) % 12) + 12) % 12 || 12);
+  const below = above - 12;
+  const reach = (n: number) => (nextPc === null ? 0 : Math.abs(placeBass(nextPc, n) - n));
+  if (above <= 45 && reach(above) <= 9) return above;
+  if (below >= BASS_LOW && below !== root) return below;
+  if (above <= BASS_HIGH && above !== root + 12) return above;
+  const third = (chord.root + (chord.intervalNames.includes("3m") ? 3 : 4)) % 12;
+  if (chord.bass === chord.root && !rubs(third, chord, next)) return placeBass(third, root, null, null);
+  return above <= BASS_HIGH ? above : root;
 }
 
-/** The two main bass notes of a bar, on beats 1 and 3. */
-function mainBassNotes(bar: TimelineBar): (number | null)[] {
-  const first = chordAt(bar, 0);
-  const second = chordAt(bar, 2);
-  if (!first || !second) return [null, null];
-  if (second !== first) return [bassNote(first.chord.bass), bassNote(second.chord.bass)];
-  return [bassNote(first.chord.bass), fifthNote(first.chord)];
+/**
+ * The bass line's main notes for every bar, chosen in order so each sits near the last: beats 1
+ * and 3 (the eighths before them anticipate these), or in the final bar one note per chord.
+ */
+function bassLine(music: TimelineBar[]): (number | null)[][] {
+  let last = BASS_HOME;
+  return music.map((bar, i) => {
+    if (bar.final) return bar.chords.map((c) => (last = placeBass(c.chord.bass, last)));
+    const first = chordAt(bar, 0);
+    const second = chordAt(bar, 2);
+    if (!first || !second) return [null, null];
+    const root = placeBass(first.chord.bass, last);
+    const nextFirst = music[i + 1] && chordAt(music[i + 1], 0);
+    const third = second !== first ? placeBass(second.chord.bass, root) : fifthNote(first.chord, root, nextFirst ? nextFirst.chord.bass : null, chordAfter(music, i, 2));
+    last = third;
+    return [root, third];
+  });
 }
-
-/** True when the bar after this one starts a new section (or the song ends). */
-function endsSection(bar: TimelineBar, next: TimelineBar | undefined): boolean {
-  if (!bar.ref) return false;
-  if (!next?.ref) return true;
-  return next.ref.part !== bar.ref.part || next.ref.section !== bar.ref.section || next.ref.bar === 0;
-}
-
-const isFormEnd = (bar: TimelineBar, next: TimelineBar | undefined) =>
-  bar.ref?.part === "form" && (!next?.ref || next.ref.part !== "form" || next.chorus !== bar.chorus || sameRef(next.ref, { part: "form", section: 0, bar: 0 }));
 
 export const bossa: Style = {
   id: "bossa",
@@ -197,6 +234,7 @@ export const bossa: Style = {
       return 0;
     };
     const shapes = straight ? steadyBars(music) : shapeBars(music, random, true);
+    const line = bassLine(music);
     // The hats' home figure per chorus; the piano's figures by place in the form.
     const hatHome = new Map<number, number>();
     const memory = new Map<string, Hit[][]>();
@@ -249,47 +287,74 @@ export const bossa: Style = {
       }
       const shift = straight ? 0 : Math.max(-3, Math.min(7, plan.register + registerDrift + weighted([{ weight: 0.25, value: -2 }, { weight: 0.5, value: 0 }, { weight: 0.25, value: 2 }], random)));
       const pianoGain = straight ? 1 : 10 ** ((phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 1.1) / 20);
-      const range: VoicingRange = { ...PIANO_RANGE, low: PIANO_RANGE.low + shift, high: PIANO_RANGE.high + shift, center: PIANO_RANGE.center + shift };
+      const range: VoicingRange = shifted(PIANO_RANGE, shift);
+
+      const barBass: NoteEvent[] = [];
+      const bassAt = (e: NoteEvent) => {
+        events.push(e);
+        barBass.push(e);
+      };
+      /** The highest bass note under a chord hit from `beat` for `length` beats in this bar. */
+      const under = (beat: number, length: number) => bassUnder(barBass, t + beat - 0.05, t + beat + length);
 
       if (bar.final) {
-        const chord = bar.chords[0]?.chord;
-        if (!chord) return;
-        piano = voiceChord(chord, piano);
-        guitar = voiceChord(chord, guitar, GUITAR_RANGE);
-        events.push({ track: "piano", time: t, duration: 4, velocity: 0.5, notes: piano, ...pianoTouch(piano, random, true) });
-        events.push({ track: "guitar", time: t + 0.02, duration: 4, velocity: 0.6, notes: guitar });
-        events.push({ track: "bass", time: t, duration: 3.5, velocity: 0.85, notes: [bassNote(chord.bass)] });
-        drum(t, "kick", 0.8);
-        drum(t, "crash", 0.55, 0);
+        // Each chord of the last bar on its beat, the last one held like a fermata.
+        const notes = line[i];
+        bar.chords.forEach((c, k) => {
+          const last = k === bar.chords.length - 1;
+          const length = last ? 4 : c.length;
+          // Past the sample's length the sampler fades the note inside the sample (src/audio/sprite.ts).
+          const bassLength = last ? 3.5 : c.length - 0.1;
+          const n = notes[k] ?? placeBass(c.chord.bass, BASS_HOME);
+          bassAt({ track: "bass", time: t + c.beat, duration: bassLength, velocity: last ? 0.85 : 0.8, notes: [n] });
+          const after = last ? null : bar.chords[k + 1].chord;
+          piano = voiceClear(c.chord, piano, PIANO_RANGE, after, n);
+          guitar = voiceClear(c.chord, guitar, GUITAR_RANGE, after, n);
+          events.push({ track: "piano", time: t + c.beat, duration: last ? length : length - 0.1, velocity: last ? 0.5 : 0.46, notes: piano, ...pianoTouch(piano, random, true) });
+          events.push({ track: "guitar", time: t + c.beat + 0.02, duration: last ? length : length - 0.1, velocity: last ? 0.6 : 0.55, notes: guitar });
+          drum(t + c.beat, "kick", last ? 0.8 : 0.6);
+          if (last) drum(t + c.beat, "crash", 0.55, 0);
+        });
         return;
       }
 
-      // Bass
-      const mains = mainBassNotes(bar);
-      const nextMains = next ? mainBassNotes(next) : [null, null];
+      // Bass: the line's main notes on 1 and 3, each anticipated an eighth early.
+      const mains = line[i];
+      const nextMains = next ? line[i + 1] : [null, null];
       const pickups = [mains[1], nextMains[0] ?? mains[0]];
       for (let half = 0; half < 2; half++) {
         const main = mains[half];
         const pickup = pickups[half];
         const mainEvent: NoteEvent | null = main === null ? null : { track: "bass", time: t + half * 2 + clock.at("bass"), duration: 1.4, velocity: human(0.85 * (0.94 + 0.06 * lift), 0.1), notes: [main] };
-        if (mainEvent) events.push(mainEvent);
+        if (mainEvent) bassAt(mainEvent);
         if (pickup === null) continue;
-        // In the solos, now and then a half step into a new chord instead of anticipating it.
+        // In the solos, now and then a half step into a new chord instead of anticipating it
+        // (from the side that keeps the line within an octave).
         const newChord = half === 1 && nextMains[0] !== null && nextMains[0] !== mains[0];
-        const into = newChord && solos && !straight && random() < 0.2 ? pickup + (random() < 0.5 ? -1 : 1) : pickup;
-        events.push({ track: "bass", time: t + half * 2 + 1.5 + clock.at("bass"), duration: 0.45, velocity: human(0.65 * (0.94 + 0.06 * lift), 0.1), notes: [into] });
-        // In the solos the line gets busier, nearer a walk: a note on 2 or 4 between the figure's
-        // hits, a fifth from the main note (Blue Bossa 1963: about 5.2 notes a bar, beat 4 in 55 to 80% of bars).
-        if (solos && !straight && main !== null && mainEvent && random() < (half ? 0.6 : 0.3)) {
-          const fifth = main + 7 <= 50 ? main + 7 : main - 5;
-          mainEvent.duration = 0.9;
-          events.push({ track: "bass", time: t + half * 2 + 1 + clock.at("bass"), duration: 0.4, velocity: human(0.58 * (0.94 + 0.06 * lift), 0.1), notes: [fifth] });
+        let into = pickup;
+        if (newChord && solos && !straight && random() < 0.2) {
+          const side = random() < 0.5 ? -1 : 1;
+          const fits = (n: number) => n >= BASS_LOW && n <= BASS_HIGH && (main === null || Math.abs(n - main) <= LEAP);
+          into = fits(pickup + side) ? pickup + side : fits(pickup - side) ? pickup - side : pickup;
         }
+        const pickupEvent: NoteEvent = { track: "bass", time: t + half * 2 + 1.5 + clock.at("bass"), duration: 0.45, velocity: human(0.65 * (0.94 + 0.06 * lift), 0.1), notes: [into] };
+        // In the solos the line gets busier, nearer a walk: a chord tone on 2 or 4 between the
+        // figure's hits (root, fifth, or the flat fifth on half-diminished), near the notes either
+        // side of it (Blue Bossa 1963: about 5.2 notes a bar, beat 4 in 55 to 80% of bars).
+        if (solos && !straight && main !== null && mainEvent && random() < (half ? 0.6 : 0.3)) {
+          const slot = chordAt(bar, half * 2 + 1)!.chord;
+          const cost = (n: number) => Math.abs(n - main) + Math.abs(n - into) + (n === main ? 20 : 0);
+          const between = [slot.bass, otherPc(slot, chordAfter(music, i, half * 2 + 1))].map((pc) => placeBass(pc, main, into, null, main)).reduce((a, b) => (cost(b) < cost(a) ? b : a));
+          mainEvent.duration = 0.9;
+          bassAt({ track: "bass", time: t + half * 2 + 1 + clock.at("bass"), duration: 0.4, velocity: human(0.58 * (0.94 + 0.06 * lift), 0.1), notes: [between] });
+        }
+        bassAt(pickupEvent);
       }
 
       // Push: play the next bar's new chord early, on the and of 4, and skip its downbeat.
       const nextChord = next?.chords[0];
       const push = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord && !straight && random() < PUSH;
+      const pushTo = push ? chordAfter(music, i + 1, 0) : null;
 
       // Guitar: the two-bar figure, re-voiced at each hit so changes land where they fall.
       for (const [beat, length, velocity] of GUITAR_FIGURES[figure].bars[cycle]) {
@@ -297,11 +362,11 @@ export const bossa: Style = {
         if (pushedIn && beat < 1) continue;
         const slot = chordAt(bar, beat);
         if (!slot) continue;
-        guitar = voiceChord(slot.chord, guitar, GUITAR_RANGE);
+        guitar = voiceClear(slot.chord, guitar, GUITAR_RANGE, chordAfter(music, i, beat), under(beat, length * 0.85));
         events.push({ track: "guitar", time: t + beat + clock.at("guitar"), duration: length * 0.85, velocity: human(velocity * 0.55 * lift, 0.1), notes: guitar });
       }
       if (push) {
-        guitar = voiceChord(nextChord!.chord, guitar, GUITAR_RANGE);
+        guitar = voiceClear(nextChord!.chord, guitar, GUITAR_RANGE, pushTo, under(3.5, 1));
         events.push({ track: "guitar", time: t + 3.5 + clock.at("guitar"), duration: 0.8, velocity: human(0.48 * lift, 0.1), notes: guitar });
       }
 
@@ -316,12 +381,12 @@ export const bossa: Style = {
         if (!slot) continue;
         // Don't ring past the next chord change.
         const until = bar.chords.find((c) => c.beat > beat + 0.01)?.beat ?? (push ? 3.5 : 4.5);
-        piano = voiceChord(slot.chord, piano, range);
         const duration = Math.max(0.4, Math.min(length, until - beat) - 0.1);
+        piano = voiceClear(slot.chord, piano, range, chordAfter(music, i, beat), under(beat, duration));
         events.push({ track: "piano", time: t + beat + clock.at("piano"), duration, velocity: human(velocity * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random, !straight && duration >= 2 && random() < 0.3) });
       }
       if (push && !layOut) {
-        piano = voiceChord(nextChord!.chord, piano, range);
+        piano = voiceClear(nextChord!.chord, piano, range, pushTo, under(3.5, 1.4));
         events.push({ track: "piano", time: t + 3.5 + clock.at("piano"), duration: 1.4, velocity: human(0.44 * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random) });
       }
       pushedIn = push;

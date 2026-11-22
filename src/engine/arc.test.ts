@@ -1,12 +1,88 @@
 import { describe, expect, it } from "vitest";
 import { FIXTURES, bossaForm, fiveForm, swingForm, waltzForm } from "../fixtures";
 import { STYLES, playsMeter } from "../styles";
-import { POCKETS, jitterAt } from "../styles/feel";
+import { POCKETS, barPlans, chorusPlans, jitterAt } from "../styles/feel";
+import { shapeBars } from "../styles/shape";
 import { swing } from "../styles/swing";
 import { RING_SECONDS, buildSchedule, chorusLayoutChanges, performanceBeats, ringSeconds, ritardAt, ritardDepth, ritardFor } from "./schedule";
 import { chorusTranspose, playOrder, tonicChord } from "./timeline";
 
 const base = { countIn: false, transpose: 0 } as const;
+const music = (s: ReturnType<typeof buildSchedule>) => s.bars.filter((b) => !b.countIn);
+const dB = (x: number) => 20 * Math.log10(x);
+/** A plan's drum level with its velocity, in dB: what the ride's level follows. */
+const loudness = (p: { drums: number; energy: number }) => p.drums + dB(p.energy);
+
+describe("the chorus arc", () => {
+  const s = buildSchedule(swingForm, swing, { ...base, choruses: 3 });
+  const bars = music(s);
+  const plans = chorusPlans(bars, () => 0.5);
+  const perBar = barPlans(bars, plans);
+  const inChorus = (c: number) => perBar.filter((_, i) => bars[i].chorus === c && bars[i].ref?.part === "form");
+
+  it("ramps through the first solo chorus instead of stepping at the barline", () => {
+    const head = inChorus(1);
+    const solo = inChorus(2);
+    const rise = loudness(solo.at(-1)!) - loudness(head.at(-1)!);
+    expect(rise).toBeGreaterThan(3);
+    // No more than about a third of the rise at the barline, and it climbs phrase by phrase.
+    expect(loudness(solo[0]) - loudness(head.at(-1)!)).toBeLessThan(rise * 0.4);
+    for (let i = 1; i < solo.length; i++) {
+      expect(loudness(solo[i])).toBeGreaterThanOrEqual(loudness(solo[i - 1]) - 1e-9);
+      expect(loudness(solo[i]) - loudness(solo[i - 1])).toBeLessThan(rise * 0.2);
+    }
+    // It reaches the chorus's own plan by its last phrase, and keeps the chorus's role throughout.
+    expect(solo.at(-1)!.drums).toBeCloseTo(plans.get(2)!.drums);
+    expect(new Set(solo.map((p) => p.role))).toEqual(new Set([plans.get(2)!.role]));
+  });
+
+  it("keeps the head-to-peak rise in the drums near 6 dB", () => {
+    for (const n of [3, 4, 6, 8]) {
+      const p = chorusPlans(music(buildSchedule(swingForm, swing, { ...base, choruses: n })), () => 0.5);
+      const head = loudness(p.get(1)!);
+      const top = Math.max(...[...p.values()].map(loudness));
+      expect(top - head).toBeGreaterThan(4);
+      expect(top - head).toBeLessThan(6.5);
+    }
+  });
+
+  it("builds and then holds a solo level when the choruses repeat until stopped", () => {
+    const loop = buildSchedule(swingForm, swing, { ...base, choruses: "loop" });
+    const lb = music(loop);
+    const lp = chorusPlans(lb, Math.random);
+    const numbers = [...new Set(lb.map((b) => b.chorus).filter((c) => c > 0))];
+    expect(lp.get(1)!.role).toBe("head");
+    const solos = numbers.slice(1).map((c) => lp.get(c)!);
+    expect(solos.every((p) => p.role === "solo")).toBe(true);
+    const levels = solos.map((p) => p.energy);
+    expect(Math.max(...levels) - Math.min(...levels)).toBeLessThan(0.035);
+    // The build chorus ramps from the head; the repeats start at their own level (the loop wraps back to them).
+    const per = barPlans(lb, lp);
+    const first = (c: number) => per[lb.findIndex((b) => b.chorus === c)];
+    expect(lb.find((b) => b.chorus === 2)!.repeats).toBeFalsy();
+    expect(first(2).energy).toBeLessThan(lp.get(2)!.energy - 0.03);
+    for (const c of numbers.slice(2)) {
+      expect(lb.find((b) => b.chorus === c)!.repeats).toBe(true);
+      expect(first(c)).toEqual(lp.get(c));
+    }
+  });
+
+  it("gives a chorus the same plan however many choruses the schedule holds", () => {
+    const random = () => 0.37;
+    const three = chorusPlans(music(buildSchedule(swingForm, swing, { ...base, choruses: "loop" })), random);
+    const live = chorusPlans(music(buildSchedule(swingForm, swing, { ...base, choruses: "loop", liveEnd: 4 })), random);
+    for (const c of [1, 2, 3]) expect(live.get(c)).toEqual(three.get(c));
+    expect(live.get(4)!.last).toBe(true);
+  });
+
+  it("shapes every bar with a plan in every arc style", () => {
+    for (const chart of FIXTURES) {
+      const s = buildSchedule(chart, STYLES[chart.style], { ...base, choruses: 4 });
+      const shapes = shapeBars(s.bars, Math.random, true);
+      expect(shapes.every((b) => b.plan && Number.isFinite(b.plan.drums) && Number.isFinite(b.intensity))).toBe(true);
+    }
+  });
+});
 
 describe("timing at fast tempos", () => {
   it("shrinks each note's error with the beat, down to a floor", () => {
@@ -30,6 +106,23 @@ describe("timing at fast tempos", () => {
 });
 
 describe("ending without the ending", () => {
+  it("adds a held tonic bar after the last chorus, flagged final", () => {
+    const s = buildSchedule(bossaForm, STYLES.bossa, { ...base, choruses: 2, ending: false });
+    const last = s.bars.at(-1)!;
+    const before = s.bars.at(-2)!;
+    expect(last.tonic).toBe(true);
+    expect(last.final).toBe(true);
+    expect(before.final).toBe(false);
+    expect(last.ref).toEqual(before.ref);
+    expect(last.chorus).toBe(before.chorus);
+    expect(last.chords).toHaveLength(1);
+    expect(last.chords[0].chord.symbol).toBe("C6");
+    expect(last.chords[0].length).toBe(4);
+    // The style plays its final hit there.
+    expect(s.events.some((e) => e.time >= last.startBeat && e.track === "drums")).toBe(true);
+    expect(s.events.some((e) => e.time >= last.startBeat && e.track === "bass")).toBe(true);
+  });
+
   it("is in the last chorus's key, and minor keys end on m6", () => {
     const s = buildSchedule(bossaForm, STYLES.bossa, { ...base, choruses: 3, ending: false, keyStep: 5 });
     const last = s.bars.at(-1)!;
@@ -97,6 +190,24 @@ describe("the final chord rings", () => {
           // The drums keep the lengths the style wrote (a hit's sample rings by itself).
           expect(s.events.filter((e) => e.track === "drums" && e.time >= last.startBeat).every((e) => e.duration < 1)).toBe(true);
         }
+      }
+    }
+  });
+
+  it("keeps the earlier chords of a final bar that changes chord as they were", () => {
+    const twoChords = { ...bossaForm, ending: [{ label: "End", bars: ["Dm7 G7", "Dm7 Cmaj7"] }] };
+    for (const style of [STYLES.bossa, swing]) {
+      for (const tempo of [60, 140, 260]) {
+        const s = buildSchedule(twoChords, style, { ...base, choruses: 1, tempo });
+        const last = s.bars.at(-1)!;
+        const change = last.startBeat + last.chords[1].beat;
+        const until = last.startBeat + Math.max((RING_SECONDS * tempo) / 60, 5);
+        const held = s.events.filter((e) => ["piano", "guitar", "bass"].includes(e.track) && e.time >= last.startBeat - 0.1);
+        // Notes of the first chord end before the ring; the last chord's notes ring to the fade.
+        for (const e of held.filter((e) => e.time < change - 0.3)) expect(e.time + e.duration, `${style.id} at ${tempo}`).toBeLessThan(until - 1e-6);
+        const lastChord = held.filter((e) => e.time >= change - 0.3);
+        expect(lastChord.length).toBeGreaterThan(0);
+        for (const e of lastChord) expect(e.time + e.duration).toBeGreaterThanOrEqual(until - 1e-6);
       }
     }
   });

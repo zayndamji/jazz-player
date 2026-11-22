@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { parseBar, parseChord } from "../chart/chords";
 import type { Chart } from "../chart/types";
 import { validateChart } from "../charts";
-import { swingForm, waltzForm } from "../fixtures";
+import { fiveForm, swingForm, waltzForm } from "../fixtures";
 import { loadSettings, tuneKey } from "../pages/settings";
 import { STYLES, playableStyle, playsMeter, stylesFor } from "../styles";
-import { quartal, waltz } from "../styles/waltz";
+import { five } from "../styles/five";
+import { phrygianLine, quartal, waltz } from "../styles/waltz";
 import { buildSchedule, clickLabel, clicksOn, MIN_REPEATS, performanceBeats } from "./schedule";
 import { SWING_RANGE } from "./voicing";
 import { chartBars, itemAtFraction, nextChord, performanceFraction, playOrder, rangeOrder, stepBar } from "./timeline";
@@ -169,6 +170,94 @@ describe("the waltz style", () => {
     expect(v[2] - v[1]).toBe(5);
     const emaj7 = quartal(parseChord("Emaj7"), null, SWING_RANGE)!;
     expect(emaj7.map((n) => n % 12)).not.toContain(5); // no F over E
+  });
+
+  it("keeps a quartal voicing a minor third clear of the bass", () => {
+    for (const bass of [40, 45, 48, 50]) {
+      const v = quartal(parseChord("Em11"), null, SWING_RANGE, { bass })!;
+      expect(v[0] - bass, `${v} over ${bass}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("keeps the piano at or above A2 and the bass at or above E1, over a pedal in every key", () => {
+    for (let transpose = 0; transpose < 12; transpose++) {
+      const sch = buildSchedule({ ...waltzForm, pedal: "E" }, waltz, { choruses: 3, countIn: false, transpose });
+      for (const e of sch.events) {
+        if (e.track === "piano") for (const n of e.notes!) expect(n, `piano ${n} in ${transpose}`).toBeGreaterThanOrEqual(45);
+        if (e.track === "bass") expect(e.notes![0], `bass in ${transpose}`).toBeGreaterThanOrEqual(28);
+      }
+    }
+  });
+
+  it("moves the comping off one voicing after three hits on a long vamp", () => {
+    const vamp = { ...waltzForm, id: "vamp", intro: undefined, ending: undefined, form: [{ label: "A", bars: Array.from({ length: 16 }, () => "Em11") }] };
+    for (const variation of ["varied", "straight"] as const) {
+      const piano = buildSchedule(vamp, waltz, { choruses: 3, countIn: false, transpose: 0, variation }).events.filter((e) => e.track === "piano");
+      let run = 1;
+      for (let k = 1; k < piano.length; k++) {
+        run = piano[k].notes!.join() === piano[k - 1].notes!.join() ? run + 1 : 1;
+        expect(run, `${variation} hit ${k}`).toBeLessThanOrEqual(3);
+      }
+    }
+  });
+
+  it("plays every chord of the last bar and holds the last", () => {
+    const chart = { ...waltzForm, ending: [{ label: "End", bars: ["Dm7", "Gm7 / A7"] }] };
+    const sch = buildSchedule(chart, waltz, { choruses: 1, countIn: false, transpose: 0 });
+    const end = sch.bars.find((b) => b.final)!;
+    const at = (track: string) => sch.events.filter((e) => e.track === track && e.time >= end.startBeat - 0.1);
+    expect(at("bass").map((e) => [Math.round(e.time - end.startBeat), e.notes![0] % 12])).toEqual([[0, 7], [2, 9]]);
+    const piano = at("piano");
+    expect(piano.map((e) => Math.round(e.time - end.startBeat))).toEqual([0, 2]);
+    expect(piano[1].notes!.map((n) => n % 12)).toContain(1); // the C# of A7
+    expect(piano[1].duration).toBeGreaterThanOrEqual(4);
+    expect(at("bass")[1].duration).toBeGreaterThanOrEqual(4);
+  });
+
+  it("walks a dominant into a minor chord on the Phrygian dominant", () => {
+    const a7 = parseChord("A7");
+    // B (the 9th) and F# (the 13th) come down to Bb and F; the root and the approach stay.
+    expect(phrygianLine([45, 47, 42, 44], a7, parseChord("Dm7"), true)).toEqual([45, 46, 41, 44]);
+    expect(phrygianLine([45, 47, 42, 44], a7, parseChord("Dmaj7"), true)).toEqual([45, 47, 42, 44]);
+    expect(phrygianLine([45, 47, 42], parseChord("A13"), parseChord("Dm7"), false)).toEqual([45, 47, 42]); // a written 9th and 13th stay
+    // In the band: the walking line over A7 before Dm7 never lands a natural 9th or 13th on the beat.
+    const sch = buildSchedule(waltzForm, waltz, { choruses: 4, countIn: false, transpose: 0 });
+    let checked = 0;
+    sch.bars.forEach((b, i) => {
+      const next = sch.bars[i + 1];
+      if (b.chords.length !== 1 || b.chords[0].chord.symbol !== "A7" || next?.chords[0]?.chord.symbol !== "Dm7") return;
+      for (const e of sch.events.filter((x) => x.track === "bass" && x.time >= b.startBeat - 0.1 && x.time < b.startBeat + 2.9)) {
+        if (Math.abs(e.time - Math.round(e.time)) > 0.1) continue;
+        expect([11, 6], `${e.notes} in bar ${i}`).not.toContain(e.notes![0] % 12);
+        checked++;
+      }
+    });
+    expect(checked).toBeGreaterThan(5);
+  });
+
+  it("resolves every chromatic approach by a half or whole step, never an octave away", () => {
+    let approaches = 0;
+    for (const [chart, style] of [[waltzForm, waltz], [fiveForm, five]] as const)
+      for (const variation of ["varied", "straight"] as const)
+        for (const transpose of [0, 3, 7, 10]) {
+          const sch = buildSchedule(chart, style, { choruses: 4, countIn: false, transpose, variation });
+          const bass = sch.events.filter((e) => e.track === "bass");
+          // Each chord change: the last bass note before it and the first on it.
+          sch.bars.forEach((b) =>
+            b.chords.forEach((c) => {
+              if (!c.attack) return;
+              const at = b.startBeat + c.beat;
+              const before = bass.filter((e) => e.time < at - 0.15).at(-1);
+              const on = bass.find((e) => Math.abs(e.time - at) < 0.15);
+              if (!before || !on) return;
+              const [from, to] = [before.notes![0], on.notes![0]];
+              if (Math.abs(from - to) % 12 !== 1 && Math.abs(from - to) % 12 !== 11) return; // not a half-step approach
+              approaches++;
+              expect(Math.abs(from - to), `${from} to ${to} at beat ${at} (${chart.id}, ${variation}, +${transpose})`).toBeLessThanOrEqual(2);
+            }),
+          );
+        }
+    expect(approaches).toBeGreaterThan(50);
   });
 
   it("plays pedal figures over a long run on one bass note", () => {

@@ -36,4 +36,12 @@ describe("live", () => {
     expect(last.ref).toEqual(ended.bars.at(-2)!.ref);
     expect(ended.loop).toBeNull();
   });
+
+  it("ends from a repeating chorus too, keeping its bars in place", () => {
+    const repeating = looping.bars.find((b) => b.repeats)!.chorus;
+    const ended = buildSchedule(swingForm, swing, { ...opts, liveEnd: repeating + 1 });
+    const lastOfChorus = looping.bars.map((b) => b.chorus).lastIndexOf(repeating + 1);
+    for (let i = 0; i <= lastOfChorus; i++) expect(ended.bars[i].ref).toEqual(looping.bars[i].ref);
+    expect(ended.bars.at(-1)!.ref?.part).toBe("ending");
+  });
 });

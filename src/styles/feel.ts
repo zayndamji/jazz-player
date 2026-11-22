@@ -4,7 +4,8 @@ import type { TimelineBar } from "../engine/timeline";
  * How a band shapes a whole performance and places its notes in time, shared by the
  * styles. Measured against full reference tracks and records (context/whole-track-comparison.md):
  * - Choruses arc: the head is lighter (the drums 4 dB under the solos), the solo choruses build to a peak about two
- *   thirds of the way through, and the last chorus comes back to the head's texture.
+ *   thirds of the way through, and the last chorus comes back to the head's texture. The solos ramp phrase by
+ *   phrase from the chorus before (`barPlans`) instead of stepping at the barline; head to peak is about 6 dB in the drums.
  * - Timing is never on the grid: each part sits in its own pocket (bass on the ride
  *   or a hair behind, piano a little behind), the band drifts together by a few
  *   milliseconds over bars, and every note has its own small error.
@@ -33,27 +34,42 @@ export interface ChorusPlan {
 
 const INTRO: ChorusPlan = { role: "intro", energy: 0.88, register: 0, density: 0.8, swing: 0, drums: -3, last: false };
 
+/** A number from 0 to 1 for a seed and a chorus (and which draw), the same however many choruses the schedule holds. */
+function hashed(seed: number, chorus: number, k: number): number {
+  let h = (seed ^ Math.imul(chorus + 1, 0x9e3779b1) ^ Math.imul(k + 1, 0x85ebca77)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x846ca68b) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 2 ** 32;
+}
+
 /**
- * The plan for each chorus number in `bars` (0 is the intro and ending). When the
- * schedule repeats until stopped (no final bar), chorus 2 is the one that repeats, so
- * it gets a middle solo chorus.
+ * The plan for each chorus number in `bars` (0 is the intro and ending). A performance that
+ * ends arcs: head, solos building to a peak, out-head. Choruses until stopped (no final bar, or
+ * bars marked `open`, as after Live ends them) build from the head and then hold a solo level,
+ * each chorus a little different, so every pass of the loop sounds like the solos going on.
+ * Each chorus's own variation comes from one draw of `random`, hashed with the chorus number, so a
+ * chorus plays the same whether the schedule holds three choruses or fourteen.
  */
 export function chorusPlans(bars: TimelineBar[], random: () => number): Map<number, ChorusPlan> {
   const numbers = [...new Set(bars.map((b) => b.chorus).filter((c) => c > 0))].sort((a, b) => a - b);
-  const open = !bars.some((b) => b.final);
+  const ends = bars.some((b) => b.final);
+  const open = !ends || bars.some((b) => b.open);
   const n = numbers.at(-1) ?? 0;
   const plans = new Map<number, ChorusPlan>([[0, INTRO]]);
-  const wobble = () => (random() - 0.5) * 0.03;
+  const seed = Math.floor(random() * 2 ** 32);
+  let chorus = 0;
+  const wobble = () => (hashed(seed, chorus, 0) - 0.5) * 0.03;
   // The records' swing moves from chorus to chorus (SD about 0.03 of the beat over a take).
-  const wander = () => (random() - 0.5) * 0.03;
+  const wander = () => (hashed(seed, chorus, 1) - 0.5) * 0.03;
   const solo = (energy: number, role: Role = "solo"): ChorusPlan => ({
     role,
     energy,
     register: Math.max(0, Math.min(5, Math.round((energy - 0.98) * 40))),
     density: Math.max(0.9, Math.min(1.15, energy + 0.03)),
     swing: Math.max(0, Math.min(0.025, (energy - 0.98) * 0.18)) + wander(),
-    // Level with the solos at 0.99, about +2 dB at the peak.
-    drums: Math.max(-0.5, (energy - 0.99) * 18),
+    // Level with the solos at 0.99 and at most +0.5 dB at the peak: with the velocity the peak's energy adds,
+    // head to peak stays near 6 dB (the head is 4 dB under), as the records' drums build.
+    drums: Math.max(-0.5, Math.min(0.5, (energy - 0.99) * 6)),
     last: false,
   });
   const head = (last: boolean): ChorusPlan => ({ role: last ? "outhead" : "head", energy: last ? 0.96 : 0.92, register: 0, density: 0.85, swing: -0.004 + wander(), drums: last ? -2.5 : -4, last });
@@ -61,8 +77,9 @@ export function chorusPlans(bars: TimelineBar[], random: () => number): Map<numb
   const peak = n >= 3 ? 2 + Math.round((n - 3) * 0.66) : 2;
   const reach = Math.max(1, (n - 2) / 2);
   for (const c of numbers) {
+    chorus = c;
     if (c === 1) plans.set(c, n === 1 && !open ? { ...head(true), role: "head" } : head(false));
-    else if (open) plans.set(c, solo(1.03 + wobble()));
+    else if (open) plans.set(c, { ...solo(1.03 + wobble()), last: ends && c === n });
     else if (c === n && n >= 3) plans.set(c, head(true));
     else {
       const closeness = Math.max(0, 1 - Math.abs(c - peak) / reach);
@@ -72,6 +89,49 @@ export function chorusPlans(bars: TimelineBar[], random: () => number): Map<numb
   }
   if (n >= 2 && !open && n < 3) plans.set(n, { ...plans.get(n)!, last: true });
   return plans;
+}
+
+/**
+ * Each bar's plan: its chorus's, except that a solo chorus ramps from the chorus before it phrase by
+ * phrase (four bars), reaching its own level by its last phrase, so the band builds instead of jumping
+ * at the barline. Out of a head it starts a third of the way up (the solos open up); between solo
+ * choruses it carries on from where the last one ended. A chorus the loop wraps back to (`repeats`)
+ * and a chorus with nothing before it in `bars` start at their own level. The role stays the chorus's.
+ */
+export function barPlans(bars: TimelineBar[], plans: Map<number, ChorusPlan>): ChorusPlan[] {
+  const own = (b: TimelineBar | undefined) => (b ? (plans.get(b.chorus) ?? plans.get(0)!) : undefined);
+  const out: ChorusPlan[] = [];
+  let i = 0;
+  while (i < bars.length) {
+    // One run of bars in the same chorus.
+    let j = i;
+    while (j < bars.length && bars[j].chorus === bars[i].chorus && !bars[j].countIn) j++;
+    if (j === i) j = i + 1;
+    const plan = own(bars[i])!;
+    const before = bars[i - 1];
+    const from = before && !before.countIn && before.chorus > 0 ? own(before) : undefined;
+    const ramps = !!from && bars[i].chorus > 0 && (plan.role === "solo" || plan.role === "peak") && !bars[i].repeats;
+    const phrases = Math.ceil((j - i) / 4);
+    for (let k = i; k < j; k++) {
+      if (!ramps || bars[k].ref?.part !== "form") {
+        out.push(plan);
+        continue;
+      }
+      const start = from!.role === "solo" || from!.role === "peak" ? 0 : 0.35;
+      const t = start + (1 - start) * Math.min(1, Math.floor((k - i) / 4) / Math.max(1, phrases - 1));
+      const mix = (a: number, b: number) => a + (b - a) * t;
+      out.push({
+        ...plan,
+        energy: mix(from!.energy, plan.energy),
+        register: Math.round(mix(from!.register, plan.register)),
+        density: mix(from!.density, plan.density),
+        swing: mix(from!.swing, plan.swing),
+        drums: mix(from!.drums, plan.drums),
+      });
+    }
+    i = j;
+  }
+  return out;
 }
 
 /** The chorus's drum level as a gain; the ending and the held tonic that ends a song without one play at the solos' level (the ending's plan is the intro's). */
