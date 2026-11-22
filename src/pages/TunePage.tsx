@@ -694,12 +694,15 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     return `Bar ${number} · ${part}`;
   };
   let where = "";
+  /** What follows the place in the readout, and is cut first when it doesn't fit. */
+  const whereMore: string[] = [];
   if (nowBar?.countIn) where = "Count-in";
   else if (nowBar?.ref) {
     where = describe(nowBar.ref, realChorus(nowBar.chorus), looping);
-    if (nowBar.trade) where += ` · ${tradeLabel(current.current?.opts.trade ?? trade, nowBar.trade)}`;
-    if (finishing) where += " · Ending after this chorus";
-  } else if (status === "idle" && cue) where = `Paused · ${describe(cue.ref, cue.chorus, loop !== null)}`;
+    if (nowBar.trade) whereMore.push(tradeLabel(current.current?.opts.trade ?? trade, nowBar.trade));
+    if (finishing) whereMore.push("Ending after this chorus");
+  } else if (status === "idle" && cue) where = describe(cue.ref, cue.chorus, loop !== null);
+  const wherePrefix = !nowBar?.countIn && !nowBar?.ref && status === "idle" && cue ? "Paused" : undefined;
   if (!where && status === "idle") {
     const seconds = Math.round((totalBeats * 60) / tempo);
     where = live ? "Live: repeats until you end it" : repeat === "loop" ? "Repeats until stopped" : `${repeat} ${repeat === 1 ? "chorus" : "choruses"} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -725,15 +728,17 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     if (!slot) return null;
     const spellFor = (t: number) => spellingPc((chartKeyPc + fold(t + instrument.offset) + 12) % 12, minor);
     const symbol = transposeSymbol(slot.chord.symbol, fold(instrument.offset), spellFor(nowBar.transpose));
-    const scale = chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], spellFor(nowBar.transpose));
-    let text = `${displayParts(symbol).root} ${scale.name.toLowerCase()}: ${scale.notes.join(" ")}`;
     const loopAt = current.current?.schedule.loop;
     const next = nextChord(current.current!.schedule.bars, nowBar.index, position.beat, 2, loopAt ? loopAt.start / chart.beatsPerBar : null);
-    if (next) {
-      const n = displayParts(transposeSymbol(next.chord.symbol, fold(instrument.offset), spellFor(next.transpose)));
-      text += ` · next ${n.root}${n.quality}${n.bass ? "/" + n.bass : ""}`;
-    }
-    return text;
+    const nextSymbol = next ? transposeSymbol(next.chord.symbol, fold(instrument.offset), spellFor(next.transpose)) : null;
+    // The next chord picks the scale for a dominant that resolves to minor (Phrygian dominant).
+    const scale = chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], spellFor(nowBar.transpose), nextSymbol ? parseChord(nextSymbol) : null);
+    const n = nextSymbol ? displayParts(nextSymbol) : null;
+    return {
+      scale: `${displayParts(symbol).root} ${scale.name.toLowerCase()}`,
+      notes: scale.notes.join(" "),
+      next: n ? `next ${n.root}${n.quality}${n.bass ? "/" + n.bass : ""}` : null,
+    };
   }, [nowBar, position, instrument.offset, chartKeyPc, minor, chart.beatsPerBar, chordsHidden]);
 
   const sheetBar = nowBar?.ref ? (nowNumber?.sheetNumber ?? null) : null;
@@ -998,11 +1003,13 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         originalTempo={chart.tempo}
         onTempo={setTempo}
         where={where}
+        wherePrefix={wherePrefix}
+        whereMore={whereMore.join(" · ")}
         detail={nowChord}
         progress={progress}
         onSeek={onSeek}
         onStep={onStep}
-        progressText={where}
+        progressText={[wherePrefix, where, ...whereMore].filter(Boolean).join(" · ")}
         beat={position?.beat ?? null}
         beats={chart.beatsPerBar}
         view={view}

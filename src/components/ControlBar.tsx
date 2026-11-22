@@ -1,8 +1,18 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { withKey } from "../pages/shortcuts";
 import { TempoControl } from "./TempoControl";
 
 export type View = "chords" | "sheet";
+
+/** The readout's second line while playing: the scale for the chord, its notes, and the next chord. */
+export interface ScaleDetail {
+  /** "D dorian" */
+  scale: string;
+  /** "D E F G A B C" */
+  notes: string;
+  /** "next G7", or null when the chord doesn't change soon. */
+  next: string | null;
+}
 
 /** What a key press on the progress line means. */
 export type ProgressStep = "bar-back" | "bar-on" | "section-back" | "section-on" | "start" | "end";
@@ -25,8 +35,13 @@ interface Props {
   /** The chart's own tempo. */
   originalTempo: number;
   onTempo: (bpm: number) => void;
+  /** The place: "Bar 7 · Chorus 1 of 3". Always shown in full. */
   where: string;
-  detail: string | null;
+  /** Before the place ("Paused"); left out when the line doesn't fit. */
+  wherePrefix?: string;
+  /** What follows the place (whose turn it is in a trade, "Ending after this chorus"); left out first. */
+  whereMore?: string;
+  detail: ScaleDetail | null;
   /** 0 to 1 through the song, or null when stopped. */
   progress: number | null;
   onSeek: (fraction: number) => void;
@@ -55,6 +70,27 @@ interface Props {
   onHelp: () => void;
 }
 
+/**
+ * Leave out parts of a one-line element, in the order given, until it fits (on every change of `key` and of
+ * its width). Parts are found by selector inside it.
+ */
+function useFit(ref: RefObject<HTMLElement | null>, parts: string[], key: string) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      const found = parts.map((s) => el.querySelector<HTMLElement>(s));
+      found.forEach((part) => part && (part.hidden = false));
+      for (const part of found) if (part && el.scrollWidth > el.clientWidth + 1) part.hidden = true;
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [key]);
+}
+
 /** The one control bar, fixed to the bottom of the window like a player. */
 export function ControlBar(p: Props) {
   const [open, setOpen] = useState(false);
@@ -70,6 +106,13 @@ export function ControlBar(p: Props) {
     return () => window.removeEventListener("keydown", seen);
   }, [keyboard]);
   const playing = p.status === "playing";
+
+  // The readout shortens to fit, so the place and the scale always show: the first line leaves out what follows
+  // the place, then "Paused"; the scale line the notes, then the next chord.
+  const main = useRef<HTMLSpanElement>(null);
+  const detail = useRef<HTMLDivElement>(null);
+  useFit(main, [".where-more", ".where-prefix"], `${p.status}|${p.wherePrefix}|${p.where}|${p.whereMore}`);
+  useFit(detail, [".detail-notes", ".detail-next"], p.detail ? `${p.detail.scale}|${p.detail.notes}|${p.detail.next}` : "");
 
   useEffect(() => {
     if (!open) return;
@@ -158,9 +201,23 @@ export function ControlBar(p: Props) {
                 <span key={i} className={`beat${p.beat === i ? " on" : ""}`} />
               ))}
             </span>
-            <span className="where">{p.status === "loading" ? "Loading sounds…" : p.where || "Ready"}</span>
+            {p.status === "loading" ? (
+              <span className="where">Loading sounds…</span>
+            ) : (
+              <span className="where" ref={main}>
+                {p.wherePrefix && <span className="where-prefix">{p.wherePrefix} · </span>}
+                <span className="where-place">{p.where || "Ready"}</span>
+                {p.whereMore && <span className="where-more"> · {p.whereMore}</span>}
+              </span>
+            )}
           </div>
-          {p.detail && <div className="position-detail">{p.detail}</div>}
+          {p.detail && (
+            <div className="position-detail scale-detail" ref={detail}>
+              <span className="detail-scale">{p.detail.scale}</span>
+              <span className="detail-notes">: {p.detail.notes}</span>
+              {p.detail.next && <span className="detail-next"> · {p.detail.next}</span>}
+            </div>
+          )}
           {(p.onFromTop || (!playing && p.tempo !== p.originalTempo)) && (
             <div className="position-detail quiet-links">
               {p.onFromTop && (
@@ -179,7 +236,7 @@ export function ControlBar(p: Props) {
 
         <TempoControl tempo={p.tempo} original={p.originalTempo} onTempo={p.onTempo} />
 
-        {p.onView && (
+        {p.onView ? (
           <div className="segmented" role="group" aria-label="View" aria-keyshortcuts="V" title={withKey("Switch view", "view")}>
             <button type="button" aria-pressed={p.view === "chords"} onClick={() => p.onView!("chords")}>
               Chords
@@ -188,6 +245,15 @@ export function ControlBar(p: Props) {
               <span className="long">Lead sheet</span>
               <span className="short">Sheet</span>
             </button>
+          </div>
+        ) : (
+          // A tune without a lead sheet keeps the switch's place, so the controls sit where they do on every tune.
+          <div className="segmented placeholder" aria-hidden="true">
+            <span>Chords</span>
+            <span>
+              <span className="long">Lead sheet</span>
+              <span className="short">Sheet</span>
+            </span>
           </div>
         )}
 
@@ -200,7 +266,7 @@ export function ControlBar(p: Props) {
           <span className="short">Next</span>
         </button>
 
-        <button type="button" className="toggle" aria-pressed={!!p.loopLabel} aria-keyshortcuts="L" title={withKey("Loop", "loop")} onClick={p.onLoop}>
+        <button type="button" className="toggle loop-toggle" aria-pressed={!!p.loopLabel} aria-keyshortcuts="L" title={withKey("Loop", "loop")} onClick={p.onLoop}>
           {p.loopLabel ?? "Loop"}
         </button>
         <button type="button" className="toggle" aria-pressed={p.metronome} aria-keyshortcuts="C" title={withKey("Metronome", "click")} onClick={() => p.onMetronome(!p.metronome)}>
@@ -209,7 +275,11 @@ export function ControlBar(p: Props) {
         </button>
 
         <button type="button" className="toggle" aria-pressed={p.muted} aria-keyshortcuts="M" title={withKey("Mute", "mute")} onClick={() => p.onMuted(!p.muted)}>
-          {p.muted ? "Muted" : "Mute"}
+          {/* Both labels take the same space, so the button keeps its width when it changes. */}
+          <span className="label-stack">
+            <span className={p.muted ? undefined : "label-spare"}>Muted</span>
+            <span className={p.muted ? "label-spare" : undefined}>Mute</span>
+          </span>
         </button>
 
         <div className="more" ref={panel}>

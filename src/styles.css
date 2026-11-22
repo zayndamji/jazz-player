@@ -477,11 +477,12 @@ input:disabled {
   }
 }
 
+/* Wider than the page, so the readout has room beside the controls on one row. */
 .controlbar-row {
   display: flex;
   align-items: center;
-  gap: 8px 16px;
-  max-width: 980px;
+  gap: 8px 12px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 8px max(24px, env(safe-area-inset-right)) 12px max(24px, env(safe-area-inset-left));
 }
@@ -550,11 +551,27 @@ input:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* Long readouts clip instead of running under the tempo control. */
+/* Long readouts clip instead of running under the tempo control: what follows the place goes first. */
 .where {
+  display: flex;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.where > span {
+  flex: none;
+  white-space: pre;
+}
+
+/* The scale line drops the notes, then the next chord, when it doesn't fit (ControlBar measures it). */
+.scale-detail {
+  display: flex;
+  text-overflow: clip;
+}
+
+.scale-detail > span {
+  flex: none;
+  white-space: pre;
 }
 
 .beats,
@@ -658,13 +675,19 @@ input:disabled {
   background: var(--bar-control);
 }
 
-.segmented button {
+.segmented button,
+.segmented.placeholder > span {
   padding: 4px 12px;
   border: 0;
   border-radius: 4px;
   background: none;
   color: var(--bar-muted);
   white-space: nowrap;
+}
+
+/* A tune without a lead sheet keeps the view switch's place, so the other controls sit where they do on every tune. */
+.segmented.placeholder {
+  visibility: hidden;
 }
 
 .segmented button[aria-pressed="true"] {
@@ -684,6 +707,23 @@ input:disabled {
 .toggle[aria-pressed="true"] {
   background: var(--accent);
   color: var(--accent-ink);
+}
+
+/* Toggles keep their width when their label changes, so the controls beside them stay put. */
+.loop-toggle {
+  min-width: 6em;
+}
+
+.label-stack {
+  display: inline-grid;
+}
+
+.label-stack > span {
+  grid-area: 1 / 1;
+}
+
+.label-spare {
+  visibility: hidden;
 }
 
 .more {
@@ -824,7 +864,8 @@ input:disabled {
     font-size: 14px;
   }
   .toggle,
-  .segmented button {
+  .segmented button,
+  .segmented.placeholder > span {
     padding: 4px 8px;
     font-size: 14px;
   }
@@ -1012,8 +1053,8 @@ kbd {
   display: none;
 }
 
-/* The one-row player bar needs about 1000 px; below that, or on touch screens, it wraps. */
-@media (max-width: 1000px), (pointer: coarse) {
+/* The one-row player bar needs about 1120 px (the readout needs about 280); below that, or on touch screens, it wraps. */
+@media (max-width: 1119px), (pointer: coarse) {
   .controlbar-row {
     flex-wrap: wrap;
     gap: 8px;
@@ -1210,5 +1251,20 @@ kbd {
   }
   .tunes .remove {
     min-width: 44px;
+  }
+}
+
+/* Phones: the player bar's three rows as tight as the 44 px targets allow; the toggles share their row. */
+@media (max-width: 760px) {
+  .controlbar-row {
+    row-gap: 4px;
+    padding-top: 4px;
+    padding-bottom: 8px;
+  }
+  .segmented {
+    padding: 2px;
+  }
+  .controlbar-row > .toggle {
+    flex: 1 1 0;
   }
 }
