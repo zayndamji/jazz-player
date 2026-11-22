@@ -3,7 +3,7 @@ import type { Chart } from "../chart/types";
 import type { NoteEvent, Style, Track, Variation } from "../styles/types";
 import { melodyEvents, type MelodyMode, type MelodyNote } from "./melody";
 import { applyTrading, markTrading, type TradeMode } from "./trading";
-import { buildTimeline, keyCycle, loopedChoruses, playOrder, rangeOrder, sameRef, sectionOrder, type BarRange, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
+import { buildTimeline, keyCycle, loopedChoruses, playOrder, rangeOrder, sameRef, sectionOrder, tonicItem, type BarRange, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
 
 export type Repeat = number | "loop";
 
@@ -130,11 +130,12 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     ({ items, loopFrom } = layout(items[startAt].chorus));
     startAt = locate(items);
   }
-  // Live: end after the chosen chorus, then the ending, instead of looping.
+  // Live: end after the chosen chorus, then the ending (or the held tonic without one), instead of looping.
   if (opts.choruses === "loop" && opts.liveEnd != null && opts.loopSection == null && !opts.loopRange) {
     const last = items.map((i) => i.chorus).lastIndexOf(opts.liveEnd);
     if (last >= 0) {
-      items = [...items.slice(0, last + 1), ...(opts.ending !== false ? playOrder(chart, 0, false, true) : [])];
+      const ending = opts.ending !== false ? playOrder(chart, 0, false, true) : [];
+      items = [...items.slice(0, last + 1), ...(ending.length ? ending : [tonicItem(items[last])])];
       loopFrom = -1;
     }
   }
@@ -185,22 +186,110 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
 
   const band = bandFor(chart, style);
   const pedal = chart.pedal ? keyPitchClass(chart.pedal) : undefined;
-  const played = style.generate(bars, 7, { tempo: opts.tempo ?? chart.tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, pedal, variation: opts.variation ?? "varied" }).filter((e) => band.includes(e.track));
-  const events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"));
+  const tempo = opts.tempo ?? chart.tempo;
+  const played = style.generate(bars, 7, { tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, pedal, variation: opts.variation ?? "varied" }).filter((e) => band.includes(e.track));
+  let events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"));
   const melody = opts.melody && opts.melody.mode !== "off" ? opts.melody : null;
   if (melody) {
     // The head choruses are the first and, when the song ends, the last (as `playOrder` has it); a looped
     // section or range has no head, so only "every chorus" plays there. The intro and ending count as head.
-    const isHead = (b: TimelineBar) => b.ref?.part !== "form" || b.chorus === 1 || (opts.choruses !== "loop" && b.chorus === lastChorus);
+    // The held tonic that ends a song without an ending has no melody of its own.
+    const isHead = (b: TimelineBar) => !b.tonic && (b.ref?.part !== "form" || b.chorus === 1 || (opts.choruses !== "loop" && b.chorus === lastChorus));
     events.push(...melodyEvents(chart, bars, melody.measures, (b) => melody.mode === "every" || (!sectionLoop && isHead(b))));
     events.sort((a, b) => a.time - b.time);
   }
+  events = holdFinalChord(events, bars, totalBeats, tempo);
   return { bars, events, beats, totalBeats, beatsPerBar, loop, passes, cycle, mix: mixFor(chart, style), band: melody ? [...band, "melody"] : band };
 }
 
 /**
+ * Seconds the song's last chord rings after its downbeat before the band fades, at least: longer than the
+ * crash (3.5 s) and the piano's held chord. The player waits this long (`ringSeconds`) before its end-of-song fade.
+ */
+export const RING_SECONDS = 4.5;
+
+/** Beats from the last bar's downbeat until the end-of-song fade, at a tempo: `RING_SECONDS`, or the bar and a beat more when that is longer. */
+export const ringBeats = (lastBarBeats: number, bpm: number) => Math.max((RING_SECONDS * bpm) / 60, lastBarBeats + 1);
+
+/** The same wait in seconds, for the player's end-of-song timer. */
+export const ringSeconds = (lastBarBeats: number, bpm: number) => (ringBeats(lastBarBeats, bpm) * 60) / bpm;
+
+/** A slowing into the song's final hit: the tempo falls from `from` to `to` (beats) to `factor` times the tempo, and stays there. */
+export interface Ritard {
+  from: number;
+  to: number;
+  factor: number;
+}
+
+/**
+ * How much the band slows into the final hit at a tempo, as a fraction: 10% up to 90 BPM (a ballad
+ * broadens into its last chord), rising smoothly to 14% from 200 (a burner sits back further). Never less at a faster tempo.
+ */
+export const ritardDepth = (bpm: number) => (bpm <= 90 ? 0.1 : Math.min(0.14, 0.1 + (0.04 * (bpm - 90)) / 110));
+
+/**
+ * The ritard into a song's final bar: over the bar before it (two bars from 160 BPM), never into the
+ * count-in. Null for loops, a schedule without a final bar (choruses until stopped, Live before it ends),
+ * and a start on the final bar.
+ */
+export function ritardFor(schedule: Pick<Schedule, "bars" | "loop" | "beatsPerBar">, bpm: number): Ritard | null {
+  const last = schedule.bars.at(-1);
+  const depth = ritardDepth(bpm);
+  if (schedule.loop || !last?.final || depth <= 0) return null;
+  const music = schedule.bars.find((b) => !b.countIn)?.startBeat ?? last.startBeat;
+  const from = Math.max(music, last.startBeat - (bpm >= 160 ? 2 : 1) * schedule.beatsPerBar);
+  return from < last.startBeat ? { from, to: last.startBeat, factor: 1 - depth } : null;
+}
+
+/**
+ * The tempo at a beat of a ritard (the base tempo before it, the slowed one after), and the seconds the
+ * rest of it takes. The player ramps the tempo linearly in time, so the beats covered grow with the
+ * square of the tempo: v² = v0² + (v1² - v0²) · (beats in / ritard length). The rest takes its beats over the mean tempo.
+ */
+export function ritardAt(r: Ritard, bpm: number, beat: number): { bpm: number; seconds: number; target: number } {
+  const target = bpm * r.factor;
+  if (beat <= r.from) return { bpm, seconds: ((r.to - r.from) * 120) / (bpm + target), target };
+  if (beat >= r.to) return { bpm: target, seconds: 0, target };
+  const p = (beat - r.from) / (r.to - r.from);
+  const now = Math.sqrt(bpm * bpm + (target * target - bpm * bpm) * p);
+  return { bpm: now, seconds: ((r.to - beat) * 120) / (now + target), target };
+}
+
+/** The parts whose last chord is held under the final ring (the drums ring by themselves). */
+const HELD: Track[] = ["piano", "guitar", "bass"];
+
+/**
+ * The styles write the final chord's length in beats, which at a fast tempo (or for a short final bass
+ * note, as bossa and 5/4 play) is over long before the crash and the player's ring. Each piano, guitar
+ * and bass note that is sounding at the final bar's last chord change and is the last note on its track
+ * (no later one starts) is held until the end-of-song fade (`ringBeats` at the tempo the notes are built
+ * for). Earlier chords of a final bar that changes chord keep their length. The sampler fades a note that
+ * outlasts its sample. A rebuild on a tempo change works this out again.
+ */
+export function holdFinalChord(events: NoteEvent[], bars: TimelineBar[], totalBeats: number, bpm: number): NoteEvent[] {
+  const last = bars.at(-1);
+  if (!last?.final) return events;
+  const until = last.startBeat + ringBeats(totalBeats - last.startBeat, bpm);
+  const change = last.startBeat + (last.chords.filter((c) => c.attack).at(-1)?.beat ?? 0);
+  // The latest start on each held track: a note is that track's last when nothing starts after it
+  // (a rolled chord's notes are one event; a little room covers notes of one chord placed apart).
+  const latest = new Map<string, number>();
+  for (const e of events) if (HELD.includes(e.track) && e.time > (latest.get(e.track) ?? -Infinity)) latest.set(e.track, e.time);
+  const SAME = 0.12;
+  return events.map((e) =>
+    HELD.includes(e.track) &&
+    e.time >= latest.get(e.track)! - SAME &&
+    e.time <= change + 0.25 &&
+    e.time + e.duration > change - 0.05 &&
+    e.time + e.duration < until
+      ? { ...e, duration: until - e.time }
+      : e,
+  );
+}
+
+/**
  * Beats from the first count-in click until the band stops: the count-in, the intro,
- * every chorus, the ending, and the two beats the last chord rings. For the readout's duration.
+ * every chorus, the ending (or the held tonic bar without one), and two beats for the last chord. For the readout's duration.
  */
 export function performanceBeats(chart: Chart, opts: { choruses: number; countInBars: number; intro?: boolean; ending?: boolean }): number {
   const bars = playOrder(chart, opts.choruses, opts.intro !== false, opts.ending !== false, true).length;
@@ -221,7 +310,7 @@ export const chorusesFor = (requested: number, currentChorus: number) => Math.ma
 export function chorusLayoutChanges(chart: Chart, from: number, to: number, at: number): boolean {
   const layout = (n: number) =>
     playOrder(chart, n, false, false, true)
-      .filter((i) => i.chorus === at)
+      .filter((i) => i.chorus === at && !i.tonic)
       .map((i) => `${i.ref.section}.${i.ref.bar}`)
       .join();
   return at > 0 && layout(from) !== layout(to);

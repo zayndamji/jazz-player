@@ -57,13 +57,54 @@ export interface TimelineBar {
   final: boolean;
   /** Whose turn it is when trading with the drums (solo choruses only; left out when not trading). */
   trade?: "you" | "drums" | "out";
+  /**
+   * The held tonic chord after the last chorus of a song that ends without an ending (see `tonicItem`):
+   * it carries the last form bar's ref and chorus, so the grid and readout stay on that bar, and is `final`.
+   */
+  tonic?: boolean;
+  /**
+   * Set by `buildSchedule` on every bar of choruses that repeat until stopped, also once Live has ended them:
+   * the chorus arc builds and holds instead of peaking and coming back to the head (`chorusPlans`).
+   */
+  open?: boolean;
+  /** In the copies the Transport loops (set by `buildSchedule`): the arc doesn't ramp into them, since the loop wraps back to them. */
+  repeats?: boolean;
 }
 
 /** What to play, before chords are filled in. */
 export interface PlayItem {
   ref: BarRef;
   chorus: number;
+  /** The held tonic chord that ends a song without an ending (`tonicItem`). */
+  tonic?: boolean;
 }
+
+/**
+ * The chart key's tonic chord, for a song that ends without an ending: a 6 chord in a major key, m6 in a
+ * minor one ("C6", "Em6"). A tune whose first chord is a dominant seventh on the tonic (a blues) ends on that chord.
+ */
+export function tonicChord(chart: Chart): string {
+  const minor = isMinorKey(chart.key);
+  const root = minor ? chart.key.slice(0, -1) : chart.key;
+  if (!minor) {
+    const first = parseBar(chart.form[0]?.bars[0] ?? "", chart.beatsPerBar).chords[0]?.symbol;
+    try {
+      const c = first ? parseChord(first.split("/")[0]) : null;
+      const dominant = !!c && c.intervals.includes(4) && c.intervals.includes(10);
+      if (c && dominant && c.root === keyPitchClass(chart.key)) return `${root}${c.quality}`;
+    } catch {
+      // An unreadable first chord: the plain tonic.
+    }
+  }
+  return `${root}${minor ? "m6" : "6"}`;
+}
+
+/**
+ * The bar that ends a song played without an ending: the tonic chord, held as the final hit.
+ * It reuses the ref and chorus of the bar before it (the last bar played), so the grid, the
+ * readout and the key stay on the last chorus; `tonic` tells it apart.
+ */
+export const tonicItem = (last: PlayItem): PlayItem => ({ ref: last.ref, chorus: last.chorus, tonic: true });
 
 export interface ChartBar {
   ref: BarRef;
@@ -107,6 +148,7 @@ export const playsIn = (section: Section, head: boolean) => !section.play || (se
  * choruses between are solos (it matters only for sections marked `play`).
  * The intro and the ending can be left out; the last chorus is still a head chorus
  * unless `headLast` says otherwise (the choruses repeating until stopped).
+ * A song that ends (`headLast`) with no ending bars closes on a held tonic chord (`tonicItem`).
  */
 export function playOrder(chart: Chart, choruses: number, withIntro = true, withEnding = true, headLast = withEnding): PlayItem[] {
   const items: PlayItem[] = [];
@@ -121,6 +163,8 @@ export function playOrder(chart: Chart, choruses: number, withIntro = true, with
       for (let r = 0; r < (section.repeat ?? 1); r++) section.bars.forEach((_, bar) => items.push({ ref: { part: "ending", section: i, bar }, chorus: 0 }));
     });
   }
+  const last = items.at(-1);
+  if (headLast && choruses >= 1 && last && last.ref.part === "form") items.push(tonicItem(last));
   return items;
 }
 
@@ -186,7 +230,7 @@ export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number
     const chorusOf = item.ref.part === "form" ? item.chorus : item.ref.part === "ending" ? lastChorus : 1;
     const barTranspose = chorusTranspose(transpose, step, chorusOf);
     const barKeyPc = step === 0 ? keyPc : spellingPc((chartPc + barTranspose + 120) % 12, minor);
-    const parsed = parseBar(barText(chart, item.ref), beats);
+    const parsed = item.tonic ? { repeat: false, chords: [{ beat: 0, symbol: tonicChord(chart) }] } : parseBar(barText(chart, item.ref), beats);
     const chords: TimelineChord[] = [];
     if (parsed.repeat) {
       if (previous) chords.push({ beat: 0, length: beats, chord: previous, attack: false });
@@ -201,7 +245,9 @@ export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number
     const section = sectionOf(chart, item.ref);
     const label = section?.label ?? "";
     const contrast = item.ref.part === "form" && label !== (firstLabel.get(item.chorus) ?? chart.form[0].label);
-    return { transpose: barTranspose, index, startBeat: index * beats, ref: item.ref, chorus: item.chorus, label, contrast, chords, countIn: false, final: false };
+    const bar: TimelineBar = { transpose: barTranspose, index, startBeat: index * beats, ref: item.ref, chorus: item.chorus, label, contrast, chords, countIn: false, final: !!item.tonic };
+    if (item.tonic) bar.tonic = true;
+    return bar;
   });
   const last = bars.at(-1);
   if (last && last.ref?.part === "ending") last.final = true;

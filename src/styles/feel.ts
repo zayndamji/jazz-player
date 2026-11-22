@@ -74,8 +74,8 @@ export function chorusPlans(bars: TimelineBar[], random: () => number): Map<numb
   return plans;
 }
 
-/** The chorus's drum level as a gain; the ending plays at the solos' level (its plan is the intro's). */
-export const drumGain = (bar: TimelineBar, plan: ChorusPlan) => (bar.ref?.part === "ending" ? 1 : 10 ** (plan.drums / 20));
+/** The chorus's drum level as a gain; the ending and the held tonic that ends a song without one play at the solos' level (the ending's plan is the intro's). */
+export const drumGain = (bar: TimelineBar, plan: ChorusPlan) => (bar.ref?.part === "ending" || bar.tonic ? 1 : 10 ** (plan.drums / 20));
 
 /** A normally distributed number (mean 0, SD 1), from a uniform generator. */
 export function gauss(random: () => number): number {

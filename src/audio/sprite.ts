@@ -36,6 +36,26 @@ export function voiceSpan(region: number[], rate: number): { offset: number; max
   return { offset: region[0], maxLen: (region[1] - region[0]) / rate };
 }
 
+/**
+ * Seconds a note that would run past its region fades over (the sample still rings where the
+ * region ends: the bass is about 17 dB under its attack there). The fade is Tone's exponential
+ * approach, which falls 20 dB in about 0.15 s and 40 dB in about 0.3 s of it, then reaches silence.
+ */
+export const CLAMP_FADE = 0.4;
+
+/**
+ * How long a note holds before its release and how long the release fades, inside its region
+ * (`maxLen`, from `voiceSpan`). A note that fits plays its length with the instrument's release.
+ * A longer one holds until the region's end less `CLAMP_FADE` and fades over that, so it ends
+ * inside the region with a fade instead of being cut at it; that fade is never shorter than the
+ * release, and never more than half the region.
+ */
+export function noteSpan(duration: number, maxLen: number, release: number): { hold: number; fade: number } {
+  const fade = Math.min(Math.max(release, CLAMP_FADE), maxLen / 2);
+  if (duration <= maxLen - fade) return { hold: Math.max(0.02, duration), fade: release };
+  return { hold: Math.max(0.02, maxLen - fade), fade };
+}
+
 export interface SpriteSamplerOptions {
   buffer: Tone.ToneAudioBuffer;
   regions: Regions;
@@ -102,8 +122,10 @@ export class SpriteSampler {
     // End the note early enough for its release fade to finish inside the region: this clamp is
     // what keeps a voice out of the next sample. (Tone stops the native source itself after the
     // fade; stopping it ourselves would be overridden by that later stop.) A note longer than the
-    // region minus the release is cut there, which is about 2.9 s for the bass.
-    source.stop(time + Math.max(0.02, Math.min(duration, maxLen - this.options.release)));
+    // region fades out over `CLAMP_FADE` before the region ends (about 2.7 s into a bass note).
+    const { hold, fade } = noteSpan(duration, maxLen, this.options.release);
+    source.fadeOut = fade;
+    source.stop(time + hold);
 
     const voice: Voice = { source };
     this.voices.add(voice);

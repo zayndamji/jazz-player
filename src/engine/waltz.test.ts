@@ -117,7 +117,9 @@ describe("3/4 timeline and schedule", () => {
 describe("chart mix and pedal", () => {
   it("holds the chart's pedal under every chord, moved with the key", () => {
     const sch = buildSchedule({ ...waltzForm, pedal: "E" }, waltz, { choruses: 2, countIn: false, transpose: 2, intro: false, ending: false });
-    const bass = sch.events.filter((e) => e.track === "bass").map((e) => e.notes![0] % 12);
+    // The held tonic that ends a song without an ending is the key's chord, not the pedal's.
+    const tonic = sch.bars.find((b) => b.tonic)?.startBeat ?? Infinity;
+    const bass = sch.events.filter((e) => e.track === "bass" && e.time < tonic - 0.1).map((e) => e.notes![0] % 12);
     expect(bass.length).toBeGreaterThan(20);
     // F# (E up a whole step), its fifth C#, nothing else.
     expect([...new Set(bass)].sort((a, b) => a - b)).toEqual([1, 6]);
@@ -169,7 +171,7 @@ describe("the waltz style", () => {
   });
 
   it("plays pedal figures over a long run on one bass note", () => {
-    const vamp = { ...waltzForm, id: "vamp", intro: undefined, ending: undefined, form: [{ label: "A", bars: Array.from({ length: 8 }, (_, i) => (i % 2 ? "F#m11/E" : "Em11")) }] };
+    const vamp = { ...waltzForm, id: "vamp", key: "Em", intro: undefined, ending: undefined, form: [{ label: "A", bars: Array.from({ length: 8 }, (_, i) => (i % 2 ? "F#m11/E" : "Em11")) }] };
     const s = buildSchedule(vamp, waltz, { choruses: 2, countIn: false, transpose: 0 });
     const bass = s.events.filter((e) => e.track === "bass");
     const pcs = new Set(bass.map((e) => e.notes![0] % 12));

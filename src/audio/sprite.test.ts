@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { noteToMidi, pickSample, voiceSpan } from "./sprite";
+import { CLAMP_FADE, noteSpan, noteToMidi, pickSample, voiceSpan } from "./sprite";
 import sprites from "./sprites.json";
 
 describe("pickSample", () => {
@@ -35,6 +35,39 @@ describe("voiceSpan", () => {
       expect(offset).toBe(10);
       expect(maxLen * rate).toBeCloseTo(4);
     }
+  });
+});
+
+describe("noteSpan", () => {
+  const maxLen = 3.13; // a bass region at its own pitch
+  const release = 0.25;
+
+  it("plays a note that fits for its length with the instrument's release", () => {
+    expect(noteSpan(1, maxLen, release)).toEqual({ hold: 1, fade: release });
+    expect(noteSpan(0.001, maxLen, release).hold).toBe(0.02);
+  });
+
+  it("fades a note longer than the region out inside it instead of cutting it at the end", () => {
+    for (const duration of [maxLen - CLAMP_FADE + 0.01, 2.9, 3.13, 4, 10]) {
+      const { hold, fade } = noteSpan(duration, maxLen, release);
+      expect(fade).toBe(CLAMP_FADE);
+      expect(hold + fade).toBeCloseTo(maxLen);
+      expect(fade).toBeGreaterThanOrEqual(0.15);
+    }
+  });
+
+  it("never ends past the region, holds longer for longer notes, and keeps a long release", () => {
+    let prev = 0;
+    for (let d = 0.1; d < 6; d += 0.05) {
+      const { hold, fade } = noteSpan(d, maxLen, release);
+      expect(hold + fade).toBeLessThanOrEqual(maxLen + 1e-9);
+      expect(hold).toBeGreaterThanOrEqual(prev - 1e-9);
+      prev = hold;
+    }
+    expect(noteSpan(20, 12, 0.9)).toEqual({ hold: 11.1, fade: 0.9 });
+    // A tiny region (a high note played fast) still fades inside it.
+    const tiny = noteSpan(2, 0.5, release);
+    expect(tiny.hold + tiny.fade).toBeCloseTo(0.5);
   });
 });
 

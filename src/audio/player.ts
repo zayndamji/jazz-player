@@ -1,5 +1,5 @@
 import * as Tone from "tone";
-import { clicksOn, type BeatMark, type ClickMode, type Schedule } from "../engine/schedule";
+import { clicksOn, ringSeconds, ritardAt, ritardFor, type BeatMark, type ClickMode, type Schedule } from "../engine/schedule";
 import type { NoteEvent, Track } from "../styles/types";
 import { DrumKit } from "./drumkit";
 import { SpriteSampler, loadSprite } from "./sprite";
@@ -31,6 +31,9 @@ const CHANNELS: Record<Mixable, { volume: number; pan: number }> = {
 /** Seconds notes fade over when the band restarts or stops: quick, but not a click. */
 const FADE = 0.08;
 
+/** Seconds the band fades over at the end of the song (a user's stop keeps `FADE`). How long it rings first: `ringSeconds` in schedule.ts. */
+export const END_FADE = 1.5;
+
 const ticks =(beats: number) => `${Math.round(beats * Tone.getTransport().PPQ)}i`;
 
 /**
@@ -51,6 +54,10 @@ export class Player {
   /** The timer that stops the band after the last chord rings; cleared by a restart or a stop. */
   private endTimer: number | null = null;
   private passIds: number[] = [];
+  /** The Transport event that starts the ritard into the final hit (`ritardFor`). */
+  private ritardId: number | null = null;
+  /** The tempo the user set; the Transport's own bpm runs under it during a ritard. */
+  private tempo: number | null = null;
   private loaded: Promise<void> | null = null;
 
   private styleMix: Partial<Record<Track, number>> = {};
@@ -121,6 +128,7 @@ export class Player {
     this.clearEndTimer();
     for (const id of this.passIds) transport.clear(id);
     this.passIds = [];
+    this.followRitard();
 
     this.notes = new Tone.Part<[string, NoteEvent]>(
       (time, e) => this.playNote(time, e),
@@ -149,17 +157,67 @@ export class Player {
       );
     } else {
       transport.loop = false;
-      // Let the last chord ring for two beats before stopping. A plain timer, not
-      // Tone's Draw queue: Draw drops callbacks when animation frames are throttled.
-      this.endId = transport.schedule((time) => {
-        const delay = Math.max(0, (time - Tone.now()) * 1000);
-        this.clearEndTimer();
-        this.endTimer = window.setTimeout(() => {
-          this.endTimer = null;
-          this.stop(true);
-        }, delay);
-      }, ticks(schedule.totalBeats + 2));
+      // Let the last chord and the crash ring out (`ringSeconds`, from the last bar's downbeat, at the
+      // tempo the ritard slowed to), then fade gently and stop. Plain timers, not Tone's Draw queue:
+      // Draw drops callbacks when animation frames are throttled.
+      const lastStart = schedule.bars.at(-1)?.startBeat ?? 0;
+      const lastBeats = schedule.totalBeats - lastStart;
+      const ring = () => ringSeconds(lastBeats, transport.bpm.value);
+      const at = Math.round(lastStart * transport.PPQ);
+      if (transport.state === "started" && transport.ticks > at) {
+        // A new schedule after the last downbeat (a tempo change while it rings): finish from here.
+        const past = ((transport.ticks - at) / transport.PPQ) * (60 / transport.bpm.value);
+        this.endAfter(Math.max(0, ring() - past) * 1000);
+      } else {
+        this.endId = transport.schedule((time) => this.endAfter(Math.max(0, (time - Tone.now()) * 1000) + ring() * 1000), `${at}i`);
+      }
     }
+  }
+
+  /** In `ms`, fade the band out over `END_FADE`, then stop as a finished song (`onEnd(true)`). */
+  private endAfter(ms: number) {
+    this.clearEndTimer();
+    this.endTimer = window.setTimeout(() => {
+      this.releaseAll(END_FADE);
+      this.endTimer = window.setTimeout(() => {
+        this.endTimer = null;
+        this.stop(true);
+      }, (END_FADE + 0.1) * 1000);
+    }, ms);
+  }
+
+  /** The user's tempo: what the Transport plays at outside a ritard. */
+  private get baseTempo() {
+    return this.tempo ?? Tone.getTransport().bpm.value;
+  }
+
+  /**
+   * Set the Transport's tempo for where it is in the schedule: the user's tempo, or, in a song that
+   * ends, the ritard into the final hit (`ritardFor`): a linear ramp in time that lands the final
+   * downbeat on its tick, then holds the slowed tempo through the final bar. From inside the ritard
+   * (a new schedule or tempo mid-way) it carries on from the tempo it has reached (`ritardAt`).
+   * Beats, the playhead and the end-of-song event are all in ticks, so they follow the ramp.
+   */
+  private followRitard() {
+    const transport = Tone.getTransport();
+    if (this.ritardId !== null) transport.clear(this.ritardId);
+    this.ritardId = null;
+    const base = this.baseTempo;
+    // Setting the value drops any ramp still scheduled.
+    transport.bpm.value = base;
+    const r = this.schedule ? ritardFor(this.schedule, base) : null;
+    if (!r) return;
+    const beat = transport.ticks / transport.PPQ;
+    if (transport.state === "started" && beat > r.from) {
+      const now = ritardAt(r, base, beat);
+      transport.bpm.value = now.bpm;
+      if (now.seconds > 0) transport.bpm.linearRampTo(now.target, now.seconds);
+      return;
+    }
+    this.ritardId = transport.schedule((time) => {
+      const start = ritardAt(r, this.baseTempo, r.from);
+      transport.bpm.linearRampTo(start.target, start.seconds, time);
+    }, `${Math.round(r.from * transport.PPQ)}i`);
   }
 
   private clearEndTimer() {
@@ -167,13 +225,13 @@ export class Player {
     this.endTimer = null;
   }
 
-  /** Fade out whatever is sounding, quickly but not as a click. */
-  private releaseAll() {
-    this.piano?.releaseAll(FADE);
-    this.bass?.releaseAll(FADE);
-    this.guitar?.releaseAll(FADE);
-    this.melody?.releaseAll(FADE);
-    this.drums?.stopAll(FADE);
+  /** Fade out whatever is sounding, over `fade` seconds: quickly but not as a click, unless the song is ending. */
+  private releaseAll(fade = FADE) {
+    this.piano?.releaseAll(fade);
+    this.bass?.releaseAll(fade);
+    this.guitar?.releaseAll(fade);
+    this.melody?.releaseAll(fade);
+    this.drums?.stopAll(fade);
   }
 
   private playNote(time: number, e: NoteEvent) {
@@ -198,6 +256,8 @@ export class Player {
     this.releaseAll();
     transport.stop();
     transport.position = 0;
+    // Back on the user's tempo, with the ritard waiting at its place again.
+    this.followRitard();
     transport.start("+0.05");
   }
 
@@ -210,14 +270,19 @@ export class Player {
     this.clearEndTimer();
     transport.stop();
     transport.position = 0;
+    // A stop in or after the ritard leaves the Transport on the user's tempo.
+    transport.bpm.value = this.baseTempo;
     Tone.getDraw().cancel(0);
     this.releaseAll();
     this.onPosition(null);
     this.onEnd(finished);
   }
 
+  /** The user's tempo. In the ritard the band slows from the new tempo, from where it has got to. */
   setTempo(bpm: number) {
-    Tone.getTransport().bpm.value = bpm;
+    this.tempo = bpm;
+    if (this.schedule && !this.schedule.loop) this.followRitard();
+    else Tone.getTransport().bpm.value = bpm;
   }
 
   setVolume(track: Mixable, level: number) {

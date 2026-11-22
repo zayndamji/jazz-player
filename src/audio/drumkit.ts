@@ -113,7 +113,12 @@ export class DrumKit {
     this.layers.set("brushTap", made(brushTap));
   }
 
-  /** Play a hit. Velocity picks the layer and scales the level within it; `gain` scales the level alone. */
+  /**
+   * Play a hit. Velocity picks the layer and scales the level within it; `gain` scales the level alone.
+   * Every hit rings its whole region (the crash 3.5 s, the ride 2.5 s, both faded to about -77 dB at the
+   * region's end in the sprite), with no choke: only `stopAll` shortens it, and the player waits for the
+   * last crash to ring out before it fades the band at the end of a song (`ringSeconds` in schedule.ts).
+   */
   play(sound: DrumSound, time: number, velocity: number, gain = 1) {
     const layers = this.layers.get(sound);
     if (!layers?.length) return;

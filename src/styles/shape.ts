@@ -36,7 +36,8 @@ export function shapeBars(bars: TimelineBar[], random: () => number, arc = false
   const width = arc ? 0.2 : 0.12;
   const step = arc ? 0.2 : 0.1;
   const lastChorus = Math.max(0, ...bars.map((b) => b.chorus));
-  const formBars = bars.filter((b) => b.chorus === lastChorus && b.ref?.part === "form").length;
+  const inLast = (b: TimelineBar) => b.chorus === lastChorus && b.ref?.part === "form" && !b.tonic;
+  const formBars = bars.filter(inLast).length;
   return bars.map((bar, i) => {
     drift = Math.max(-width, Math.min(width, drift * 0.75 + (random() - 0.5) * step));
     const plan = plans.get(bar.chorus) ?? plans.get(0)!;
@@ -44,8 +45,9 @@ export function shapeBars(bars: TimelineBar[], random: () => number, arc = false
     const chorus = arc ? plan.energy : steady;
     const inPhrase = (bar.ref?.bar ?? i) % 4;
     const next = bars[i + 1];
-    const sectionEnd = !next?.ref || next.ref.section !== bar.ref?.section || next.ref.part !== bar.ref?.part || next.ref.bar === 0;
-    const left = bars.slice(i).filter((b) => b.chorus === lastChorus && b.ref?.part === "form").length;
+    // The held tonic after the last bar (same ref) ends the section too.
+    const sectionEnd = !next?.ref || !!next.tonic || next.ref.section !== bar.ref?.section || next.ref.part !== bar.ref?.part || next.ref.bar === 0;
+    const left = bars.slice(i).filter(inLast).length;
     const shout = arc && plan.last && bar.chorus === lastChorus && left > 0 && left <= Math.min(8, formBars);
     return {
       intensity: chorus + (bar.contrast ? 0.03 : 0) + drift + (inPhrase === 3 ? 0.02 : 0) + (shout ? 0.04 : 0),

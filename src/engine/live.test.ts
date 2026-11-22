@@ -27,9 +27,13 @@ describe("live", () => {
     expect(ended.bars.at(-1)!.ref?.part).toBe("ending");
   });
 
-  it("stops at the chorus's end without the ending when it is off", () => {
+  it("stops at the chorus's end on the held tonic when the ending is off", () => {
     const ended = buildSchedule(swingForm, swing, { ...opts, ending: false, liveEnd: 2 });
-    expect(ended.bars.at(-1)!.chorus).toBe(2);
+    const last = ended.bars.at(-1)!;
+    expect(last.chorus).toBe(2);
+    expect(last.tonic).toBe(true);
+    expect(last.final).toBe(true);
+    expect(last.ref).toEqual(ended.bars.at(-2)!.ref);
     expect(ended.loop).toBeNull();
   });
 });
