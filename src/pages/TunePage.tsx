@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Player, type Mixable, type Position } from "../audio/player";
 import { displayParts, isMinorKey, keyPitchClass, parseChord, spellingPc, transposeSymbol } from "../chart/chords";
 import { INSTRUMENTS } from "../chart/instruments";
@@ -765,156 +765,195 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     : null;
   const loopLabel = loopSection !== null ? `Loop ${sectionName(chart, loopSection)}` : rangeLabel;
 
+  /** A group of settings in More, under a plain heading. */
+  const group = (id: string, title: string, children: ReactNode) => (
+    <div className="settings-group" role="group" aria-labelledby={`settings-${id}`}>
+      <h3 id={`settings-${id}`}>{title}</h3>
+      {children}
+    </div>
+  );
+
   const settings = (
     <div className="settings">
-      <label className="field">
-        <span>Style</span>
-        <select value={styleId} onChange={(e) => setStyleId(e.target.value)}>
-          {stylesFor(chart).map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-              {s.id === chart.style ? " (original)" : ""}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span>Band</span>
-        <select value={variation} onChange={(e) => setVariation(e.target.value as Variation)}>
-          <option value="varied">Variation</option>
-          <option value="straight">Straight</option>
-        </select>
-      </label>
-      <label className="field">
-        <span>Band plays in</span>
-        <select value={transpose} onChange={(e) => setTranspose(Number(e.target.value))}>
-          {Array.from({ length: 12 }, (_, i) => {
-            const n = i - 6;
-            const pc = (chartKeyPc + n + 12) % 12;
-            return (
-              <option key={n} value={n}>
-                {keyLabel(pc, minor)} {n === 0 ? "(original)" : `(${steps(n)})`}
-              </option>
-            );
-          })}
-        </select>
-      </label>
-      <label className="field">
-        <span>Key each chorus</span>
-        <select value={keyStep} onChange={(e) => setKeyStep(Number(e.target.value) as KeyStep)}>
-          <option value={0}>Same key</option>
-          <option value={5}>Up a fourth</option>
-          <option value={1}>Up a half step</option>
-          <option value={-1}>Down a half step</option>
-          <option value={2}>Up a whole step</option>
-        </select>
-      </label>
-      <label className="field">
-        <span>Trade</span>
-        <select value={trade} onChange={(e) => setTrade(e.target.value as TradeMode)}>
-          {TRADE_MODES.map((m) => (
-            <option key={m} value={m}>
-              {TRADE_LABELS[m]}
-            </option>
-          ))}
-        </select>
-      </label>
-      {headAvailable && (
-        <label className="field">
-          <span>Melody</span>
-          <select value={melody} onChange={(e) => setMelody(e.target.value as MelodyMode)}>
-            {MELODY_MODES.map((m) => (
-              <option key={m} value={m}>
-                {MELODY_LABELS[m]}
-              </option>
-            ))}
-          </select>
-        </label>
+      {group(
+        "band",
+        "Band",
+        <>
+          <label className="field">
+            <span>Style</span>
+            <select value={styleId} onChange={(e) => setStyleId(e.target.value)}>
+              {stylesFor(chart).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                  {s.id === chart.style ? " (original)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Groove</span>
+            <select value={variation} onChange={(e) => setVariation(e.target.value as Variation)}>
+              <option value="varied">Variation</option>
+              <option value="straight">Straight</option>
+            </select>
+          </label>
+          {style.twoFeel && (
+            <label className="check">
+              <input type="checkbox" checked={twoFeel} onChange={(e) => setTwoFeel(e.target.checked)} />
+              Two-feel heads
+            </label>
+          )}
+        </>,
       )}
-      <label className="field">
-        <span>Chords shown</span>
-        <select value={chordsShown} onChange={(e) => setChordsShown(e.target.value as ChordsShown)}>
-          <option value="always">Always</option>
-          <option value="after-first">After the first chorus: hidden</option>
-          <option value="hidden">Hidden</option>
-        </select>
-      </label>
-      <label className="field">
-        <span>Written for</span>
-        <select value={instrumentId} onChange={(e) => setInstrumentId(e.target.value)}>
-          {INSTRUMENTS.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span>Choruses</span>
-        <select
-          value={live ? "live" : String(repeat)}
-          onChange={(e) => {
-            const v = e.target.value;
-            setLive(v === "live");
-            setRepeat(v === "loop" || v === "live" ? "loop" : Number(v));
-          }}
-        >
-          {REPEATS.map((r) => (
-            <option key={String(r)} value={String(r)}>
-              {r === "loop" ? "Until stopped" : r}
-            </option>
-          ))}
-          <option value="live">Live</option>
-        </select>
-      </label>
-      {style.twoFeel && (
-        <label className="check">
-          <input type="checkbox" checked={twoFeel} onChange={(e) => setTwoFeel(e.target.checked)} />
-          Two-feel heads
-        </label>
+      {group(
+        "key",
+        "Key",
+        <>
+          <label className="field">
+            <span>Band plays in</span>
+            <select value={transpose} onChange={(e) => setTranspose(Number(e.target.value))}>
+              {Array.from({ length: 12 }, (_, i) => {
+                const n = i - 6;
+                const pc = (chartKeyPc + n + 12) % 12;
+                return (
+                  <option key={n} value={n}>
+                    {keyLabel(pc, minor)} {n === 0 ? "(original)" : `(${steps(n)})`}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+          <label className="field">
+            <span>Key each chorus</span>
+            <select value={keyStep} onChange={(e) => setKeyStep(Number(e.target.value) as KeyStep)}>
+              <option value={0}>Same key</option>
+              <option value={5}>Up a fourth</option>
+              <option value={1}>Up a half step</option>
+              <option value={-1}>Down a half step</option>
+              <option value={2}>Up a whole step</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>
+              Written for <span className="field-note">all tunes</span>
+            </span>
+            <select value={instrumentId} onChange={(e) => setInstrumentId(e.target.value)}>
+              {INSTRUMENTS.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>,
       )}
-      {chart.intro && (
-        <label className="check">
-          <input type="checkbox" checked={intro} onChange={(e) => setIntro(e.target.checked)} />
-          Play the intro
-        </label>
+      {group(
+        "form",
+        "Form",
+        <>
+          <label className="field">
+            <span>Choruses</span>
+            <select
+              value={live ? "live" : String(repeat)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setLive(v === "live");
+                setRepeat(v === "loop" || v === "live" ? "loop" : Number(v));
+              }}
+            >
+              {REPEATS.map((r) => (
+                <option key={String(r)} value={String(r)}>
+                  {r === "loop" ? "Until stopped" : r}
+                </option>
+              ))}
+              <option value="live">Live</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Count-in</span>
+            <select value={countInBars} onChange={(e) => setCountInBars(Number(e.target.value) as 0 | 1 | 2)}>
+              <option value={0}>None</option>
+              <option value={1}>1 bar</option>
+              <option value={2}>2 bars</option>
+            </select>
+          </label>
+          {chart.intro && (
+            <label className="check">
+              <input type="checkbox" checked={intro} onChange={(e) => setIntro(e.target.checked)} />
+              Play the intro
+            </label>
+          )}
+          {chart.ending && (
+            <label className="check">
+              <input type="checkbox" checked={ending} onChange={(e) => setEnding(e.target.checked)} />
+              Play the ending
+            </label>
+          )}
+        </>,
       )}
-      {chart.ending && (
-        <label className="check">
-          <input type="checkbox" checked={ending} onChange={(e) => setEnding(e.target.checked)} />
-          Play the ending
-        </label>
+      {group(
+        "practice",
+        "Practice",
+        <>
+          <label className="field">
+            <span>Trade</span>
+            <select value={trade} onChange={(e) => setTrade(e.target.value as TradeMode)}>
+              {TRADE_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {TRADE_LABELS[m]}
+                </option>
+              ))}
+            </select>
+          </label>
+          {headAvailable && (
+            <label className="field">
+              <span>Melody</span>
+              <select value={melody} onChange={(e) => setMelody(e.target.value as MelodyMode)}>
+                {MELODY_MODES.map((m) => (
+                  <option key={m} value={m}>
+                    {MELODY_LABELS[m]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="field">
+            <span>Chords shown</span>
+            <select value={chordsShown} onChange={(e) => setChordsShown(e.target.value as ChordsShown)}>
+              <option value="always">Always</option>
+              <option value="after-first">After the first chorus: hidden</option>
+              <option value="hidden">Hidden</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Speed up</span>
+            <select value={speedUp} onChange={(e) => setSpeedUp(Number(e.target.value) as SpeedUp)}>
+              {SPEED_UPS.map((n) => (
+                <option key={n} value={n}>
+                  {n === 0 ? "Off" : `+${n} BPM each pass`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Metronome plays</span>
+            <select value={clickMode} onChange={(e) => setClickMode(e.target.value as ClickMode)}>
+              <option value="every">Every beat</option>
+              <option value="two-four">{clickLabel("two-four", chart.beatsPerBar)}</option>
+              <option value="one">Beat 1 only</option>
+            </select>
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={showScales} onChange={(e) => setShowScales(e.target.checked)} />
+            Show scales on the chart
+          </label>
+        </>,
       )}
-      <label className="field">
-        <span>Count-in</span>
-        <select value={countInBars} onChange={(e) => setCountInBars(Number(e.target.value) as 0 | 1 | 2)}>
-          <option value={0}>None</option>
-          <option value={1}>1 bar</option>
-          <option value={2}>2 bars</option>
-        </select>
-      </label>
-      <label className="field">
-        <span>Metronome plays</span>
-        <select value={clickMode} onChange={(e) => setClickMode(e.target.value as ClickMode)}>
-          <option value="every">Every beat</option>
-          <option value="two-four">{clickLabel("two-four", chart.beatsPerBar)}</option>
-          <option value="one">Beat 1 only</option>
-        </select>
-      </label>
-      <label className="field">
-        <span>Speed up</span>
-        <select value={speedUp} onChange={(e) => setSpeedUp(Number(e.target.value) as SpeedUp)}>
-          {SPEED_UPS.map((n) => (
-            <option key={n} value={n}>
-              {n === 0 ? "Off" : `+${n} BPM each pass`}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="check">
-        <input type="checkbox" checked={showScales} onChange={(e) => setShowScales(e.target.checked)} />
-        Show scales on the chart
-      </label>
+      {group(
+        "mix",
+        "Mix",
+        <Mixer volume={volume} onVolume={setVolume} mix={mix} onChange={changeMix} onPreset={changePreset} band={melody !== "off" && headAvailable ? [...bandFor(chart, style), "melody"] : bandFor(chart, style)} />,
+      )}
       <div className="quiet-row">
         <button type="button" className="quiet" onClick={resetSettings}>
           Reset to original
@@ -923,8 +962,6 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
           {copied === "copied" ? "Copied" : copied === "address" ? "Link in the address bar" : "Copy link"}
         </button>
       </div>
-      <h3>Mix</h3>
-      <Mixer volume={volume} onVolume={setVolume} mix={mix} onChange={changeMix} onPreset={changePreset} band={melody !== "off" && headAvailable ? [...bandFor(chart, style), "melody"] : bandFor(chart, style)} />
     </div>
   );
 

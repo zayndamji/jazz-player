@@ -39,7 +39,7 @@ export function Mixer({ volume, onVolume, mix, onChange, onPreset, band }: Props
         <input id="vol-master" type="range" min={0} max={1} step={0.05} value={volume} onChange={(e) => onVolume(Number(e.target.value))} />
       </div>
       <label className="field">
-        <span>Mix</span>
+        <span>Preset</span>
         <select value={preset?.id ?? "custom"} onChange={(e) => onPreset(e.target.value)}>
           {presetsFor(band).map((p) => (
             <option key={p.id} value={p.id}>

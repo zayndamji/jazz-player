@@ -746,17 +746,35 @@ input:disabled {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
-.settings {
+.settings,
+.settings-group {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
+.settings {
+  gap: 16px;
+}
+
+.settings-group + .settings-group,
+.settings > .quiet-row {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
 .settings h3 {
-  margin: 8px 0 0;
-  font-size: 13px;
+  margin: 0;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--ink);
+}
+
+/* A quiet second line under a setting's label: "all tunes" under Written for. */
+.field .field-note {
+  display: block;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .field {
