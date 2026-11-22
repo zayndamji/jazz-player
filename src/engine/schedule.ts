@@ -1,7 +1,7 @@
 import { isMinorKey, keyPitchClass, spellingPc } from "../chart/chords";
 import type { Chart } from "../chart/types";
 import type { NoteEvent, Style, Track, Variation } from "../styles/types";
-import { melodyEvents, type MelodyMode, type MelodyNote } from "./melody";
+import { fitUnderMelody, melodyEvents, melodySwing, type MelodyMode, type MelodyNote } from "./melody";
 import { applyTrading, markTrading, type TradeMode } from "./trading";
 import { buildTimeline, keyCycle, loopedChoruses, playOrder, rangeOrder, sameRef, sectionOrder, tonicItem, type BarRange, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
 
@@ -221,8 +221,9 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     // section or range has no head, so only "every chorus" plays there. The intro and ending count as head.
     // The held tonic that ends a song without an ending has no melody of its own.
     const isHead = (b: TimelineBar) => !b.tonic && (b.ref?.part !== "form" || b.chorus === 1 || (opts.choruses !== "loop" && b.chorus === lastChorus));
-    events.push(...melodyEvents(chart, bars, melody.measures, (b) => melody.mode === "every" || (!sectionLoop && isHead(b))));
-    events.sort((a, b) => a.time - b.time);
+    const tune = melodyEvents(chart, bars, melody.measures, (b) => !b.tonic && (melody.mode === "every" || (!sectionLoop && isHead(b))), { swing: melodySwing(style.id, tempo), bpm: tempo });
+    // The comping steps under the melody wherever both sound.
+    events = [...fitUnderMelody(events, tune), ...tune].sort((a, b) => a.time - b.time);
   }
   events = holdFinalChord(events, bars, totalBeats, tempo);
   return { bars, events, beats, totalBeats, beatsPerBar, loop, passes, cycle, mix: mixFor(chart, style), band: melody ? [...band, "melody"] : band };
