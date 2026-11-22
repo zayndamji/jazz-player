@@ -212,9 +212,10 @@ input:disabled {
   gap: 24px;
 }
 
+/* The gutter fits a section name ("Ending", "Tag ×2", a two-line "Ending vamp") beside the first barline. */
 .row {
   display: grid;
-  grid-template-columns: 40px repeat(4, minmax(0, 1fr));
+  grid-template-columns: 56px repeat(4, minmax(0, 1fr));
 }
 
 .row .bar:nth-child(2) {
@@ -225,7 +226,7 @@ input:disabled {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding-top: 6px;
+  padding: 6px 4px 0 0;
 }
 
 .section-label {
@@ -257,7 +258,7 @@ input:disabled {
   color: var(--muted);
   font-weight: 600;
   font-size: 12px;
-  white-space: nowrap;
+  text-align: left;
 }
 
 .section-label[aria-pressed="true"] {
@@ -305,6 +306,11 @@ input:disabled {
 
 .part-ending:last-child .row:last-child .bar.section-end::after {
   right: 6px;
+}
+
+/* Keep the last chord of a section clear of the double barline. */
+.bar.section-end {
+  padding-right: 16px;
 }
 
 .bar:focus-visible,
@@ -378,6 +384,11 @@ input:disabled {
   font-size: 23px;
 }
 
+/* In a bar of two chords, the one sounding now. */
+.bar.active .chord.sounding {
+  color: var(--accent);
+}
+
 .beat-slash {
   font-size: 22px;
   font-weight: 300;
@@ -429,6 +440,42 @@ input:disabled {
 
 .sheet-loop {
   background: var(--loop-bg);
+}
+
+/* What OSMD draws, restyled like the chord chart (LeadSheet's restyle()). */
+.sheet-music .osmd-chord-symbol text {
+  font-family: var(--music-font);
+}
+
+.sheet-chord-root {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sheet-chord-quality,
+.sheet-chord-bass {
+  font-weight: 500;
+}
+
+.sheet-music .osmd-measure-number text {
+  fill: var(--muted);
+  stroke: none;
+}
+
+.sheet-music .vf-stavesection text {
+  font-family: var(--music-font);
+  stroke: none;
+}
+
+.sheet-music .vf-stavesection text.sheet-letter {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sheet-music .vf-stavesection text.sheet-section-name {
+  fill: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .sheet-bar {
@@ -894,17 +941,25 @@ input:disabled {
     display: none;
   }
   .row {
-    grid-template-columns: 30px repeat(4, minmax(0, 1fr));
+    grid-template-columns: 38px repeat(4, minmax(0, 1fr));
+  }
+  .gutter {
+    padding-right: 2px;
   }
   .bar {
     min-height: 56px;
     padding: 16px 4px 4px;
     gap: 2px;
   }
+  /* Two chords in a bar stay side by side; one too long for both moves to a second line at the right, read in order. */
   .bar.split {
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: flex-start;
+    gap: 0 4px;
+  }
+  .bar.split .chord ~ .chord {
+    margin-left: auto;
   }
   .beat-slash {
     display: none;
@@ -913,7 +968,11 @@ input:disabled {
     font-size: 19px;
   }
   .bar.split .chord-root {
-    font-size: 16px;
+    font-size: 15px;
+  }
+  .bar.split .chord-quality {
+    font-size: 10px;
+    vertical-align: 6px;
   }
   .chord-quality {
     font-size: 11px;
@@ -1284,5 +1343,8 @@ kbd {
   }
   .controlbar-row > .toggle {
     flex: 1 1 0;
+  }
+  .bar.section-end {
+    padding-right: 8px;
   }
 }

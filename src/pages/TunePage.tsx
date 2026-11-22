@@ -15,7 +15,7 @@ import { bandFor, buildSchedule, chorusesFor, chorusLayoutChanges, clickLabel, p
 import { chartBars, chorusTranspose, chordAt, fold, itemAtFraction, keyCycle, nextChord, performanceFraction, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
 import { STYLES, playableStyle, stylesFor } from "../styles";
 import type { Style, Variation } from "../styles/types";
-import { keyLabel, keyWords } from "./format";
+import { barName, barsLabel, keyLabel, keyWords, sectionName as shownSection, shownNumber } from "./format";
 import { TRADE_LABELS, TRADE_MODES, tradeLabel, type TradeMode } from "../engine/trading";
 import { shareUrl, rememberable, withLink, type LinkSettings } from "./share";
 import { recordOpened } from "./tuneList";
@@ -679,19 +679,20 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   // Where we are, in words: the bar that's playing, or the one the band will start from.
   const shownRef = nowBar?.ref ?? (status === "idle" ? cue?.ref : null) ?? null;
   const nowNumber = shownRef ? bars.find((b) => sameRef(b.ref, shownRef)) : undefined;
+  const introBars = chart.intro?.bars.length ?? 0;
   const describe = (ref: BarRef, chorus: number, inLoop: boolean) => {
-    const number = bars.find((b) => sameRef(b.ref, ref))?.number;
+    const bar = bars.find((b) => sameRef(b.ref, ref));
+    if (!bar) return "";
+    if (ref.part === "intro") return `Intro · bar ${bar.number}`;
     const part =
-      ref.part === "intro"
-        ? "Intro"
-        : ref.part === "ending"
-          ? chart.ending![ref.section].label
-          : inLoop
+      ref.part === "ending"
+        ? shownSection(chart.ending![ref.section].label)
+        : inLoop
             ? `${chart.form[ref.section].label} section`
             : repeat === "loop"
               ? `Chorus ${chorus}`
               : `Chorus ${chorus} of ${builtChoruses}`;
-    return `Bar ${number} · ${part}`;
+    return `${barName(bar, introBars)} · ${part}`;
   };
   let where = "";
   /** What follows the place in the readout, and is cut first when it doesn't fit. */
@@ -743,6 +744,16 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
 
   const sheetBar = nowBar?.ref ? (nowNumber?.sheetNumber ?? null) : null;
   const cueSheetBar = !nowBar?.ref && nowNumber ? nowNumber.sheetNumber : null;
+  /** The chart bar a bar of the lead sheet shows (the first, for bars a tag repeats), for its number. */
+  const sheetBarOf = (n: number) => bars.find((x) => x.sheetNumber === n);
+  const sheetNumber = (n: number) => {
+    const b = sheetBarOf(n);
+    return b ? shownNumber(b, introBars) : n > introBars ? n - introBars : null;
+  };
+  const sheetName = (n: number) => {
+    const b = sheetBarOf(n);
+    return b ? barName(b, introBars) : `Bar ${n}`;
+  };
   const sheetRef = (n: number) => bars.find((x) => x.ref.part !== "ending" && x.sheetNumber === n)?.ref;
   const onSheetBar = (n: number) => {
     const ref = sheetRef(n);
@@ -758,11 +769,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       ? []
       : bars.filter((b) => b.ref.part === "form" && b.ref.section === loopSection).map((b) => b.sheetNumber);
 
-  const rangeLabel = rangeNumbers.length
-    ? rangeNumbers.length === 1
-      ? `Bar ${rangeNumbers[0].number}`
-      : `Bars ${rangeNumbers[0].number}-${rangeNumbers.at(-1)!.number}`
-    : null;
+  const rangeLabel = rangeNumbers.length ? barsLabel(rangeNumbers[0], rangeNumbers.at(-1)!, introBars) : null;
   const loopLabel = loopSection !== null ? `Loop ${sectionName(chart, loopSection)}` : rangeLabel;
 
   /** A group of settings in More, under a plain heading. */
@@ -1011,6 +1018,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             cue={cueSheetBar}
             loopBars={loopSheetBars}
             hideChords={chordsHidden}
+            barNumber={sheetNumber}
+            barName={sheetName}
             onBar={onSheetBar}
             onRange={onSheetRange}
           />
@@ -1020,6 +1029,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             shift={shift}
             keyPc={printedSpellPc}
             active={jump?.ref ?? nowBar?.ref ?? null}
+            activeBeat={!jump && nowBar?.ref && position ? position.beat : null}
             cued={status === "idle" ? (cue?.ref ?? null) : null}
             showScales={showScales}
             hideChords={chordsHidden}

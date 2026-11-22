@@ -3,6 +3,7 @@ import { BEAT, barTokens, displayParts, parseBar, parseChord, transposeSymbol } 
 import { chordScale } from "../chart/scales";
 import type { Chart, Section } from "../chart/types";
 import { chartBars, sameRef, type BarRef } from "../engine/timeline";
+import { barName, sectionName, shownNumber } from "../pages/format";
 import { neighbourRow, scrollBehavior, tabStop, useBarPress, useFocusFollow } from "./barPress";
 
 interface Props {
@@ -12,6 +13,8 @@ interface Props {
   /** Pitch class of the printed key, for spelling. */
   keyPc: number;
   active: BarRef | null;
+  /** The beat sounding in the active bar (from 0), to mark which of its chords is playing; null when not playing. */
+  activeBeat?: number | null;
   /** The bar the band will start from when paused. */
   cued: BarRef | null;
   showScales: boolean;
@@ -26,11 +29,11 @@ interface Props {
   onSection: (section: number) => void;
 }
 
-function ChordSymbol({ symbol, showScale, keyPc }: { symbol: string; showScale: boolean; keyPc: number }) {
+function ChordSymbol({ symbol, next, showScale, keyPc, sounding }: { symbol: string; /** The chord after it, which can choose the scale. */ next: string | null; showScale: boolean; keyPc: number; sounding: boolean }) {
   const { root, quality, bass } = displayParts(symbol);
-  const scale = showScale ? chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], keyPc) : null;
+  const scale = showScale ? chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], keyPc, next ? parseChord(next) : null) : null;
   return (
-    <span className="chord">
+    <span className={sounding ? "chord sounding" : "chord"}>
       <span className="chord-name">
         <span className="chord-root">{root}</span>
         {quality && <span className="chord-quality">{quality}</span>}
@@ -41,9 +44,10 @@ function ChordSymbol({ symbol, showScale, keyPc }: { symbol: string; showScale: 
   );
 }
 
-export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, hideChords = false, loopSection, loopRange, onBar, onRange, onSection }: Props) {
+export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued, showScales, hideChords = false, loopSection, loopRange, onBar, onRange, onSection }: Props) {
   const press = useBarPress(onBar, onRange);
-  const numbers = new Map(chartBars(chart).map((b) => [`${b.ref.part}${b.ref.section}.${b.ref.bar}`, b.number]));
+  const introBars = chart.intro?.bars.length ?? 0;
+  const numbers = new Map(chartBars(chart).map((b) => [`${b.ref.part}${b.ref.section}.${b.ref.bar}`, b]));
   const activeEl = useRef<HTMLButtonElement | null>(null);
 
   const grid = useRef<HTMLDivElement>(null);
@@ -74,6 +78,19 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, hideC
     ...(chart.ending ?? []).map((section, index) => ({ part: "ending" as const, index, section })),
   ];
 
+  // Each chord's next one in the chart's order (a repeat bar holds the chord before it), for its scale.
+  const nextChord = new Map<string, string>();
+  if (showScales) {
+    let last: string | null = null;
+    for (const { part, index, section } of sections)
+      section.bars.forEach((text, bar) => {
+        parseBar(text, chart.beatsPerBar).chords.forEach((c, k) => {
+          if (last) nextChord.set(last, c.symbol);
+          last = `${part}${index}.${bar}:${k}`;
+        });
+      });
+  }
+
   // One Tab stop for all the bars (the current, cued or first bar), and one for the section letters.
   const allBars: BarRef[] = sections.flatMap(({ part, index, section }) => section.bars.map((_, bar) => ({ part, section: index, bar })));
   const stop = allBars[tabStop(allBars, active, cued, sameRef)];
@@ -84,7 +101,8 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, hideC
         const rows: string[][] = [];
         for (let i = 0; i < section.bars.length; i += 4) rows.push(section.bars.slice(i, i + 4));
         const looping = part === "form" && loopSection === index;
-        const label = section.repeat && section.repeat > 1 ? `${section.label} ×${section.repeat}` : section.label;
+        const name = part === "form" ? section.label : sectionName(section.label);
+        const label = section.repeat && section.repeat > 1 ? `${name} ×${section.repeat}` : name;
         return (
           <section className={`section part-${part}${looping ? " looping" : ""}`} key={`${part}${index}`}>
             {rows.map((row, r) => (
@@ -113,7 +131,12 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, hideC
                   const isActive = sameRef(active, ref);
                   const isCued = !isActive && sameRef(cued, ref);
                   const inRange = loopRange.some((r) => sameRef(r, ref));
-                  const number = numbers.get(`${part}${index}.${bar}`);
+                  const numbered = numbers.get(`${part}${index}.${bar}`)!;
+                  const number = shownNumber(numbered, introBars);
+                  // In a bar of two or more chords, the one sounding now (the last that starts at or before the beat).
+                  let sounding = -1;
+                  if (isActive && activeBeat !== null && parsed.chords.length > 1) parsed.chords.forEach((c, k) => c.beat <= activeBeat + 1e-6 && (sounding = k));
+                  let chordIndex = -1;
                   return (
                     <button
                       type="button"
@@ -123,9 +146,9 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, hideC
                       className={`bar${isActive ? " active" : ""}${isCued ? " cued" : ""}${inRange ? " in-range" : ""}${barTokens(text).length > 1 ? " split" : ""}${bar === section.bars.length - 1 ? " section-end" : ""}`}
                       key={bar}
                       {...press(ref)}
-                      aria-label={`Bar ${number}${hideChords ? "" : `: ${parsed.repeat ? "same chord" : parsed.chords.map((c) => c.symbol).join(", ")}`}. Play from here.`}
+                      aria-label={`${barName(numbered, introBars)}${hideChords ? "" : `: ${parsed.repeat ? "same chord" : parsed.chords.map((c) => c.symbol).join(", ")}`}. Play from here.`}
                     >
-                      {i === 0 && <span className="bar-number">{number}</span>}
+                      {i === 0 && number !== null && <span className="bar-number">{number}</span>}
                       {parsed.repeat ? (
                         <svg className="simile" viewBox="0 0 24 24" aria-hidden="true">
                           <line x1="5" y1="20" x2="19" y2="4" />
@@ -134,15 +157,26 @@ export function ChordGrid({ chart, shift, keyPc, active, cued, showScales, hideC
                         </svg>
                       ) : (
                         // Chords in order, with a slash for each beat that holds the chord before it.
-                        barTokens(text).map((token, k) =>
-                          token === BEAT ? (
-                            <span key={k} className="beat-slash" aria-hidden="true">
-                              /
-                            </span>
-                          ) : (
-                            <ChordSymbol key={k} symbol={transposeSymbol(token, shift, keyPc)} showScale={showScales} keyPc={keyPc} />
-                          ),
-                        )
+                        barTokens(text).map((token, k) => {
+                          if (token === BEAT)
+                            return (
+                              <span key={k} className="beat-slash" aria-hidden="true">
+                                /
+                              </span>
+                            );
+                          const c = ++chordIndex;
+                          const next = nextChord.get(`${part}${index}.${bar}:${c}`);
+                          return (
+                            <ChordSymbol
+                              key={k}
+                              symbol={transposeSymbol(token, shift, keyPc)}
+                              next={next ? transposeSymbol(next, shift, keyPc) : null}
+                              showScale={showScales}
+                              keyPc={keyPc}
+                              sounding={c === sounding}
+                            />
+                          );
+                        })
                       )}
                     </button>
                   );
