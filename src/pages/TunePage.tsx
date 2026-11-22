@@ -26,9 +26,15 @@ import { readStored, store } from "./storage";
 import { useWakeLock } from "./useWakeLock";
 
 const MUTE_KEY = "jazz-player.muted";
+const VOLUME_KEY = "jazz-player.volume";
 const INSTRUMENT_KEY = "jazz-player.instrument";
 const SHORTCUTS_KEY = "jazz-player.shortcuts";
 const readMuted = () => readStored(MUTE_KEY) === "1";
+/** The master volume, 0 to 1, shared by every tune like Mute. */
+const readVolume = () => {
+  const v = Number(readStored(VOLUME_KEY) ?? 1);
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+};
 /** The player's instrument, kept between tunes and visits. */
 const readInstrument = () => {
   const id = readStored(INSTRUMENT_KEY);
@@ -116,6 +122,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   const [position, setPosition] = useState<Position | null>(null);
   const [loops, setLoops] = useState(0);
   const [muted, setMuted] = useState(() => readMuted());
+  const [volume, setVolume] = useState(() => readVolume());
   /** Letter, digit and punctuation shortcuts; off for people who type by voice or switch (WCAG 2.1.4). */
   const [singleKeys, setSingleKeys] = useState(() => readStored(SHORTCUTS_KEY) !== "0");
   const [helpOpen, setHelpOpen] = useState(false);
@@ -139,6 +146,10 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     sharedPlayer?.setMasterMute(muted);
     store(MUTE_KEY, muted ? "1" : "0");
   }, [muted]);
+  useEffect(() => {
+    sharedPlayer?.setMasterLevel(volume);
+    store(VOLUME_KEY, String(volume));
+  }, [volume]);
   // Each tune remembers its own settings.
   useEffect(() => {
     saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, live, countIn: countInBars, twoFeel, variation, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, trade, chords: chordsShown, melody, mix }, stored, linkNow.current));
@@ -174,6 +185,12 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     player.current = p;
     return p;
   };
+
+  // The sounds load as the tune opens (fetching and decoding need no user gesture), so Play
+  // only has to start the audio. A failure shows when Play is pressed, which waits on the same files.
+  useEffect(() => {
+    getPlayer().preload().catch(() => {});
+  }, []);
 
   // Remember when this tune was opened, for the library's "Recently opened" order.
   useEffect(() => recordOpened(chart.id), [chart.id]);
@@ -230,6 +247,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       current.current = { opts: full, schedule, style, repeat };
       p.metronomeOn = metronome;
       p.clickMode = clickMode;
+      p.setMasterLevel(volume);
       p.setMasterMute(muted);
       p.setTempo(tempo);
       p.setSchedule(schedule);
@@ -239,7 +257,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       setCue(null);
       setStatus("playing");
     },
-    [chart, style, mix, repeat, countInBars, intro, ending, keyStep, trade, melody, headAvailable, transpose, metronome, clickMode, tempo, twoFeel, variation, muted],
+    [chart, style, mix, repeat, countInBars, intro, ending, keyStep, trade, melody, headAvailable, transpose, metronome, clickMode, tempo, twoFeel, variation, muted, volume],
   );
 
 
@@ -901,7 +919,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         </button>
       </div>
       <h3>Mix</h3>
-      <Mixer mix={mix} onChange={changeMix} onPreset={changePreset} band={melody !== "off" && headAvailable ? [...bandFor(chart, style), "melody"] : bandFor(chart, style)} />
+      <Mixer volume={volume} onVolume={setVolume} mix={mix} onChange={changeMix} onPreset={changePreset} band={melody !== "off" && headAvailable ? [...bandFor(chart, style), "melody"] : bandFor(chart, style)} />
     </div>
   );
 

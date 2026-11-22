@@ -34,6 +34,9 @@ const FADE = 0.08;
 /** Seconds the band fades over at the end of the song (a user's stop keeps `FADE`). How long it rings first: `ringSeconds` in schedule.ts. */
 export const END_FADE = 1.5;
 
+type SpriteName = "piano" | "bass" | "guitar" | "drums";
+const SPRITES: SpriteName[] = ["piano", "bass", "guitar", "drums"];
+
 const ticks =(beats: number) => `${Math.round(beats * Tone.getTransport().PPQ)}i`;
 
 /**
@@ -59,10 +62,13 @@ export class Player {
   /** The tempo the user set; the Transport's own bpm runs under it during a ritard. */
   private tempo: number | null = null;
   private loaded: Promise<void> | null = null;
+  private sprites: Promise<Record<SpriteName, Tone.ToneAudioBuffer>> | null = null;
 
   private styleMix: Partial<Record<Track, number>> = {};
   private master: Tone.Gain | null = null;
   private muted = false;
+  /** The master level (0 to 1) the gain returns to when not muted. */
+  private masterLevel = 1;
   private levels: Record<Mixable, number> = { bass: 1, piano: 1, guitar: 1, drums: 1, melody: 1, metronome: 1 };
 
   metronomeOn = false;
@@ -75,13 +81,37 @@ export class Player {
   /** Called when playback stops: `finished` is true when the song ran to its end, false when stopped. */
   onEnd: (finished: boolean) => void = () => {};
 
-  /** Create instruments and load samples. Call after a user gesture. */
+  /**
+   * Fetch and decode the sample files, without starting the audio (no user gesture needed: a
+   * suspended AudioContext decodes). Runs once; `load` waits on the same files. A failure lets a
+   * later call try again.
+   */
+  preload(): Promise<void> {
+    return this.fetchSprites().then(() => {});
+  }
+
+  private fetchSprites() {
+    if (!this.sprites) {
+      // One file per instrument, loaded in parallel and shared by every voice.
+      this.sprites = Promise.all(SPRITES.map((name) => loadSprite(BASE + sprites[name].file))).then(
+        (buffers) => Object.fromEntries(SPRITES.map((name, i) => [name, buffers[i]])) as Record<SpriteName, Tone.ToneAudioBuffer>,
+      );
+      this.sprites.catch(() => {
+        this.sprites = null;
+      });
+    }
+    return this.sprites;
+  }
+
+  /** Start the audio and create the instruments, on the preloaded samples. Call after a user gesture. */
   load(): Promise<void> {
     if (this.loaded) return this.loaded;
     this.loaded = (async () => {
+      // The files start loading before the audio starts, so a load without a preload loses no time.
+      const files = this.fetchSprites();
       await Tone.start();
-      // Master mute is the last stage, so tools can still listen just before it.
-      this.master = new Tone.Gain(this.muted ? 0 : 1).toDestination();
+      // Master mute and volume are the last stage, so tools can still listen just before it.
+      this.master = new Tone.Gain(this.muted ? 0 : this.masterLevel).toDestination();
       const out = new Tone.Compressor({ threshold: -14, ratio: 1.8, attack: 0.01, release: 0.2 }).connect(this.master);
       if (import.meta.env.DEV) (window as unknown as { __jazzPlayer: unknown }).__jazzPlayer = { preMute: out, Tone, player: this };
       const room = new Tone.Reverb({ decay: 1.4, preDelay: 0.01, wet: 0.16 }).connect(out);
@@ -89,10 +119,7 @@ export class Player {
       for (const [name, c] of Object.entries(CHANNELS)) channels[name as Mixable] = new Tone.Channel(c).connect(room);
       this.channels = channels;
 
-      // One file per instrument, loaded in parallel and shared by every voice.
-      const [piano, bass, guitar, drums] = await Promise.all(
-        (["piano", "bass", "guitar", "drums"] as const).map((name) => loadSprite(BASE + sprites[name].file)),
-      );
+      const { piano, bass, guitar, drums } = await files;
       this.piano = new SpriteSampler({ buffer: piano, regions: sprites.piano.regions, release: 0.9, brightness: { low: 3500, high: 16000 } }).connect(channels.piano);
       // The melody is a second voice on the piano samples (the same buffer): brighter, with a shorter release so a line reads as legato.
       this.melody = new SpriteSampler({ buffer: piano, regions: sprites.piano.regions, release: 0.3, brightness: { low: 5000, high: 16000 } }).connect(channels.melody);
@@ -295,7 +322,14 @@ export class Player {
   /** Silence everything without stopping (the band keeps its place). */
   setMasterMute(mute: boolean) {
     this.muted = mute;
-    if (this.master) this.master.gain.value = mute ? 0 : 1;
+    if (this.master) this.master.gain.value = mute ? 0 : this.masterLevel;
+  }
+
+  /** The master volume, 0 to 1 (a gain after the compressor); Mute keeps it for when it's turned off. */
+  setMasterLevel(level: number) {
+    this.masterLevel = Math.min(1, Math.max(0, level));
+    // A short ramp, so dragging the slider doesn't crackle.
+    if (this.master && !this.muted) this.master.gain.rampTo(this.masterLevel, 0.03);
   }
 
   setMute(track: Mixable, mute: boolean) {

@@ -19,6 +19,9 @@ const TRACKS: { id: Mixable; name: string }[] = [
 ];
 
 interface Props {
+  /** The master volume, 0 to 1, for every tune. */
+  volume: number;
+  onVolume: (volume: number) => void;
   mix: Record<Mixable, MixState>;
   onChange: (track: Mixable, state: MixState) => void;
   /** Apply a ready-made mix of the band (an id from `presetsFor`). */
@@ -26,11 +29,15 @@ interface Props {
   band: Track[];
 }
 
-/** A band preset, then volume, mute and solo for each part that plays (the band) and the metronome. */
-export function Mixer({ mix, onChange, onPreset, band }: Props) {
+/** The master volume, a band preset, then volume, mute and solo for each part that plays (the band) and the metronome. */
+export function Mixer({ volume, onVolume, mix, onChange, onPreset, band }: Props) {
   const preset = currentPreset(mix, band);
   return (
     <div className="mixer">
+      <div className="strip master">
+        <label htmlFor="vol-master">Volume</label>
+        <input id="vol-master" type="range" min={0} max={1} step={0.05} value={volume} onChange={(e) => onVolume(Number(e.target.value))} />
+      </div>
       <label className="field">
         <span>Mix</span>
         <select value={preset?.id ?? "custom"} onChange={(e) => onPreset(e.target.value)}>

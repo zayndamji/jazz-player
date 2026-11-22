@@ -765,6 +765,11 @@ input:disabled {
   width: 100%;
 }
 
+/* The master volume runs under the part sliders and their buttons. */
+.strip.master input {
+  grid-column: 2 / -1;
+}
+
 .mute {
   height: 28px;
   border: 1px solid var(--control-line);
