@@ -6,7 +6,7 @@ import { swingForm, waltzForm } from "../fixtures";
 import { loadSettings, tuneKey } from "../pages/settings";
 import { STYLES, playableStyle, playsMeter, stylesFor } from "../styles";
 import { quartal, waltz } from "../styles/waltz";
-import { buildSchedule, clickLabel, clicksOn, performanceBeats } from "./schedule";
+import { buildSchedule, clickLabel, clicksOn, MIN_REPEATS, performanceBeats } from "./schedule";
 import { SWING_RANGE } from "./voicing";
 import { chartBars, itemAtFraction, nextChord, performanceFraction, playOrder, rangeOrder, stepBar } from "./timeline";
 
@@ -99,7 +99,8 @@ describe("3/4 timeline and schedule", () => {
     const range = { from: { part: "form" as const, section: 0, bar: 2 }, to: { part: "form" as const, section: 0, bar: 4 } };
     expect(rangeOrder(waltzForm, range, 2).length).toBe(6);
     const sch = buildSchedule(waltzForm, waltz, { ...play, loopRange: range });
-    expect(sch.loop).toEqual({ start: (2 + 3) * 3, end: (2 + 6) * 3 });
+    // Count-in, the first copy, then the copies the Transport repeats.
+    expect(sch.loop).toEqual({ start: (2 + 3) * 3, end: (2 + 3 + 3 * MIN_REPEATS) * 3 });
   });
 
   it("finds the next chord within a 3/4 bar", () => {

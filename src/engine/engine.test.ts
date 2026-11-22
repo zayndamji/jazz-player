@@ -108,8 +108,9 @@ describe("schedule", () => {
 
   it("loops the form after the intro", () => {
     const s = buildSchedule(chart, bossa, { choruses: "loop", countIn: false, transpose: 0 });
-    expect(s.bars.length).toBe(4 + 64);
-    expect(s.loop).toEqual({ start: (4 + 32) * 4, end: 68 * 4 });
+    // The head, a solo chorus that builds, then four solo choruses that repeat.
+    expect(s.bars.length).toBe(4 + 6 * 32);
+    expect(s.loop).toEqual({ start: (4 + 64) * 4, end: (4 + 6 * 32) * 4 });
   });
 
   it("loops one section, starting part way through", () => {
@@ -121,7 +122,8 @@ describe("schedule", () => {
       start: { ref: { part: "form", section: 2, bar: 4 }, chorus: 1 },
     });
     expect(s.bars[2].ref).toEqual({ part: "form", section: 2, bar: 4 });
-    expect(s.loop).toEqual({ start: (2 + 4) * 4, end: (2 + 4 + 8) * 4 });
+    expect(s.loop).toEqual({ start: (2 + 4) * 4, end: (2 + 4 + 4 * 8) * 4 });
+    expect(s.passes).toEqual([0, 1, 2, 3].map((i) => (2 + 4 + i * 8) * 4));
   });
 });
 
@@ -353,10 +355,10 @@ describe("loop a range of bars", () => {
     expect(rangeBars(chart, { from: range.to, to: range.from }).map((b) => b.number)).toEqual([7, 8, 9, 10]);
   });
 
-  it("plays the range twice and repeats the second copy", () => {
+  it("plays the range once, then repeats four copies of it", () => {
     const s = buildSchedule(chart, bossa, { choruses: 3, countIn: false, transpose: 0, loopRange: range });
-    expect(s.bars.length).toBe(8);
-    expect(s.loop).toEqual({ start: 16, end: 32 });
+    expect(s.bars.length).toBe(4 * 5);
+    expect(s.loop).toEqual({ start: 16, end: 80 });
     expect(s.bars[0].ref).toEqual(range.from);
     expect(s.bars[3].ref).toEqual(range.to);
     expect(s.bars[4].ref).toEqual(range.from);
@@ -365,7 +367,7 @@ describe("loop a range of bars", () => {
 
   it("starts inside the range and after a count-in", () => {
     const s = buildSchedule(chart, bossa, { choruses: 3, countIn: true, transpose: 0, loopRange: range, start: { ref: ref(0, 4), chorus: 1 } });
-    expect(s.bars.filter((b) => !b.countIn).map((b) => b.ref!.bar)).toEqual([4, 5, 2, 3, 4, 5]);
+    expect(s.bars.filter((b) => !b.countIn).map((b) => b.ref!.bar)).toEqual([4, 5, 2, 3, 4, 5, 2, 3, 4, 5, 2, 3, 4, 5, 2, 3, 4, 5]);
     expect(s.loop).toEqual({ start: (2 + 2) * 4, end: s.totalBeats });
   });
 
@@ -439,7 +441,7 @@ describe("next chord", () => {
   it("wraps into the repeating copy of a loop", () => {
     const l = buildSchedule(chart, bossa, { choruses: 1, countIn: false, transpose: 0, loopSection: 0 });
     const last = l.bars.length - 1;
-    expect(sym(nextChord(l.bars, last, 3, 2, l.bars.length / 2))).toBe("Cmaj7");
+    expect(sym(nextChord(l.bars, last, 3, 2, l.loop!.start / 4))).toBe("Cmaj7");
   });
   it("gives nothing at the end", () => {
     expect(nextChord(s.bars, s.bars.length - 1, 0)).toBeNull();

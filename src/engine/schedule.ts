@@ -81,7 +81,11 @@ export interface Schedule {
   loop: { start: number; end: number } | null;
   /** Beats where a pass of the loop ends and the next begins (empty when not looping). */
   passes: number[];
-  /** Choruses (passes) the loop takes to come back to the same key: 1 when the key stays put. */
+  /**
+   * Passes (repeating copies) in one wrap of the loop, each generated on its own: a whole number of key
+   * cycles and at least `MIN_REPEATS`, so the band doesn't repeat itself note for note (`loopRepeats`).
+   * A wrap goes back this many choruses.
+   */
   cycle: number;
   /** The style's level changes per track, in dB. */
   mix: Partial<Record<Track, number>>;
@@ -89,18 +93,32 @@ export interface Schedule {
   band: Track[];
 }
 
+/** The fewest distinct copies a loop repeats, so a looped chorus or section isn't heard again note for note every pass. */
+export const MIN_REPEATS = 4;
+
 /**
- * Everything the player needs, in beats. Looping plays the loop unit twice
- * and repeats the second copy, so playback can start anywhere in the first.
+ * How many copies a loop lays out to repeat: at least `MIN_REPEATS`, and a whole number of key
+ * cycles when the key moves each pass, so the wrap comes back to the key it left (1 to 4, 6 to 6, 12 to 12).
+ */
+export const loopRepeats = (keyStep: number) => {
+  const cycle = keyCycle(keyStep);
+  return cycle * Math.ceil(MIN_REPEATS / cycle);
+};
+
+/**
+ * Everything the player needs, in beats. Looping plays a first copy of the loop unit (where playback
+ * can start) and then `loopRepeats` copies the Transport repeats, each generated as its own pass.
+ * Choruses until stopped from the top play the head and one solo chorus that builds before the repeats.
  */
 export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions): Schedule {
   // Chords are spelled in the major key, or the relative major of a minor key.
   const keyPc = spellingPc((keyPitchClass(chart.key) + opts.transpose + 120) % 12, isMinorKey(chart.key));
   const beatsPerBar = chart.beatsPerBar;
 
-  // Loops lay the repeating unit out once more than a key cycle needs: the first copy is where playback can start,
-  // the rest repeat. With the key moving each chorus the unit repeats for a whole key cycle, so every pass has its key.
-  const cycle = keyCycle(opts.keyStep ?? 0);
+  // Loops lay the repeating unit out once more than the repeats need: the first copy is where playback can start,
+  // the rest repeat, each its own pass (with the key moving, a whole number of key cycles, so every pass has its key).
+  // From the top, choruses until stopped also keep the first solo chorus out of the repeats: it builds from the head.
+  const cycle = loopRepeats(opts.keyStep ?? 0);
   const layout = (first: number): { items: PlayItem[]; loopFrom: number } => {
     if (opts.loopSection != null) {
       const items = sectionOrder(chart, opts.loopSection, cycle + 1, first);
@@ -111,8 +129,9 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
       return { items, loopFrom: items.length / (cycle + 1) };
     }
     if (opts.choruses === "loop") {
-      const items = loopedChoruses(chart, first, cycle + 1, opts.intro !== false);
-      return { items, loopFrom: items.findIndex((i) => i.chorus === first + 1) };
+      const lead = first === 1 ? 2 : 1;
+      const items = loopedChoruses(chart, first, lead + cycle, opts.intro !== false);
+      return { items, loopFrom: items.findIndex((i) => i.chorus === first + lead) };
     }
     return { items: playOrder(chart, opts.choruses, opts.intro !== false, opts.ending !== false, true), loopFrom: -1 };
   };
