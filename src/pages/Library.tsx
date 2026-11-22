@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isMinorKey, keyPitchClass } from "../chart/chords";
 import { allCharts, isImported, removeImported } from "../charts/imported";
 import { hasHead } from "../charts/heads";
@@ -13,6 +13,14 @@ export function Library({ missing }: { /** A tune id in the address that matches
   useEffect(() => saveView(view), [view]);
   const opened = useMemo(readOpened, []);
   const [importing, setImporting] = useState(false);
+  /** The Import button hides while the panel is open (the panel has its own Import and Cancel); focus goes back to it. */
+  const importButton = useRef<HTMLButtonElement>(null);
+  const [refocus, setRefocus] = useState(false);
+  useEffect(() => {
+    if (importing || !refocus) return;
+    setRefocus(false);
+    importButton.current?.focus();
+  }, [importing, refocus]);
   /** Bumped when imported tunes change, so the list reads them again. */
   const [version, setVersion] = useState(0);
   const charts = useMemo(allCharts, [version]);
@@ -29,7 +37,10 @@ export function Library({ missing }: { /** A tune id in the address that matches
       </header>
       {importing && (
         <ImportPanel
-          onCancel={() => setImporting(false)}
+          onCancel={() => {
+            setImporting(false);
+            setRefocus(true);
+          }}
           onDone={(added) => {
             setImporting(false);
             setVersion((v) => v + 1);
@@ -52,9 +63,11 @@ export function Library({ missing }: { /** A tune id in the address that matches
           <option value="az">A to Z</option>
           <option value="recent">Recently opened</option>
         </select>
-        <button type="button" className="quiet import-button" aria-expanded={importing} onClick={() => setImporting(!importing)}>
-          Import
-        </button>
+        {!importing && (
+          <button type="button" ref={importButton} className="quiet import-button" onClick={() => setImporting(true)}>
+            Import
+          </button>
+        )}
       </div>
       <ul className="tunes">
         {shown.map((c) => (

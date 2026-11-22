@@ -55,7 +55,7 @@ export function ImportPanel({ onDone, onCancel }: { onDone: (added: Chart[]) => 
       onDrop={drop}
     >
       <div className="import-row">
-        <button type="button" onClick={() => file.current?.click()}>
+        <button type="button" autoFocus onClick={() => file.current?.click()}>
           Choose MusicXML file
         </button>
         <input ref={file} type="file" accept=".musicxml,.xml,.mxl,text/xml,application/xml" hidden onChange={(e) => void readFile(e.target.files?.[0])} />
