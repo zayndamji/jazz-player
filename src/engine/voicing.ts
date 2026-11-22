@@ -1,4 +1,4 @@
-import type { ParsedChord } from "../chart/chords";
+import { resolvesToMinor, type ParsedChord } from "../chart/chords";
 
 /**
  * Four-note jazz piano voicings without the root (the bass has it):
@@ -7,24 +7,57 @@ import type { ParsedChord } from "../chart/chords";
  * Spacing: drop-2 shapes (the second voice from the top dropped an octave)
  * spread the chord over about an octave and a half, the open sound of bossa
  * piano and guitar. Close shapes are kept as options, but seconds and thirds
- * below G3 are ruled out because they sound muddy in that register. Each new
- * voicing is the option closest to the previous one, for smooth voice leading.
+ * below G3 are ruled out because they sound muddy in that register, and below E3
+ * the lowest voice is a guide tone (3rd or 7th). Each new voicing is the option
+ * closest to the previous one, for smooth voice leading. An optional context gives
+ * the next chord (a V7 into minor takes b9 and b13), a ceiling (stay under the
+ * melody) and the bass note (stay a minor third above it).
  */
 
 const has = (c: ParsedChord, name: string) => c.intervalNames.includes(name);
 
-/** Semitones above the root of the four voiced tones. */
-export function voicingIntervals(c: ParsedChord): number[] {
-  const third = has(c, "3m") ? 3 : has(c, "4P") && !has(c, "3M") ? 5 : 4;
-  // A flat 13 (7b13) is voiced like a raised fifth.
-  const fifth = has(c, "5A") || has(c, "13m") ? 8 : has(c, "5d") ? 6 : 7;
-  const altered = fifth !== 7;
-  const seventh = has(c, "7M") ? 11 : has(c, "7m") ? 10 : has(c, "7d") ? 9 : has(c, "6M") || has(c, "13M") ? 9 : third === 3 ? 10 : 9;
-  const ninth = has(c, "9m") ? 1 : has(c, "9A") ? 3 : 2;
+/** Written tensions that keep a dominant from taking the minor-key b9 and b13. */
+const DOMINANT_TENSIONS = ["9m", "9M", "9A", "13m", "13M", "5A", "5d", "11A"];
 
-  if (third === 3 && fifth === 6) return [third, fifth, seventh, 0]; // half-diminished and diminished
-  if (third === 4 && seventh === 10) return [third, altered ? fifth : 9, seventh, ninth]; // dominant: 3, 13, b7, 9
-  return [third, fifth, seventh, ninth];
+/**
+ * Semitones above the root of the four voiced tones, in the order 3rd (or 4th),
+ * 5th or colour tone, 7th (or 6th), 9th; the first and third are the guide tones.
+ * `next` is the chord that follows: a plain dominant resolving down a fifth to a
+ * minor chord takes the b9 and b13 (3, b13, b7, b9). Written tensions always win.
+ */
+export function voicingIntervals(c: ParsedChord, next?: ParsedChord | null): number[] {
+  const h = (name: string) => has(c, name);
+  const minor = h("3m");
+  const major = h("3M");
+  const sus = !minor && !major && (h("4P") || h("11P"));
+  const ninth = h("9m") ? 1 : h("9A") ? 3 : 2;
+
+  if (minor && h("5d")) {
+    if (h("7m")) return [3, 6, 10, 0]; // half-diminished
+    return [3, 6, 9, h("7M") ? 11 : 2]; // diminished: b3, b5, bb7, and the 9th (or a written major 7th)
+  }
+  // A flat 13 is voiced like a raised fifth.
+  const flat13 = h("5A") || h("13m") || h("6m");
+  const sharp11 = h("11A") || h("5d");
+  const seventh = h("7M") ? 11 : h("7m") ? 10 : h("6M") || h("13M") ? 9 : null;
+
+  if (minor) {
+    const fifth = flat13 ? 8 : 7;
+    // A plain minor triad keeps the root on top instead of a 7th (m add9), so a line
+    // cliché (m, mMaj7, m7, m6) moves one voice by half steps from the root down.
+    return [3, fifth, seventh ?? 0, ninth];
+  }
+  if (sus) return [5, h("13M") ? 9 : 7, seventh ?? 9, ninth]; // 4, 5 or 13, b7, 9: no 3rd under the 11th
+  if (major && seventh === 10) {
+    if (resolvesToMinor(c, next) && !DOMINANT_TENSIONS.some(h)) return [4, 8, 10, 1];
+    // Colour tone: a written 13 or b13, else the #11 or b5, else b13 under a #9 (altered), else 13.
+    const colour = h("13M") ? 9 : flat13 ? 8 : sharp11 ? 6 : h("9A") ? 8 : 9;
+    // A written 13 with #11 voices the #11 in place of an unaltered 9th.
+    const top = colour === 9 && h("11A") && ninth === 2 ? 6 : ninth;
+    return [4, colour, 10, top];
+  }
+  const fifth = flat13 ? 8 : sharp11 ? 6 : 7;
+  return [4, fifth, seventh ?? 9, ninth];
 }
 
 export const VOICING_LOW = 48; // C3
@@ -94,15 +127,44 @@ export function voicingOptions(pcs: number[], range: VoicingRange = PIANO_RANGE)
 
 const distance = (a: number[], b: number[]) => a.reduce((sum, n, i) => sum + Math.abs(n - b[i]), 0);
 
+/** What the piano knows about the music around a chord. All optional. */
+export interface VoiceContext {
+  /** The chord that follows, for the tensions a resolution asks for (V7 to a minor chord). */
+  next?: ParsedChord | null;
+  /** MIDI note the top voice should stay at or under, such as the melody note. */
+  ceiling?: number;
+  /** The bass's MIDI note: the lowest voice stays at least a minor third above it. */
+  bass?: number;
+}
+
+/** Below this note (E3) the lowest voice must be a guide tone (3rd or 7th), never the 9th or 13th. */
+const LOW_GUIDE_LIMIT = 52;
+
 /** MIDI notes for a chord, voice-led from the previous voicing. */
-export function voiceChord(c: ParsedChord, previous: number[] | null, range: VoicingRange = PIANO_RANGE): number[] {
-  const intervals = voicingIntervals(c);
+export function voiceChord(
+  c: ParsedChord,
+  previous: number[] | null,
+  range: VoicingRange = PIANO_RANGE,
+  context: VoiceContext = {},
+): number[] {
+  const intervals = voicingIntervals(c, context.next);
   const pcs = [...new Set(intervals.map((i) => (c.root + i) % 12))];
   let options = voicingOptions(pcs, range);
-  if (range.guideBottom) {
-    const guides = [intervals[0], intervals[2]].map((i) => (c.root + i) % 12);
-    const guided = options.filter((o) => guides.includes(o.notes[0] % 12));
-    if (guided.length) options = guided;
+  const guides = [intervals[0], intervals[2]].filter((i) => i !== 0).map((i) => (c.root + i) % 12);
+  // Each rule narrows the options, unless it would leave none.
+  const keep = (rule: (notes: number[]) => boolean) => {
+    const kept = options.filter((o) => rule(o.notes));
+    if (kept.length) options = kept;
+  };
+  keep((notes) => notes[0] >= LOW_GUIDE_LIMIT || guides.includes(notes[0] % 12));
+  const bass = context.bass;
+  if (bass !== undefined) keep((notes) => notes[0] >= bass + 3);
+  if (range.guideBottom) keep((notes) => guides.includes(notes[0] % 12));
+  const ceiling = context.ceiling;
+  if (ceiling !== undefined && options.length) {
+    const lowestTop = Math.min(...options.map((o) => o.notes[o.notes.length - 1]));
+    const limit = Math.max(ceiling, lowestTop);
+    options = options.filter((o) => o.notes[o.notes.length - 1] <= limit);
   }
   const center = range.center;
   let best = options[0]?.notes ?? [];

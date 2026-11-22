@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayParts, isMinorKey, keyPitchClass, parseBar, parseChord, spellingPc, transposeSymbol } from "./chords";
+import { displayParts, isMinorKey, keyPitchClass, parseBar, parseChord, resolvesToMinor, spellingPc, transposeSymbol } from "./chords";
 import { FIXTURES } from "../fixtures";
 
 describe("parseChord", () => {
@@ -34,6 +34,53 @@ describe("parseChord", () => {
         }
       }
     }
+  });
+
+  it("reads lead-sheet spellings tonal doesn't", () => {
+    const iv = (s: string) => parseChord(s).intervals;
+    expect(iv("Fø7")).toEqual([0, 3, 6, 10]);
+    expect(iv("Fø")).toEqual([0, 3, 6, 10]);
+    expect(iv("F°7")).toEqual([0, 3, 6, 9]);
+    expect(iv("G7+5")).toEqual([0, 4, 8, 10]);
+    expect(iv("G7-9")).toEqual([0, 4, 7, 10, 13]);
+    expect(iv("G7(b9,b13)")).toEqual([0, 4, 7, 10, 13, 20]);
+    expect(iv("G7(#5,#9)")).toEqual([0, 4, 8, 10, 15]);
+    expect(iv("Dm(maj7)")).toEqual([0, 3, 7, 11]);
+    expect(iv("D-^7")).toEqual([0, 3, 7, 11]);
+    expect(iv("DmM7")).toEqual([0, 3, 7, 11]);
+    expect(iv("Eb^7")).toEqual([0, 4, 7, 11]);
+    expect(iv("EbMA7")).toEqual([0, 4, 7, 11]);
+    expect(iv("Dmin7")).toEqual([0, 3, 7, 10]);
+    expect(iv("Dm7b9")).toEqual([0, 3, 7, 10, 13]);
+    expect(iv("G7#11b9")).toEqual([0, 4, 7, 10, 13, 18]);
+    expect(iv("G7sus2")).toEqual([0, 2, 7, 10]);
+    expect(iv("Galt")).toEqual(iv("G7alt"));
+    expect(iv("Fø9")).toEqual([0, 3, 6, 10, 14]);
+    expect(iv("Dm6/9")).toEqual([0, 3, 7, 9, 14]);
+  });
+
+  it("reads every quality the iReal importer and the charts write", () => {
+    const qualities = [
+      "", "m", "6", "7", "9", "11", "13", "69", "m6", "m69", "m7", "m9", "m11", "m7b5", "dim", "dim7", "aug", "mMaj7",
+      "maj7", "maj9", "maj13", "maj7#11", "7b9", "7#9", "7b5", "7#5", "7#11", "7b13", "7b9#9", "7alt", "7sus4", "9sus4",
+      "sus4", "sus2", "5", "7(#11)", "7(#5)", "7(b9)", "7(b13)", "h7", "o", "o7", "+", "+7", "ø7", "-", "-7", "-^7", "^7",
+    ];
+    for (const q of qualities) expect(() => parseChord("C" + q), q).not.toThrow();
+  });
+
+  it("still refuses what it can't read", () => {
+    expect(() => parseChord("Cxyz")).toThrow(/Unknown chord quality/);
+  });
+});
+
+describe("resolvesToMinor", () => {
+  it("is true for a dominant going down a fifth to a minor chord", () => {
+    expect(resolvesToMinor(parseChord("A7"), parseChord("Dm7"))).toBe(true);
+    expect(resolvesToMinor(parseChord("E7b9"), parseChord("Am"))).toBe(true);
+    expect(resolvesToMinor(parseChord("A7"), parseChord("Dmaj7"))).toBe(false);
+    expect(resolvesToMinor(parseChord("A7"), parseChord("Em7"))).toBe(false);
+    expect(resolvesToMinor(parseChord("Am7"), parseChord("Dm7"))).toBe(false);
+    expect(resolvesToMinor(parseChord("A7"), null)).toBe(false);
   });
 });
 

@@ -31,14 +31,77 @@ export function pitchClass(letter: string, accidental: string): number {
 
 /** Turn a written quality into a name tonal understands. */
 export function normalizeQuality(quality: string): string {
-  return quality
-    .replace(/[()]/g, "")
-    .replace(/[△Δ∆]/g, "maj")
+  const q = quality
+    .replace(/[()\s,]/g, "")
+    .replace(/[△Δ∆^]/g, "maj")
     .replace(/♯/g, "#")
     .replace(/♭/g, "b")
-    .replace(/^-/, "m")
-    .replace(/^6\/9/, "69")
+    .replace(/[°º]/g, "dim")
+    .replace(/^ø(9|11|13)/, "m7b5add$1")
+    .replace(/^ø7?/, "m7b5")
+    .replace(/^(?:min|mi|-)/, "m")
+    .replace(/^m9(?:maj|Maj|MA|Ma|M)7$/, "mMaj9")
+    .replace(/^m(?:maj|Maj|MA|Ma|M)(?=\d|$)/, "mMaj")
+    .replace(/^(?:Maj|MA|Ma|ma|M)(?=\d|$)/, "maj")
+    .replace(/(?<=\d)\+(?=\d)/g, "#")
+    .replace(/(?<=\d)-(?=\d)/g, "b")
+    .replace(/(\d)\+$/, "$1#5")
+    .replace(/^sus4?7/, "7sus4")
+    .replace(/6\/9/, "69")
+    .replace(/^alt$/, "7alt")
     .replace(/^maj$/, "");
+  return q === "mMaj" ? "mMaj7" : q;
+}
+
+/** A trailing extension or alteration ("b9", "#11", "add9", "sus4") read on top of a base chord. */
+const TAIL = /(?:(add|[b#])?(13|11|9|6|5|4|2)|sus([24])?)$/;
+/** Interval quality letter for a written degree and accidental. */
+const DEGREE_QUALITY: Record<string, Record<string, string>> = {
+  2: { "": "M", b: "m", "#": "A" },
+  4: { "": "P", "#": "A" },
+  5: { "": "P", b: "d", "#": "A" },
+  6: { "": "M", b: "m" },
+  9: { "": "M", b: "m", "#": "A" },
+  11: { "": "P", "#": "A" },
+  13: { "": "M", b: "m" },
+};
+
+/**
+ * Interval names for a normalized quality: tonal's reading, or, when tonal can't read
+ * the whole name ("m7b9", "7#11b9", "m7b5add9"), a base tonal reads with the written
+ * alterations applied on top. Null when neither works.
+ */
+function qualityIntervals(q: string): string[] | null {
+  const whole = Chord.get("C" + q);
+  if (!whole.empty) return whole.intervals;
+  const tails: RegExpExecArray[] = [];
+  let base = q;
+  for (;;) {
+    const m = TAIL.exec(base);
+    // A bare number right after a digit belongs to it ("m7b59" is not "m7b5" plus a 9).
+    if (!m || (!m[1] && !m[3] && /\d$/.test(base.slice(0, m.index)))) return null;
+    tails.unshift(m);
+    base = base.slice(0, m.index);
+    const chord = Chord.get("C" + base);
+    if (!chord.empty) return applyTails(chord.intervals, tails);
+  }
+}
+
+function applyTails(base: string[], tails: RegExpExecArray[]): string[] | null {
+  let names = [...base];
+  for (const t of tails) {
+    if (t[0].startsWith("sus")) {
+      names = names.filter((n) => n !== "3M" && n !== "3m");
+      names.push(t[3] === "2" ? "2M" : "4P");
+      continue;
+    }
+    const degree = t[2];
+    const quality = DEGREE_QUALITY[degree][t[1] === "add" || !t[1] ? "" : t[1]];
+    if (!quality) return null;
+    names = names.filter((n) => n.replace(/[A-Za-z]+$/, "") !== degree);
+    names.push(degree + quality);
+  }
+  return names.sort((a, b) => (Interval.semitones(a) ?? 0) - (Interval.semitones(b) ?? 0));
 }
 
 export function parseChord(symbol: string): ParsedChord {
@@ -46,17 +109,27 @@ export function parseChord(symbol: string): ParsedChord {
   if (!match) throw new Error(`Can't read chord symbol "${symbol}"`);
   const [, letter, accidental, quality, bassLetter, bassAccidental] = match;
   const root = pitchClass(letter, accidental);
-  const tonalName = "C" + normalizeQuality(quality);
-  const chord = Chord.get(tonalName);
-  if (chord.empty) throw new Error(`Unknown chord quality "${quality}" in "${symbol}"`);
+  const names = qualityIntervals(normalizeQuality(quality));
+  if (!names) throw new Error(`Unknown chord quality "${quality}" in "${symbol}"`);
   return {
     symbol,
     root,
     quality,
     bass: bassLetter ? pitchClass(bassLetter, bassAccidental) : root,
-    intervals: chord.intervals.map((name) => Interval.semitones(name) ?? 0),
-    intervalNames: chord.intervals,
+    intervals: names.map((name) => Interval.semitones(name) ?? 0),
+    intervalNames: names,
   };
+}
+
+/**
+ * True when a dominant seventh resolves down a fifth to a minor chord (G7 to Cm7), the V
+ * of a minor key, whose tensions are the flat 9 and flat 13 (Phrygian dominant). Written
+ * tensions are not checked here; callers let them win.
+ */
+export function resolvesToMinor(c: ParsedChord, next: ParsedChord | null | undefined): boolean {
+  if (!next) return false;
+  const dominant = c.intervalNames.includes("3M") && c.intervalNames.includes("7m");
+  return dominant && next.intervalNames.includes("3m") && next.root === (c.root + 5) % 12;
 }
 
 /** Holds the chord before it for one slot, as lead sheets write "Am7 / / Fmaj7". */
