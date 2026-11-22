@@ -214,7 +214,7 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const pedal = chart.pedal ? keyPitchClass(chart.pedal) : undefined;
   const tempo = opts.tempo ?? chart.tempo;
   const played = style.generate(bars, 7, { tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, pedal, variation: opts.variation ?? "varied" }).filter((e) => band.includes(e.track));
-  let events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"));
+  let events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"), { style: style.id, bpm: tempo });
   const melody = opts.melody && opts.melody.mode !== "off" ? opts.melody : null;
   if (melody) {
     // The head choruses are the first and, when the song ends, the last (as `playOrder` has it); a looped
