@@ -49,9 +49,11 @@ KINDS = {
     "sus4": ("suspended-fourth", []), "7sus4": ("dominant", [(4, 0, "add"), (3, 0, "subtract")]),
     "7(b13)": ("dominant", [(13, -1, "add")]), "7(b9b13)": ("dominant", [(9, -1, "add"), (13, -1, "add")]),
     "7(#5#9)": ("augmented-seventh", [(9, 1, "add")]), "7(b5)": ("dominant", [(5, -1, "alter")]),
-    "13(b9)": ("dominant-13th", [(9, -1, "alter")]), "maj7(#11)": ("major-seventh", [(11, 1, "add")]),
+    "13(b9)": ("dominant-13th", [(9, -1, "add")]), "maj7(#11)": ("major-seventh", [(11, 1, "add")]),
     "mMaj7": ("major-minor", []), "m(maj7)": ("major-minor", []), "m11": ("minor-11th", []),
     "7alt": ("augmented-seventh", [(9, 1, "add")]),
+    "m69": ("minor-sixth", [(9, 0, "add")]), "m6/9": ("minor-sixth", [(9, 0, "add")]),
+    "13(#11)": ("dominant-13th", [(11, 1, "add")]), "7(#9#11)": ("dominant", [(9, 1, "add"), (11, 1, "add")]),
 }
 # The same qualities typed without parentheses, as the charts write them ("G7b9").
 KINDS.update({q.replace("(", "").replace(")", ""): v for q, v in list(KINDS.items()) if "(" in q})
@@ -95,6 +97,7 @@ def harmony(symbol, interval):
     if not m:
         raise SystemExit(f"can't read chord {symbol!r}")
     root, racc, quality, bass, bacc = m.groups()
+    quality = quality.replace(",", "")  # "7(#5,#9)" as the charts write it
     if quality not in KINDS:
         raise SystemExit(f"unknown chord quality {quality!r} in {symbol!r}; add it to KINDS")
     kind, degrees = KINDS[quality]
