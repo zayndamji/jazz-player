@@ -9,9 +9,11 @@ import { weighted } from "./shape";
  * Tenor Madness; five bossa, context/style-swing.md and context/style-bossa.md): no two bars are
  * often the same, but the hits pile up on one or two places in the bar (the two busiest eighths
  * take 36 to 57% of the hits; the busiest one is in 50 to 100% of bars, Garland's and of 2 in 88%),
- * a bar shares about a third of its hits with the bar before, and the chords are short (median
- * about half a beat). The site's old comping spread its hits evenly over the bar (the two busiest
- * eighths 31 to 38%) and changed figure every bar, which sounded random.
+ * a bar shares about a third of its hits with the bar before, and a chord rings until about the
+ * next one (median half a beat to a beat, where the next onset cut the measure). The site's old
+ * comping spread its hits evenly over the bar (the two busiest eighths 31 to 38%) and changed
+ * figure every bar, which sounded random; its chords stopped after about half a beat, so the
+ * piano dropped out for the rest of the bar.
  *
  * A groove is a two-bar figure (the bar and its answer). A section keeps one groove; inside each
  * four-bar phrase the bars play it as A B A B, the first bar of a phrase nearly always as written,
@@ -25,6 +27,20 @@ import { weighted } from "./shape";
  * release, which blurred one stab into the next.
  */
 export const DAMPER = 0.3;
+
+/** A hit written this short or shorter is a stab: played short on purpose, not held. */
+export const STAB = 0.36;
+
+/**
+ * How long a comping chord rings, in beats. A chord with room after it is held most of the way to
+ * the next hit (`gap`, beats to the next hit or the barline), as a pianist holds it until the next
+ * chord, so the comping never drops out in the middle of a bar; `share` is how much of the gap
+ * (more in the head, less as the band drives). A stab (`STAB` or shorter) stays short. The caller
+ * still stops it before a chord change.
+ */
+export function holdLength(length: number, gap: number, share: number): number {
+  return length <= STAB ? length : Math.max(length, gap * share);
+}
 
 /** One comping hit: [eighth slot 0 to 7 (odd slots are the ands), length in beats, velocity]. */
 export type CompHit = [number, number, number];
@@ -103,14 +119,14 @@ export interface VaryChances {
 }
 
 /**
- * Keeps one groove per section label for a chorus; a new chorus keeps the label's groove with
- * chance `keep`, else picks another. `pick` gets the weights for the chorus (density, colour).
+ * Keeps one groove (or any figure) per section label for a chorus; a new chorus keeps the label's
+ * groove with chance `keep`, else picks another. `pick` gets the weights for the chorus (density, colour).
  */
-export class GrooveBook {
-  private byLabel = new Map<string, { chorus: number; groove: Groove }>();
+export class GrooveBook<T = Groove> {
+  private byLabel = new Map<string, { chorus: number; groove: T }>();
   constructor(private readonly random: () => number, private readonly keep: number) {}
 
-  grooveFor(chorus: number, label: string, pick: (avoid?: Groove) => Groove): Groove {
+  grooveFor(chorus: number, label: string, pick: (avoid?: T) => T): T {
     const held = this.byLabel.get(label);
     if (held && (held.chorus === chorus || this.random() < this.keep)) {
       held.chorus = chorus;

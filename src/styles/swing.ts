@@ -3,7 +3,7 @@ import { scaleIntervals } from "../chart/scales";
 import { chordAt, type TimelineBar, type TimelineChord } from "../engine/timeline";
 import { GUITAR_RANGE, SWING_RANGE, type VoicingRange } from "../engine/voicing";
 import { BASS_HIGH, BASS_LOW, BASS_TOP, bassStruck, bassUnder, chordAfter, endsSection, inBassRange, isFormEnd, shifted, voiceClear } from "./context";
-import { DAMPER, GrooveBook, grooveBar, type CompHit, type Groove } from "./comping";
+import { DAMPER, GrooveBook, grooveBar, holdLength, type CompHit, type Groove } from "./comping";
 import { drumGain, drumTalk, gauss, pianoTouch, timing, type ChorusPlan } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
@@ -90,12 +90,13 @@ const g = (id: string, weight: number, a: CompHit[], b: CompHit[]): Groove => ({
  * (`comping.ts`: a section keeps one and varies it a little). After the references' piano stems:
  * Garland and the Miyashita trio sit on the and of 2 and the and of 4, the Band-in-a-Box and
  * real-player tracks on 2, 3 and 4, Nardis on 1 and 3 or 2 and 4; about a third of the hits on an
- * and; chords about half a beat long. Slot 7 (the and of 4) anticipates the next chord.
+ * and. A chord rings until about the next hit (`holdLength`) unless it is written as a stab (0.3,
+ * the short half of a short-long figure). Slot 7 (the and of 4) anticipates the next chord.
  */
 const GROOVES: Groove[] = [
-  g("ands", 0.18, [[3, 0.4, 0.5], [7, 0.5, 0.52]], [[3, 0.4, 0.5], [6, 0.45, 0.48]]),
-  g("charleston", 0.16, [[0, 0.6, 0.5], [3, 0.4, 0.48]], [[0, 0.6, 0.5], [3, 0.4, 0.48], [7, 0.5, 0.5]]),
-  g("two-four", 0.16, [[2, 0.45, 0.5], [6, 0.45, 0.5]], [[2, 0.45, 0.5], [5, 0.4, 0.48]]),
+  g("ands", 0.18, [[3, 0.3, 0.5], [7, 0.5, 0.52]], [[3, 0.3, 0.5], [6, 0.45, 0.48]]),
+  g("charleston", 0.16, [[0, 0.3, 0.5], [3, 0.6, 0.48]], [[0, 0.3, 0.5], [3, 0.4, 0.48], [7, 0.5, 0.5]]),
+  g("two-four", 0.16, [[2, 0.45, 0.5], [6, 0.3, 0.5]], [[2, 0.45, 0.5], [5, 0.4, 0.48]]),
   g("three", 0.14, [[2, 0.4, 0.48], [4, 0.6, 0.5]], [[4, 0.5, 0.5], [6, 0.4, 0.48]]),
   g("one-three", 0.1, [[0, 0.6, 0.5], [4, 0.5, 0.47], [6, 0.4, 0.47]], [[4, 0.6, 0.5], [7, 0.5, 0.5]]),
   g("reverse", 0.1, [[1, 0.4, 0.48], [4, 0.7, 0.5]], [[1, 0.4, 0.48], [4, 0.45, 0.48], [6, 0.4, 0.47]]),
@@ -834,8 +835,8 @@ export const swing: Style = {
       const touchDb = straight ? 0 : phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 1.0;
       const pianoGain = 10 ** (touchDb / 20);
       const range: VoicingRange = shifted(SWING_RANGE, shift);
-      // A little longer in the head, shorter as the band drives; about half a beat, as the references' chords.
-      const legato = plan.role === "peak" ? 0.95 : plan.role === "solo" ? 1 : 1.15;
+      // How much of the room to the next hit a chord holds: more in the head, less as the band drives.
+      const legato = plan.role === "peak" ? 0.75 : plan.role === "solo" ? 0.82 : 0.9;
       // A chord that starts inside the bar is heard: an and just before it anticipates it, and when
       // no hit falls on it or an eighth either side, one is added on its beat.
       if (!straight && cell.length)
@@ -845,7 +846,7 @@ export const swing: Style = {
       const barBass = events.slice(Math.max(0, bassFrom - 40)).filter((e) => e.track === "bass");
       const pianoBeats: number[] = [];
       let pushes = false;
-      cell.forEach(([slot, length, velocity]) => {
+      cell.forEach(([slot, length, velocity], h) => {
         const beat = eighth(slot);
         if (pushedIn && beat < 0.5) return;
         const ahead = slot === 7 && changes;
@@ -856,7 +857,10 @@ export const swing: Style = {
         const following = ahead ? after(i + 1, c) : after(i, c);
         // Don't ring into a different chord.
         const change = ahead ? 4 + nextChord!.length : (bar.chords.find((x) => x.beat > Math.max(beat, c.beat) + 0.01)?.beat ?? (changes ? (pushes ? 3.5 : 4) : beat + 4));
-        const held = length * legato * (straight ? 1 : 0.9 + random() * 0.2);
+        // Held until about the next hit (or a little past the barline, the chord change stops it first); stabs stay short.
+        // An anticipation rings into the bar it belongs to.
+        const gap = (ahead ? 5.5 : h + 1 < cell.length ? eighth(cell[h + 1][0]) : 4.25) - beat;
+        const held = holdLength(length, gap, legato) * (straight ? 1 : 0.94 + random() * 0.06);
         const duration = Math.max(0.25, Math.min(held, 2.5, change - beat - 0.05));
         // The highest bass note sounding while the chord rings (the next bar's first note when it rings over the barline).
         const struck = bassUnder(barBass, t + beat - 0.06, t + beat + duration + 0.06);

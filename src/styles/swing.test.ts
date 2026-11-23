@@ -207,7 +207,12 @@ describe("sparse comping", () => {
   const empty = solos.map((b) => !sparse.events.some((e) => e.track === "piano" && e.time >= b.startBeat - 0.3 && e.time < b.startBeat + 3.9));
 
   it("strolls for whole phrases in the solos", () => {
-    const share = empty.filter(Boolean).length / empty.length;
+    // Averaged over a few takes: one take's share spreads 0.24 to 0.6.
+    const shares = [1, 2, 3, 4, 5, 6].map((seed) => {
+      const events = swing.generate(sparse.bars, seed, { tempo: chart.tempo, twoFeel: false, comp: "sparse", variation: "varied" });
+      return solos.filter((b) => !events.some((e) => e.track === "piano" && e.time >= b.startBeat - 0.3 && e.time < b.startBeat + 3.9)).length / solos.length;
+    });
+    const share = shares.reduce((a, b) => a + b, 0) / shares.length;
     expect(share).toBeGreaterThan(0.25);
     expect(share).toBeLessThan(0.65);
     // Most laid-out bars come in runs of a phrase or more (a pushed chord can leave a single bar empty too).

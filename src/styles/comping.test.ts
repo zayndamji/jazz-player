@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { bossaForm, swingForm, waltzForm } from "../fixtures";
+import { bossaForm, fiveForm, swingForm, waltzForm } from "../fixtures";
 import { buildSchedule } from "../engine/schedule";
 import { bossa } from "./bossa";
+import { five } from "./five";
 import { DAMPER, GrooveBook, grooveBar, vary, type CompHit, type Groove } from "./comping";
 import { seededRandom } from "./random";
 import { swing } from "./swing";
@@ -72,7 +73,7 @@ function shape(style: Style, chart: typeof swingForm, straightAnds: boolean, bea
     sections.set(key, [...(sections.get(key) ?? []), sets[i]]);
   });
   const anchors = [...sections.values()].map((group) => {
-    const count = new Array(8).fill(0);
+    const count = new Array(beats * 2).fill(0);
     group.forEach((set) => set.forEach((slot) => count[slot]++));
     const top = count.indexOf(Math.max(...count));
     return group.filter((set) => set.has(top)).length / group.length;
@@ -92,6 +93,7 @@ describe("predictable comping", () => {
     ["swing", swing, swingForm, false],
     ["bossa", bossa, bossaForm, true],
     ["waltz", waltz, waltzForm, false],
+    ["5/4", five, fiveForm, false],
   ] as const) {
     it(`${name}: comes back to one place in the bar and repeats its two-bar figure, varied a little`, () => {
       const m = shape(style, chart, straightAnds, chart.beatsPerBar ?? 4);
@@ -100,8 +102,38 @@ describe("predictable comping", () => {
       // Bars two apart share more than neighbours (the A B A B groove), but bars still vary.
       expect(m.jac2).toBeGreaterThan(0.4);
       expect(m.jac2).toBeLessThan(0.95);
-      expect(m.jac2).toBeGreaterThan(m.jac1);
+      // (The 5/4 vamp's two bars differ by one hit, so neighbours share nearly as much.)
+      expect(m.jac2).toBeGreaterThan(name === "5/4" ? m.jac1 - 0.05 : m.jac1);
       expect(m.short).toBe(true);
+    });
+  }
+});
+
+describe("held comping", () => {
+  // The share of each comped bar with a piano chord sounding: the old comping cut its chords after
+  // about half a beat and left 25 to 40% of the bar sounding (Autumn Leaves in two: one beat, then silence).
+  for (const [name, style, chart] of [
+    ["swing", swing, swingForm],
+    ["swing in two", swing, { ...swingForm, twoFeel: true }],
+    ["bossa", bossa, bossaForm],
+    ["waltz", waltz, waltzForm],
+    ["5/4", five, fiveForm],
+  ] as const) {
+    it(`${name}: holds its chords until about the next one instead of dropping out`, () => {
+      const s = buildSchedule(chart, style, { choruses: 3, countIn: false, transpose: 0 });
+      const beats = chart.beatsPerBar ?? 4;
+      const chords = s.events.filter((e) => e.track === "piano" && e.notes!.length > 1);
+      const shares = s.bars
+        .filter((b) => b.ref?.part === "form" && chords.some((e) => e.time >= b.startBeat - 0.3 && e.time < b.startBeat + beats - 0.1))
+        .map((b) => {
+          let on = 0;
+          for (let k = 0; k < beats * 20; k++) {
+            const at = b.startBeat + k / 20;
+            if (chords.some((e) => e.time <= at && e.time + e.duration > at)) on++;
+          }
+          return on / (beats * 20);
+        });
+      expect(shares.reduce((a, b) => a + b, 0) / shares.length).toBeGreaterThan(0.5);
     });
   }
 });

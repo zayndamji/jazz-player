@@ -2,7 +2,7 @@ import { resolvesToMinor, type ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
 import { SWING_RANGE, VOICING_LOW, voiceChord, type VoicingRange } from "../engine/voicing";
 import { bassOnsets, bassStruck, chordAfter, endsSection, isFormEnd, keepInRange, moveOn, PIANO_FLOOR, shifted, type VoicingContext } from "./context";
-import { DAMPER, GrooveBook, grooveBar, type CompHit, type Groove } from "./comping";
+import { DAMPER, GrooveBook, grooveBar, holdLength, type CompHit, type Groove } from "./comping";
 import { drumGain, drumTalk, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
@@ -410,7 +410,8 @@ export const waltz: Style = {
       const settled = plan.role === "head" || plan.role === "outhead" || plan.role === "intro";
       const chances = settled ? { first: 0.04, middle: 0.14, last: 0.3 } : plan.role === "peak" ? { first: 0.1, middle: 0.34, last: 0.5 } : { first: 0.08, middle: 0.26, last: 0.45 };
       const cell = straight ? COMP[0].bars[0] : grooveBar(groove, inPhrase, random, chances, { adds: ADDS, busier: plan.density * 1.2, length: 0.45, velocity: 0.48, slots: 6 });
-      const legato = plan.role === "peak" ? 0.95 : solo ? 1 : 1.15;
+      // How much of the room to the next hit a chord holds: more in the head, less as the band drives.
+      const legato = plan.role === "peak" ? 0.75 : solo ? 0.82 : 0.9;
       const pianoBeats: number[] = [];
       let pushes = false;
       cell.forEach(([slot, length, velocity], h) => {
@@ -429,8 +430,10 @@ export const waltz: Style = {
         const repeat = !!last && voiced.join() === last.join();
         piano = moveOn(voiced, last, repeat && (run >= 3 || (!straight && run >= 2 && random() < 0.4)), (from) => voiceFor(c.chord, from, range, context));
         run = last && piano.join() === last.join() ? run + 1 : 1;
-        const changeAt = ahead ? BAR + nextChord!.length : (bar.chords.find((x) => x.beat > beat + 0.01)?.beat ?? (changes ? BAR - 0.4 : BAR + 1));
-        const duration = Math.max(0.25, Math.min(length * legato * (straight ? 1 : 0.9 + random() * 0.2), 2.6, changeAt - beat - 0.05));
+        const changeAt = ahead ? BAR + nextChord!.length : (bar.chords.find((x) => x.beat > beat + 0.01)?.beat ?? (changes ? (pushes ? BAR - 0.5 : BAR) : BAR + 1));
+        // Held until about the next hit (an anticipation into the bar it belongs to); stabs stay short.
+        const gap = (ahead ? BAR + 1.25 : cell[h + 1] ? eighth(cell[h + 1][0]) : BAR + 0.25) - beat;
+        const duration = Math.max(0.25, Math.min(holdLength(length, gap, legato) * (straight ? 1 : 0.94 + random() * 0.06), 2.6, changeAt - beat - 0.05));
         let notes = piano;
         // Over a pedal, the left hand doubles the bass note with an open fifth on the riff's first chord.
         if (!straight && pedal !== null && h === 0 && random() < 0.45) {
