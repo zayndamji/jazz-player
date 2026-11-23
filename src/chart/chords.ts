@@ -132,6 +132,19 @@ export function resolvesToMinor(c: ParsedChord, next: ParsedChord | null | undef
   return dominant && next.intervalNames.includes("3m") && next.root === (c.root + 5) % 12;
 }
 
+/**
+ * True when a dominant is heard in a minor key, so it takes the minor key's b9 and b13: it
+ * resolves down a fifth to a minor chord (`resolvesToMinor`), or moves deceptively up a half
+ * step to a major chord (V7 to VI in minor, G7 to Abmaj7 heard in C minor).
+ */
+export function minorKeyDominant(c: ParsedChord, next: ParsedChord | null | undefined): boolean {
+  if (!next) return false;
+  if (resolvesToMinor(c, next)) return true;
+  const dominant = c.intervalNames.includes("3M") && c.intervalNames.includes("7m");
+  const major = next.intervalNames.includes("3M") && !next.intervalNames.includes("7m");
+  return dominant && major && next.root === (c.root + 1) % 12;
+}
+
 /** Holds the chord before it for one slot, as lead sheets write "Am7 / / Fmaj7". */
 export const BEAT = "/";
 

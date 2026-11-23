@@ -1,4 +1,4 @@
-import { resolvesToMinor, type ParsedChord } from "../chart/chords";
+import { minorKeyDominant, type ParsedChord } from "../chart/chords";
 import { scaleIntervals } from "../chart/scales";
 import { chordAt, type TimelineBar, type TimelineChord } from "../engine/timeline";
 import { GUITAR_RANGE, SWING_RANGE, type VoicingRange } from "../engine/voicing";
@@ -233,7 +233,7 @@ export function scalePcs(chord: ParsedChord, next?: ParsedChord | null): number[
  * The scale a voicing planes along over a held chord: the chord's scale without its avoid notes,
  * so the moving shape never sounds them against the chord. No 3rd on a sus chord (C7sus4, C11);
  * no natural 11 over a major 3rd (major and dominant chords); no flat 9 unless the chord has one
- * or resolves down a fifth to minor (`resolvesToMinor`, Phrygian dominant).
+ * or is heard in a minor key (`minorKeyDominant`, Phrygian dominant).
  */
 export function planeScale(chord: ParsedChord, next?: ParsedChord | null): number[] {
   const has = (n: string) => chord.intervalNames.includes(n);
@@ -241,7 +241,7 @@ export function planeScale(chord: ParsedChord, next?: ParsedChord | null): numbe
   const avoid = new Set<number>();
   if (sus) [3, 4].forEach((i) => avoid.add(i));
   if (has("3M")) avoid.add(5);
-  if (!has("9m") && !resolvesToMinor(chord, next)) avoid.add(1);
+  if (!has("9m") && !minorKeyDominant(chord, next)) avoid.add(1);
   return scaleIntervals(chord, next)
     .filter((i) => !avoid.has(i))
     .map((i) => (chord.root + i) % 12);

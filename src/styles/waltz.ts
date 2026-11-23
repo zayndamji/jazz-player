@@ -1,4 +1,4 @@
-import { resolvesToMinor, type ParsedChord } from "../chart/chords";
+import { minorKeyDominant, type ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
 import { SWING_RANGE, VOICING_LOW, voiceChord, type VoicingRange } from "../engine/voicing";
 import { bassOnsets, bassStruck, chordAfter, endsSection, isFormEnd, keepInRange, moveOn, PIANO_FLOOR, shifted, type VoicingContext } from "./context";
@@ -199,13 +199,13 @@ const voiceFor = (chord: ParsedChord, previous: number[] | null, range: VoicingR
   (modal(chord) && quartal(chord, previous, range, context)) || voiceChord(chord, previous, range, context);
 
 /**
- * On a dominant resolving to a minor chord, the walking line's passing tones come from the
+ * On a dominant heard in a minor key (`minorKeyDominant`), the walking line's passing tones come from the
  * Phrygian dominant: a natural 9th or 13th is lowered to the flat nine or flat thirteen, so the
  * line doesn't clash with the coming minor chord. A 9th or 13th written in the symbol stays. The
  * first note (the root) and, when the line approaches a target, the last are left alone.
  */
 export function phrygianLine(line: number[], chord: ParsedChord, next: ParsedChord | null | undefined, approach: boolean): number[] {
-  if (!next || !resolvesToMinor(chord, next)) return line;
+  if (!next || !minorKeyDominant(chord, next)) return line;
   const lower = new Set([...(has(chord, "9M") ? [] : [2]), ...(has(chord, "13M") ? [] : [9])]);
   const pc = (n: number) => (((n - chord.root) % 12) + 12) % 12;
   return line.map((n, b) => (b === 0 || (approach && b === line.length - 1) || !lower.has(pc(n)) ? n : n - 1));

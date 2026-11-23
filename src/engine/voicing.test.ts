@@ -21,6 +21,22 @@ describe("voicingIntervals", () => {
     expect(voicingIntervals(chord("A7"), chord("Bm7"))).toEqual([4, 9, 10, 2]);
   });
 
+  it("adds the b13 to a written b9 heard in a minor key, and keeps the 13 into major", () => {
+    expect(voicingIntervals(chord("G7b9"), chord("Cm7"))).toEqual([4, 8, 10, 1]);
+    expect(voicingIntervals(chord("D7(b9)"), chord("Gm7b5"))).toEqual([4, 8, 10, 1]);
+    expect(voicingIntervals(chord("Bb7(b9)"), chord("Ebmaj7"))).toEqual([4, 9, 10, 1]);
+    expect(voicingIntervals(chord("G7b9"))).toEqual([4, 9, 10, 1]);
+  });
+
+  it("voices a deceptive V7 to VI (up a half step to major) with b9 and b13", () => {
+    expect(voicingIntervals(chord("G7"), chord("Abmaj7"))).toEqual([4, 8, 10, 1]);
+    expect(voicingIntervals(chord("G7"), chord("Ab"))).toEqual([4, 8, 10, 1]);
+    // Up a half step to a dominant (a chromatic chain) or a minor chord: no change.
+    expect(voicingIntervals(chord("G7"), chord("Ab7"))).toEqual([4, 9, 10, 2]);
+    expect(voicingIntervals(chord("G7"), chord("Abm7"))).toEqual([4, 9, 10, 2]);
+    expect(voicingIntervals(chord("G13"), chord("Abmaj7"))).toContain(9);
+  });
+
   it("lets written tensions win over the minor resolution", () => {
     expect(voicingIntervals(chord("A9"), chord("Dm7"))).toEqual([4, 9, 10, 2]);
     expect(voicingIntervals(chord("A13"), chord("Dm7"))).toContain(9);

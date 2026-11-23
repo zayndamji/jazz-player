@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayParts, isMinorKey, keyPitchClass, parseBar, parseChord, resolvesToMinor, spellingPc, transposeSymbol } from "./chords";
+import { displayParts, isMinorKey, keyPitchClass, minorKeyDominant, parseBar, parseChord, resolvesToMinor, spellingPc, transposeSymbol } from "./chords";
 import { FIXTURES } from "../fixtures";
 
 describe("parseChord", () => {
@@ -70,6 +70,17 @@ describe("parseChord", () => {
 
   it("still refuses what it can't read", () => {
     expect(() => parseChord("Cxyz")).toThrow(/Unknown chord quality/);
+  });
+});
+
+describe("minorKeyDominant", () => {
+  it("is a resolution down a fifth to minor or a deceptive move up a half step to major", () => {
+    expect(minorKeyDominant(parseChord("G7b9"), parseChord("Cm7"))).toBe(true);
+    expect(minorKeyDominant(parseChord("G7"), parseChord("Abmaj7"))).toBe(true);
+    expect(minorKeyDominant(parseChord("G7"), parseChord("Ab7"))).toBe(false);
+    expect(minorKeyDominant(parseChord("G7"), parseChord("Cmaj7"))).toBe(false);
+    expect(minorKeyDominant(parseChord("Gm7"), parseChord("Abmaj7"))).toBe(false);
+    expect(minorKeyDominant(parseChord("G7"), null)).toBe(false);
   });
 });
 

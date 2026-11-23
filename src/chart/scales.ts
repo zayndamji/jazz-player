@@ -1,5 +1,5 @@
 import { Scale } from "tonal";
-import { noteName, prefersFlats, resolvesToMinor, type ParsedChord } from "./chords";
+import { minorKeyDominant, noteName, prefersFlats, type ParsedChord } from "./chords";
 
 export interface ChordScale {
   /** Short name shown under the chord, e.g. "Dorian". */
@@ -35,7 +35,7 @@ const MAJOR_KEY_TENSIONS = ["9M", "9A", "13M", "11A", "5A", "5d"];
 
 /**
  * The usual first-choice scale for a chord, from its intervals. `next`, the chord that
- * follows, lets a dominant resolving down a fifth to minor take Phrygian dominant.
+ * follows, lets a dominant heard in a minor key (`minorKeyDominant`) take Phrygian dominant.
  */
 export function scaleKind(c: ParsedChord, next?: ParsedChord | null): keyof typeof SCALES {
   const has = (n: string) => c.intervalNames.includes(n);
@@ -45,7 +45,7 @@ export function scaleKind(c: ParsedChord, next?: ParsedChord | null): keyof type
   if (minor && has("5d")) return has("7m") ? "locrian2" : "wholeHalf";
   if (minor) return has("7M") ? "melodicMinor" : "dorian";
   if (dom7) {
-    if (resolvesToMinor(c, next) && !MAJOR_KEY_TENSIONS.some(has)) return "phrygianDominant";
+    if (minorKeyDominant(c, next) && !MAJOR_KEY_TENSIONS.some(has)) return "phrygianDominant";
     const flat9 = has("9m");
     const sharp9 = has("9A");
     const flat13 = has("5A") || has("13m");

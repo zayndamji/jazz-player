@@ -8,6 +8,7 @@ describe("scaleKind", () => {
   it("gives Phrygian dominant to a dominant resolving to minor", () => {
     expect(scaleKind(c("A7"), c("Dm7"))).toBe("phrygianDominant");
     expect(scaleKind(c("A7b9"), c("Dm"))).toBe("phrygianDominant");
+    expect(scaleKind(c("G7"), c("Abmaj7"))).toBe("phrygianDominant");
     expect(scaleKind(c("A7"), c("Dmaj7"))).toBe("mixolydian");
     expect(scaleKind(c("A7"))).toBe("mixolydian");
     expect(scaleKind(c("A13"), c("Dm7"))).toBe("mixolydian");
