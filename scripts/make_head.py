@@ -51,6 +51,7 @@ KINDS = {
     "7(#5#9)": ("augmented-seventh", [(9, 1, "add")]), "7(b5)": ("dominant", [(5, -1, "alter")]),
     "13(b9)": ("dominant-13th", [(9, -1, "alter")]), "maj7(#11)": ("major-seventh", [(11, 1, "add")]),
     "mMaj7": ("major-minor", []), "m(maj7)": ("major-minor", []), "m11": ("minor-11th", []),
+    "7alt": ("augmented-seventh", [(9, 1, "add")]),
 }
 # The same qualities typed without parentheses, as the charts write them ("G7b9").
 KINDS.update({q.replace("(", "").replace(")", ""): v for q, v in list(KINDS.items()) if "(" in q})
