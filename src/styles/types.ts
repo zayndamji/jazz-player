@@ -16,6 +16,8 @@ export interface NoteEvent {
   offsets?: number[];
   /** Velocity factor for each note of `notes` (voicing: the top note louder). */
   levels?: number[];
+  /** Seconds the notes fade after `duration` ends, in place of the instrument's own release (a piano's damper on a short chord). */
+  release?: number;
   /** Drums: a level factor on top of velocity, which leaves the sample layer as it is (a style's cymbal balance). */
   gain?: number;
   /** Which drum for the drums track. */

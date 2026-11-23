@@ -270,7 +270,7 @@ export class Player {
         // Guitar strum: low string first, a few milliseconds apart, on top of any chord offsets.
         const strum = e.track === "guitar" ? i * 0.008 : 0;
         const velocity = e.velocity * (e.levels?.[i] ?? 1) * (e.track === "guitar" ? 1 - i * 0.04 : 1);
-        instrument.triggerAttackRelease(n, duration, time + (e.offsets?.[i] ?? 0) + strum, velocity);
+        instrument.triggerAttackRelease(n, duration, time + (e.offsets?.[i] ?? 0) + strum, velocity, e.release);
       });
     }
   }

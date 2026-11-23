@@ -118,9 +118,9 @@ describe("ending without the ending", () => {
     expect(last.chords).toHaveLength(1);
     expect(last.chords[0].chord.symbol).toBe("C6");
     expect(last.chords[0].length).toBe(4);
-    // The style plays its final hit there.
-    expect(s.events.some((e) => e.time >= last.startBeat && e.track === "drums")).toBe(true);
-    expect(s.events.some((e) => e.time >= last.startBeat && e.track === "bass")).toBe(true);
+    // The style plays its final hit there (within the timing pocket's few milliseconds of the barline).
+    expect(s.events.some((e) => e.time >= last.startBeat - 0.05 && e.track === "drums")).toBe(true);
+    expect(s.events.some((e) => e.time >= last.startBeat - 0.05 && e.track === "bass")).toBe(true);
   });
 
   it("is in the last chorus's key, and minor keys end on m6", () => {

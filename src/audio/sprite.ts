@@ -98,15 +98,15 @@ export class SpriteSampler {
     return this;
   }
 
-  /** Velocity is the gain, as in Tone.Sampler. */
-  triggerAttackRelease(midi: number, duration: number, time: number, velocity = 1) {
+  /** Velocity is the gain, as in Tone.Sampler. `release` replaces the instrument's release for this note. */
+  triggerAttackRelease(midi: number, duration: number, time: number, velocity = 1, release = this.options.release) {
     const { midi: sampled, rate } = pickSample(midi, this.names);
     const region = this.byMidi.get(sampled)!;
     const { offset, maxLen } = voiceSpan(region, rate);
     const source = new Tone.ToneBufferSource({
       url: this.options.buffer,
       curve: "exponential",
-      fadeOut: this.options.release,
+      fadeOut: release,
       playbackRate: rate,
     });
     let filter: Tone.Filter | undefined;
@@ -123,7 +123,7 @@ export class SpriteSampler {
     // what keeps a voice out of the next sample. (Tone stops the native source itself after the
     // fade; stopping it ourselves would be overridden by that later stop.) A note longer than the
     // region fades out over `CLAMP_FADE` before the region ends (about 2.7 s into a bass note).
-    const { hold, fade } = noteSpan(duration, maxLen, this.options.release);
+    const { hold, fade } = noteSpan(duration, maxLen, release);
     source.fadeOut = fade;
     source.stop(time + hold);
 

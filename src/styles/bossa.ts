@@ -2,6 +2,7 @@ import type { ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
 import { GUITAR_RANGE, PIANO_RANGE, voicingIntervals, type VoicingRange } from "../engine/voicing";
 import { BASS_HIGH, BASS_LOW, bassUnder, chordAfter, endsSection, isFormEnd, shifted, voiceClear } from "./context";
+import { DAMPER, GrooveBook, grooveBar, type CompHit, type Groove } from "./comping";
 import { drumGain, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
@@ -19,8 +20,8 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  *   `comp: "sparse"` it lays out for most of the heads, as Jobim does under the voice,
  *   and plays fewer chords in the solos. A tune whose record has no guitar (Henderson's
  *   Blue Bossa) leaves it out with the chart's `band` and puts the piano back up.
- * - Pushes: about half the chord changes are anticipated on the and of 4, by
- *   guitar and piano together, so they never play different chords at once.
+ * - Pushes: chord changes are anticipated on the and of 4 by guitar and piano together, so
+ *   they never play different chords at once: most often into a new phrase, now and then inside one.
  * - Drums: light. Straight eighths on the hi-hat, the ands nearly as strong as the beats
  *   and 2 and 4 accented, a soft kick with the bass, cross-stick on 2 and 4 (with `comp:
  *   "sparse"` only in the solos, as on the vocal records), a short fill at most section ends and
@@ -29,8 +30,8 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  * - Dynamics and texture follow the chorus plan (`shapeBars` with its arc): the head on
  *   lighter hats, the solos building to a peak on the ride, the out-head back on the hats.
  *   The hats play two-bar figures around a home figure picked per chorus.
- * - The piano's register and figures move with the chorus, and it sometimes recalls
- *   what it played at the same place in the form.
+ * - The piano keeps a groove per section and varies it a little (comping.ts); its register
+ *   moves with the chorus and by section, not from bar to bar.
  * - Time: each part in its own pocket with a shared slow drift (feel.ts `timing`).
  * - Straight (`Feel.variation`): the first guitar, piano and hat figures every cycle, no
  *   pushes, one level and register; a short fill and a crash only at the end of the form.
@@ -81,8 +82,8 @@ const GUITAR_FIGURES: { weight: number; bars: Hit[][] }[] = [
 ];
 const SPARSE = 2; // the figure for the intro
 
-/** Chance that guitar and piano push a chord change to the and of 4. */
-const PUSH = 0.45;
+/** Chance that guitar and piano push a chord change to the and of 4, by the bar's place in the phrase: into a new phrase most. */
+const PUSH = [0.12, 0.25, 0.12, 0.6];
 
 /** Hi-hat velocity on each eighth: 2 and 4 strongest, offbeats soft. Light, like the references. */
 const HAT = [0.46, 0.28, 0.6, 0.3, 0.48, 0.34, 0.6, 0.28];
@@ -109,23 +110,34 @@ const KICK = [
   { beat: 3.5, velocity: 0.42 },
 ];
 
+const g = (id: string, weight: number, a: CompHit[], b: CompHit[]): Groove => ({ id, weight, bars: [a, b] });
+
 /**
- * Piano figures, two bars each, as [beat, length, velocity]: fewer and longer hits
- * than the guitar's, placed between them (the references' comping band hits 1, the
- * and of 1, 2, 3, the and of 3 and 4 between the two instruments).
+ * Piano grooves, two bars each as [eighth slot (0 to 7), length in beats, velocity]: fewer hits than
+ * the guitar's, placed between them, kept through a section and varied a little (`comping.ts`).
+ * After the references' piano stems (context/style-bossa.md): about two hits a bar, beat 3 the
+ * busiest place, the and of 1, the and of 2 and beat 4 next; the trio on the Ipanema track plays the
+ * and of 1 and the and of 2, then 3 and 4, over and over; chords about half a beat to a beat long.
+ * Both bars of a groove share a place (the busiest eighth is in 53 to 71% of the references' bars).
+ * The first is the straight feel's; the second, held, the intro's.
  */
-const PIANO_FIGURES: { weight: number; value: Hit[][] }[] = [
-  { weight: 0.4, value: [[[0, 1.4, 0.46], [2.5, 1.3, 0.42]], [[1, 1.4, 0.44], [3, 0.9, 0.4]]] },
-  { weight: 0.3, value: [[[0, 3.3, 0.44]], [[1.5, 2.3, 0.42]]] },
-  { weight: 0.3, value: [[[0, 0.9, 0.46], [1.5, 0.9, 0.4], [3, 0.9, 0.42]], [[0.5, 1.2, 0.42], [2.5, 1.3, 0.44]]] },
-  { weight: 0.2, value: [[[0.5, 1.2, 0.44], [2, 1.4, 0.42]], [[0, 1.2, 0.44], [2.5, 1.3, 0.42]]] },
-  { weight: 0.2, value: [[[0, 0.8, 0.44], [1, 0.6, 0.4], [2.5, 1.2, 0.44]], [[1.5, 0.9, 0.42], [3, 0.8, 0.4]]] },
-  { weight: 0.15, value: [[[1, 2.4, 0.42]], [[0, 1.4, 0.44], [2.5, 1.3, 0.42]]] },
-  { weight: 0.15, value: [[[0, 0.6, 0.44], [1.5, 0.6, 0.42], [2.5, 0.6, 0.42], [3.5, 0.5, 0.4]], [[1, 0.6, 0.42], [2, 0.8, 0.44], [3, 0.8, 0.4]]] },
+const PIANO_GROOVES: Groove[] = [
+  g("home", 0.25, [[0, 0.9, 0.46], [5, 0.8, 0.42]], [[2, 0.8, 0.44], [5, 0.7, 0.42]]),
+  g("long", 0.12, [[0, 2.4, 0.44]], [[3, 1.6, 0.42]]),
+  g("answer", 0.25, [[1, 0.6, 0.44], [4, 0.8, 0.44]], [[4, 0.8, 0.46], [6, 0.6, 0.42]]),
+  g("three", 0.2, [[0, 0.8, 0.46], [4, 0.8, 0.44]], [[1, 0.6, 0.42], [4, 0.8, 0.44]]),
+  g("ands", 0.15, [[3, 0.7, 0.44], [6, 0.7, 0.42]], [[1, 0.6, 0.42], [3, 0.6, 0.42], [6, 0.6, 0.42]]),
+  g("busy", 0.13, [[0, 0.6, 0.44], [3, 0.6, 0.42], [6, 0.6, 0.42]], [[1, 0.6, 0.42], [4, 0.6, 0.44], [6, 0.5, 0.4]]),
 ];
 
-/** A figure's weight for the chorus: busier figures when the band builds, sparser in the head. */
-const forDensity = (f: { weight: number; value: Hit[][] }, density: number) => f.weight * density ** ((f.value.flat().length - 3.5) * 2.5);
+/** A groove's weight for the chorus: busier grooves when the band builds, sparser in the head. */
+const forDensity = (f: Groove, density: number) => f.weight * density ** ((f.bars[0].length + f.bars[1].length - 4) * 2);
+
+/** Where a varied bar may add a hit (the and of 4 is the push's). */
+const ADDS = [1, 2, 3, 4, 5, 6].map((slot) => ({ slot, weight: slot === 4 ? 1 : slot === 1 || slot === 3 ? 0.9 : 0.7 }));
+
+/** A groove bar in beats. */
+const inBeats = (hits: CompHit[]): Hit[] => hits.map(([slot, length, velocity]) => [slot / 2, length, velocity]);
 
 /** The line leans back toward A#1 so the roots stay low, where the old fixed roots sat (E1 to D#2). */
 const BASS_HOME = 34;
@@ -224,7 +236,7 @@ export const bossa: Style = {
     let piano: number[] | null = null;
     let guitar: number[] | null = null;
     let figure = 0;
-    let pianoFigure = PIANO_FIGURES[0].value;
+    const book = new GrooveBook(random, 0.5);
     let pushedIn = false; // this bar's first chord was already played on the and of 4
     const music = bars.filter((b) => !b.countIn);
     const straight = feel?.variation === "straight";
@@ -235,9 +247,8 @@ export const bossa: Style = {
     };
     const shapes = straight ? steadyBars(music) : shapeBars(music, random, true);
     const line = bassLine(music);
-    // The hats' home figure per chorus; the piano's figures by place in the form.
+    // The hats' home figure per chorus.
     const hatHome = new Map<number, number>();
-    const memory = new Map<string, Hit[][]>();
     let hatFigure = 0;
     const sparse = feel?.comp === "sparse";
     let layOut = false;
@@ -255,37 +266,26 @@ export const bossa: Style = {
       const solos = plan.role === "solo" || plan.role === "peak";
       if (cycle === 0 && straight) {
         figure = bar.ref?.part === "intro" ? SPARSE : 0;
-        pianoFigure = PIANO_FIGURES[bar.ref?.part === "intro" ? 1 : 0].value;
         hatFigure = 0;
       } else if (cycle === 0) {
         figure = bar.ref?.part === "intro" ? SPARSE : pick();
-        const place = bar.ref ? `${bar.ref.part}.${bar.ref.section}.${bar.ref.bar}` : "";
-        const recalled = bar.chorus >= 2 ? memory.get(place) : undefined;
         // Sparse: the piano lays out for most of the head (two bars at a time) and comps less in the solos.
         layOut = sparse && !solos && random() < 0.65;
-        pianoFigure =
-          bar.ref?.part === "intro"
-            ? PIANO_FIGURES[1].value
-            : recalled && recalled !== pianoFigure && random() < 0.3
-              ? recalled
-              : weighted(PIANO_FIGURES.map((f) => ({ weight: forDensity(f, plan.density * (sparse ? 0.75 : 1)), value: f.value })), random, pianoFigure);
-        if (place) memory.set(place, pianoFigure);
         if (!hatHome.has(bar.chorus)) hatHome.set(bar.chorus, weighted(HAT_FIGURES.map((f, k) => ({ weight: k === 0 ? 0.6 : f.weight, value: k })), random));
         const home = hatHome.get(bar.chorus)!;
         // The intro keeps the plain figure; elsewhere mostly the home figure, sometimes another.
         hatFigure = bar.ref?.part === "intro" ? 0 : random() < 0.38 ? home : weighted(HAT_FIGURES.map((f, k) => ({ weight: f.weight, value: k })), random, hatFigure === home ? home : hatFigure);
       }
-      // The piano's register moves with the chorus, drifts by phrase and a little by bar (the
-      // references spread it 3.2 to 4.7 dB bar to bar); its level holds, swells or falls back
-      // over each four bars (their mid band varies 3.2 to 4.5 dB).
+      // The piano's register moves with the chorus and drifts by section, by voice leading in
+      // between; its level holds, swells or falls back over each four bars (the references' mid band varies 3.2 to 4.5 dB).
       const inPhrase = (bar.ref?.bar ?? i) % 4;
       if (!straight && inPhrase === 0) {
-        if ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5)
-          registerDrift = weighted([{ weight: 0.5, value: -3 }, { weight: 0.8, value: -1 }, { weight: 1.2, value: 0 }, { weight: 1, value: 2 }, { weight: 0.6, value: 4 }], random, registerDrift);
+        if ((bar.ref?.bar ?? 0) % 8 === 0)
+          registerDrift = weighted([{ weight: 0.5, value: -2 }, { weight: 1, value: -1 }, { weight: 1.3, value: 0 }, { weight: 1, value: 1 }, { weight: 0.6, value: 2 }, { weight: 0.3, value: 3 }], random, registerDrift);
         phraseDb = gauss(random) * 1.1;
         phraseSlope = weighted([{ weight: 0.4, value: 0 }, { weight: 0.35, value: 1.1 }, { weight: 0.25, value: -1.1 }], random);
       }
-      const shift = straight ? 0 : Math.max(-3, Math.min(7, plan.register + registerDrift + weighted([{ weight: 0.25, value: -2 }, { weight: 0.5, value: 0 }, { weight: 0.25, value: 2 }], random)));
+      const shift = straight ? 0 : Math.max(-3, Math.min(7, plan.register + registerDrift));
       const pianoGain = straight ? 1 : 10 ** ((phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 1.1) / 20);
       const range: VoicingRange = shifted(PIANO_RANGE, shift);
 
@@ -353,7 +353,7 @@ export const bossa: Style = {
 
       // Push: play the next bar's new chord early, on the and of 4, and skip its downbeat.
       const nextChord = next?.chords[0];
-      const push = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord && !straight && random() < PUSH;
+      const push = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord && !straight && random() < PUSH[inPhrase];
       const pushTo = push ? chordAfter(music, i + 1, 0) : null;
 
       // Guitar: the two-bar figure, re-voiced at each hit so changes land where they fall.
@@ -370,10 +370,18 @@ export const bossa: Style = {
         events.push({ track: "guitar", time: t + 3.5 + clock.at("guitar"), duration: 0.8, velocity: human(0.48 * lift, 0.1), notes: guitar });
       }
 
-      // Piano: its own two-bar figure; every hit takes the chord sounding then, so a change
-      // inside the bar is played where it falls, and pushes match the guitar's.
-      const hits = layOut ? [] : [...pianoFigure[cycle]];
-      if (!layOut) for (const c of bar.chords) if (c.attack && c.beat > 0 && !hits.some(([b]) => Math.abs(b - c.beat) < 0.6)) hits.push([c.beat, Math.min(c.length, 1.5), 0.42]);
+      // Piano: the section's two-bar groove, A B A B through the phrase, the first bar as written and
+      // the others now and then moved a little (comping.ts); every hit takes the chord sounding then,
+      // so a change inside the bar is played where it falls, and pushes match the guitar's.
+      const groove = straight
+        ? PIANO_GROOVES[bar.ref?.part === "intro" ? 1 : 0]
+        : bar.ref?.part === "intro"
+          ? PIANO_GROOVES[1]
+          : book.grooveFor(bar.chorus, bar.label, (avoid) => weighted(PIANO_GROOVES.map((f) => ({ weight: forDensity(f, plan.density * (sparse ? 0.75 : 1)), value: f })), random, avoid));
+      const settled = straight || plan.role === "head" || plan.role === "outhead" || plan.role === "intro";
+      const chances = straight ? { first: 0, middle: 0, last: 0 } : settled ? { first: 0.04, middle: 0.12, last: 0.3 } : { first: 0.08, middle: 0.22, last: 0.4 };
+      const hits = layOut ? [] : inBeats(grooveBar(groove, inPhrase, random, chances, { adds: ADDS, busier: plan.density * (sparse ? 0.85 : 1.1), length: 0.6, velocity: 0.42, last: 6 }));
+      if (!layOut) for (const c of bar.chords) if (c.attack && c.beat > 0 && !hits.some(([b]) => Math.abs(b - c.beat) < 0.6)) hits.push([c.beat, Math.min(c.length, 0.9), 0.42]);
       for (const [beat, length, velocity] of hits) {
         if (push && beat >= 3) continue;
         if (pushedIn && beat < 1) continue;
@@ -383,11 +391,11 @@ export const bossa: Style = {
         const until = bar.chords.find((c) => c.beat > beat + 0.01)?.beat ?? (push ? 3.5 : 4.5);
         const duration = Math.max(0.4, Math.min(length, until - beat) - 0.1);
         piano = voiceClear(slot.chord, piano, range, chordAfter(music, i, beat), under(beat, duration));
-        events.push({ track: "piano", time: t + beat + clock.at("piano"), duration, velocity: human(velocity * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random, !straight && duration >= 2 && random() < 0.3) });
+        events.push({ track: "piano", time: t + beat + clock.at("piano"), duration, velocity: human(velocity * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random, !straight && duration >= 2 && random() < 0.3), ...(duration < 1.2 ? { release: DAMPER } : {}) });
       }
       if (push && !layOut) {
         piano = voiceClear(nextChord!.chord, piano, range, pushTo, under(3.5, 1.4));
-        events.push({ track: "piano", time: t + 3.5 + clock.at("piano"), duration: 1.4, velocity: human(0.44 * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random) });
+        events.push({ track: "piano", time: t + 3.5 + clock.at("piano"), duration: 0.9, velocity: human(0.44 * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random), release: DAMPER });
       }
       pushedIn = push;
 
