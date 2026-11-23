@@ -2,6 +2,7 @@ import { resolvesToMinor, type ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
 import { SWING_RANGE, VOICING_LOW, voiceChord, type VoicingRange } from "../engine/voicing";
 import { bassOnsets, bassStruck, chordAfter, endsSection, isFormEnd, keepInRange, moveOn, PIANO_FLOOR, shifted, type VoicingContext } from "./context";
+import { DAMPER, GrooveBook, grooveBar, type CompHit, type Groove } from "./comping";
 import { drumGain, drumTalk, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
 import { shapeBars, steadyBars, weighted } from "./shape";
@@ -16,11 +17,11 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  *   3; walking quarters in the solos. Over a pedal (a long run of bars on one bass note,
  *   like a vamp written with slash chords) it plays two-bar pedal figures on that note,
  *   its fifth and octave, leaning on the and of 3 into the next bar as the records do.
- * - Piano: comping cells over the bar weighted to 1, the swung and of 1, 2 and 3, with an
- *   anticipation on the and of 3. Minor, major and sus chords take quartal voicings
+ * - Piano: a two-bar groove per section weighted to 1, the swung and of 1, 2 and 3, with an
+ *   anticipation on the and of 3, varied a little (comping.ts). Minor, major and sus chords take quartal voicings
  *   (stacked fourths from the chord's scale, the sound of the modal records); dominants
  *   and half-diminished chords keep the swing style's rootless voicings. Over a pedal the
- *   piano plays riff cells on the and of 1 and doubles the pedal with an open fifth now and then.
+ *   piano plays riff grooves on the and of 1 and doubles the pedal with an open fifth now and then.
  * - Drums: the ride in figures around a home pattern per chorus ("1, 2 and 3", "1, 2,
  *   3 and", a triplet roll, a two-against-three figure), hi-hat on 2 and 3 or on 2, a
  *   feathered kick on 1 and a kick with the bass on the and of 3, snare comping in the
@@ -35,47 +36,46 @@ const BAR = 3;
 /** At and above this tempo the comping thins out and the ride keeps simple. */
 const UP = 220;
 
-type Cell = { weight: number; hits: [number, number, number][] };
+const g = (id: string, weight: number, a: CompHit[], b: CompHit[]): Groove => ({ id, weight, bars: [a, b] });
 
-/** Comping cells as [eighth slot 0 to 5 (swung), length in beats, velocity]; slot 5 (the and of 3) anticipates the next chord. */
-const COMP: Cell[] = [
-  { weight: 0.17, hits: [[2, 0.5, 0.5], [4, 0.5, 0.48]] }, // 2 and 3
-  { weight: 0.09, hits: [[1, 1.1, 0.5]] }, // the and of 1, held
-  { weight: 0.08, hits: [[1, 0.45, 0.49], [4, 0.6, 0.48]] }, // and of 1, 3
-  { weight: 0.11, hits: [[0, 0.45, 0.48], [2, 0.4, 0.45], [4, 0.4, 0.46]] }, // 1, 2, 3, light
-  { weight: 0.1, hits: [[0, 0.6, 0.5], [4, 0.5, 0.48]] }, // 1 and 3
-  { weight: 0.08, hits: [[0, 0.7, 0.5], [3, 0.5, 0.48]] }, // 1, and of 2
-  { weight: 0.07, hits: [[2, 1.3, 0.48]] }, // 2, held
-  { weight: 0.08, hits: [[3, 0.5, 0.48], [5, 0.7, 0.5]] }, // and of 2, and of 3
-  { weight: 0.05, hits: [[1, 0.4, 0.48], [3, 0.4, 0.47]] }, // and of 1, and of 2
-  { weight: 0.05, hits: [[0, 1.9, 0.48]] }, // held on 1
-  { weight: 0.05, hits: [[0, 0.4, 0.48], [1, 0.4, 0.48], [4, 0.5, 0.47]] }, // 1, and of 1, 3
-  { weight: 0.05, hits: [[4, 0.4, 0.46], [5, 0.7, 0.5]] }, // 3, and of 3
-  { weight: 0.01, hits: [] }, // space
+/**
+ * Comping grooves, two bars each as [eighth slot 0 to 5 (swung), length in beats, velocity], kept
+ * through a section and varied a little (comping.ts, context/piano-comping.md); slot 5 (the and of 3)
+ * anticipates the next chord. Weighted to 1, the swung and of 1, 2 and 3, as the references comp;
+ * both bars of a groove share a place.
+ */
+const COMP: Groove[] = [
+  g("two-three", 0.22, [[2, 0.5, 0.5], [4, 0.5, 0.48]], [[2, 0.5, 0.5], [5, 0.6, 0.5]]),
+  g("and-one", 0.16, [[1, 0.9, 0.5]], [[1, 0.45, 0.49], [4, 0.6, 0.48]]),
+  g("one-three", 0.16, [[0, 0.6, 0.5], [4, 0.5, 0.48]], [[0, 0.6, 0.5], [3, 0.5, 0.48]]),
+  g("quarters", 0.14, [[0, 0.45, 0.48], [2, 0.4, 0.45], [4, 0.4, 0.46]], [[2, 0.45, 0.48], [4, 0.4, 0.46]]),
+  g("ands", 0.14, [[3, 0.5, 0.48], [5, 0.7, 0.5]], [[1, 0.45, 0.48], [3, 0.5, 0.47]]),
+  g("held", 0.1, [[0, 1.9, 0.48]], [[0, 0.6, 0.5], [4, 0.5, 0.48]]),
 ];
 
 /**
- * Over a pedal: riff cells on the offbeats, the vamp's figure. Tyner on the 1961 record hits the
+ * Over a pedal: riff grooves on the offbeats, the vamp's figure. Tyner on the 1961 record hits the
  * and of 1 and the and of 2 (each in about a third to a half of the bars), the and of 3 now and
  * then and beat 3 almost never, 1.5 to 2 hits a bar (context/original-records.md).
  */
-const VAMP: Cell[] = [
-  { weight: 0.25, hits: [[1, 0.9, 0.56], [3, 0.9, 0.52]] }, // and of 1, and of 2
-  { weight: 0.25, hits: [[3, 1.3, 0.54]] }, // and of 2, held
-  { weight: 0.15, hits: [[1, 1.1, 0.56], [5, 0.6, 0.5]] }, // and of 1, and of 3
-  { weight: 0.2, hits: [[0, 0.4, 0.48], [3, 1, 0.54]] }, // 1, and of 2
-  { weight: 0.15, hits: [[1, 1.8, 0.54]] }, // and of 1, rung through
+const VAMP: Groove[] = [
+  g("riff", 0.35, [[1, 0.9, 0.56], [3, 0.9, 0.52]], [[3, 1.3, 0.54]]),
+  g("push", 0.25, [[1, 1.1, 0.56], [5, 0.6, 0.5]], [[1, 0.9, 0.56], [3, 0.9, 0.52]]),
+  g("one", 0.2, [[0, 0.4, 0.48], [3, 1, 0.54]], [[1, 1.8, 0.54]]),
+  g("answer", 0.2, [[1, 0.9, 0.56], [3, 0.9, 0.52]], [[1, 0.9, 0.56], [3, 0.6, 0.52], [5, 0.6, 0.5]]),
 ];
 
-/** Sparse cells for the up tempo. */
-const COMP_FAST: Cell[] = [
-  { weight: 0.3, hits: [[1, 1.6, 0.5]] },
-  { weight: 0.25, hits: [[0, 1.8, 0.48]] },
-  { weight: 0.2, hits: [[2, 0.8, 0.48]] },
-  { weight: 0.25, hits: [] },
+/** Sparse grooves for the up tempo. */
+const COMP_FAST: Groove[] = [
+  g("held", 0.4, [[1, 1.6, 0.5]], [[0, 1.8, 0.48]]),
+  g("space", 0.3, [[0, 1.8, 0.48]], []),
+  g("two", 0.3, [[2, 0.8, 0.48]], [[1, 1.6, 0.5]]),
 ];
 
-const forDensity = (c: Cell, density: number) => c.weight * density ** ((c.hits.length - 2) * 3);
+const forDensity = (c: Groove, density: number) => c.weight * density ** ((c.bars[0].length + c.bars[1].length - 4) * 1.5);
+
+/** Where a varied bar may add a hit: 2, 3 and the and of 1 most. */
+const ADDS = [0, 1, 2, 3, 4, 5].map((slot) => ({ slot, weight: slot === 2 || slot === 4 ? 1 : slot === 1 ? 0.9 : slot === 3 ? 0.7 : 0.5 }));
 
 /** Pedal figures as [eighth slot, interval above the pedal (0, 7, 12), length, velocity]; `tie` ends on the and of 3, ringing into the next bar. */
 type PedalFigure = { weight: number; hits: [number, number, number, number][]; tie?: boolean };
@@ -266,7 +266,8 @@ export const waltz: Style = {
     /** The note the previous bar's approach aimed at, where this bar's line starts (see swing.ts `landing`). */
     let planned: number | null = null;
     let pushedIn = false;
-    let lastCell: Cell["hits"] | undefined;
+    // One comping groove per section label, kept through the chorus (comping.ts).
+    const book = new GrooveBook(random, 0.5);
     const talk = drumTalk(random);
     let lastFill: Hit[] | undefined;
     let ridePrev: Ride | undefined;
@@ -388,7 +389,8 @@ export const waltz: Style = {
       lastBass = bassHere.at(-1)?.[1] ?? lastBass;
 
       // Piano.
-      if (!straight && inPhrase === 0 && ((bar.ref?.bar ?? 0) % 8 === 0 || random() < 0.5))
+      // The register drifts by section and moves by voice leading in between, not from bar to bar.
+      if (!straight && inPhrase === 0 && (bar.ref?.bar ?? 0) % 8 === 0)
         registerDrift = weighted([{ weight: 0.5, value: -2 }, { weight: 1, value: -1 }, { weight: 1.2, value: 0 }, { weight: 1, value: 1 }, { weight: 0.7, value: 2 }, { weight: 0.4, value: 3 }], random, registerDrift);
       const shift = Math.max(-3, Math.min(6, plan.register + registerDrift));
       const range = shifted(SWING_RANGE, shift, VOICING_LOW);
@@ -399,12 +401,16 @@ export const waltz: Style = {
       const pianoGain = straight ? 1 : 10 ** ((phraseDb + phraseSlope * (inPhrase - 1.5) + gauss(random) * 0.4) / 20);
       const nextChord = next?.chords[0];
       const changes = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord;
+      // The section's groove, A B A B through each phrase, the first bar as written and the others
+      // now and then moved a little, the last most often.
       const pool = fast ? COMP_FAST : pedal !== null ? VAMP : COMP;
-      // Busier bars are more often followed by sparser ones (the records' pianists breathe in two-bar units).
-      const breathe = (hits: Cell["hits"]) => (!lastCell ? 1 : lastCell.length >= 3 ? (hits.length <= 2 ? 1.25 : 0.8) : lastCell.length <= 1 ? (hits.length >= 3 ? 1.25 : 0.9) : 1);
-      const cell = straight ? COMP[0].hits : weighted(pool.map((c) => ({ weight: fast ? c.weight : forDensity(c, plan.density) * breathe(c.hits), value: c.hits })), random, lastCell);
-      lastCell = cell;
-      const legato = plan.role === "peak" ? 1 : solo ? 1.15 : 1.35;
+      const groove = book.grooveFor(bar.chorus * 4 + (fast ? 2 : pedal !== null ? 1 : 0), `${fast ? "fast" : pedal !== null ? "vamp" : ""}${bar.label}`, (avoid) =>
+        weighted(pool.map((c) => ({ weight: fast ? c.weight : forDensity(c, plan.density), value: c })), random, avoid && pool.includes(avoid) ? avoid : undefined),
+      );
+      const settled = plan.role === "head" || plan.role === "outhead" || plan.role === "intro";
+      const chances = settled ? { first: 0.04, middle: 0.14, last: 0.3 } : plan.role === "peak" ? { first: 0.1, middle: 0.34, last: 0.5 } : { first: 0.08, middle: 0.26, last: 0.45 };
+      const cell = straight ? COMP[0].bars[0] : grooveBar(groove, inPhrase, random, chances, { adds: ADDS, busier: plan.density * 1.2, length: 0.45, velocity: 0.48, slots: 6 });
+      const legato = plan.role === "peak" ? 0.95 : solo ? 1 : 1.15;
       const pianoBeats: number[] = [];
       let pushes = false;
       cell.forEach(([slot, length, velocity], h) => {
@@ -424,8 +430,7 @@ export const waltz: Style = {
         piano = moveOn(voiced, last, repeat && (run >= 3 || (!straight && run >= 2 && random() < 0.4)), (from) => voiceFor(c.chord, from, range, context));
         run = last && piano.join() === last.join() ? run + 1 : 1;
         const changeAt = ahead ? BAR + nextChord!.length : (bar.chords.find((x) => x.beat > beat + 0.01)?.beat ?? (changes ? BAR - 0.4 : BAR + 1));
-        const nextHit = cell[h + 1] ? eighth(cell[h + 1][0]) : BAR + 0.5;
-        const duration = Math.max(0.25, Math.min(!straight && random() < 0.3 ? nextHit - beat - 0.05 : length * legato * (0.85 + random() * 0.3), 2.6, changeAt - beat - 0.05));
+        const duration = Math.max(0.25, Math.min(length * legato * (straight ? 1 : 0.9 + random() * 0.2), 2.6, changeAt - beat - 0.05));
         let notes = piano;
         // Over a pedal, the left hand doubles the bass note with an open fifth on the riff's first chord.
         if (!straight && pedal !== null && h === 0 && random() < 0.45) {
@@ -439,6 +444,8 @@ export const waltz: Style = {
           velocity: human((velocity + (slot % 2 ? 0.04 : 0)) * lift * pianoGain, 0.12),
           notes,
           ...pianoTouch(notes, random, !straight && duration >= 1.5 && random() < 0.3),
+          // Short chords end on the damper; held ones ring out with the sampler's release.
+          ...(duration < 1.2 ? { release: DAMPER } : {}),
         });
         pianoBeats.push(beat);
         if (ahead) pushes = true;

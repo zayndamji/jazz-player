@@ -45,7 +45,9 @@ export interface VaryOptions {
   length: number;
   /** Velocity of an added hit. */
   velocity: number;
-  /** The slot hits never move past (8 = the bar; 7 lets a hit push to the and of 4). */
+  /** Eighth slots in the bar: 8 in 4/4 (the default), 6 in 3/4. */
+  slots?: number;
+  /** The slot hits never move past (the bar's last eighth by default, which anticipates the next chord). */
   last?: number;
 }
 
@@ -74,7 +76,7 @@ export function vary(hits: CompHit[], random: () => number, o: VaryOptions): Com
     const step = move === "earlier" ? -1 : 1;
     const can = out.map((_, k) => k).filter((k) => {
       const s = out[k][0] + step;
-      return s >= 0 && s <= (o.last ?? 7) && !out.some(([x], j) => j !== k && Math.abs(x - s) < 1);
+      return s >= 0 && s <= (o.last ?? (o.slots ?? 8) - 1) && !out.some(([x], j) => j !== k && Math.abs(x - s) < 1);
     });
     if (can.length) {
       const k = can[Math.floor(random() * can.length)];
@@ -85,7 +87,7 @@ export function vary(hits: CompHit[], random: () => number, o: VaryOptions): Com
   } else {
     out.sort((a, b) => a[0] - b[0]);
     out.splice(1);
-    out[0][1] = Math.max(out[0][1], (8 - out[0][0]) / 2 - 0.3);
+    out[0][1] = Math.max(out[0][1], ((o.slots ?? 8) - out[0][0]) / 2 - 0.3);
   }
   return out.sort((a, b) => a[0] - b[0]);
 }

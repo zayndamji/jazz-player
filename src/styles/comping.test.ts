@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { bossaForm, swingForm } from "../fixtures";
+import { bossaForm, swingForm, waltzForm } from "../fixtures";
 import { buildSchedule } from "../engine/schedule";
 import { bossa } from "./bossa";
 import { DAMPER, GrooveBook, grooveBar, vary, type CompHit, type Groove } from "./comping";
 import { seededRandom } from "./random";
 import { swing } from "./swing";
+import { waltz } from "./waltz";
 import type { Style } from "./types";
 
 const groove: Groove = { id: "test", weight: 1, bars: [[[0, 0.6, 0.5], [3, 0.4, 0.48]], [[2, 0.45, 0.5], [6, 0.45, 0.5]]] };
@@ -48,29 +49,38 @@ describe("comping grooves", () => {
 
 /**
  * How the site's piano comps, on the measures used for the references' piano stems
- * (context/style-swing.md): the share of bars holding the busiest eighth, and how many hits a
- * bar shares with the bar before and with the bar two before.
+ * (context/piano-comping.md): the share of bars holding the section's busiest eighth (per section
+ * of a chorus, as the references were measured in windows), and how many hits a bar shares with the
+ * bar before and with the bar two before.
  */
-function shape(style: Style, chart: typeof swingForm, straightAnds: boolean) {
+function shape(style: Style, chart: typeof swingForm, straightAnds: boolean, beats = 4) {
   const s = buildSchedule(chart, style, { choruses: 6, countIn: false, transpose: 0 });
   const bars = s.bars.filter((b) => b.ref?.part === "form" && b.chorus >= 2 && b.chorus <= 5);
   const sets = bars.map((b) => {
     const slots = new Set<number>();
     for (const e of s.events)
-      if (e.track === "piano" && e.notes!.length > 1 && e.time >= b.startBeat - 0.12 && e.time < b.startBeat + 3.88) {
+      if (e.track === "piano" && e.notes!.length > 1 && e.time >= b.startBeat - 0.12 && e.time < b.startBeat + beats - 0.12) {
         const beat = Math.max(0, e.time - b.startBeat);
         const frac = beat - Math.floor(beat);
         slots.add(Math.floor(beat) * 2 + (frac > (straightAnds ? 0.35 : 0.45) ? 1 : 0));
       }
     return slots;
   });
-  const count = new Array(8).fill(0);
-  sets.forEach((set) => set.forEach((slot) => count[slot]++));
-  const top = count.indexOf(Math.max(...count));
+  const sections = new Map<string, Set<number>[]>();
+  bars.forEach((b, i) => {
+    const key = `${b.chorus}.${b.ref!.section}`;
+    sections.set(key, [...(sections.get(key) ?? []), sets[i]]);
+  });
+  const anchors = [...sections.values()].map((group) => {
+    const count = new Array(8).fill(0);
+    group.forEach((set) => set.forEach((slot) => count[slot]++));
+    const top = count.indexOf(Math.max(...count));
+    return group.filter((set) => set.has(top)).length / group.length;
+  });
   const jac = (a: Set<number>, b: Set<number>) => (a.size + b.size === 0 ? 1 : [...a].filter((x) => b.has(x)).length / new Set([...a, ...b]).size);
   const mean = (v: number[]) => v.reduce((x, y) => x + y, 0) / v.length;
   return {
-    anchor: sets.filter((set) => set.has(top)).length / sets.length,
+    anchor: mean(anchors),
     jac1: mean(sets.slice(1).map((set, i) => jac(set, sets[i]))),
     jac2: mean(sets.slice(2).map((set, i) => jac(set, sets[i]))),
     short: s.events.filter((e) => e.track === "piano" && e.duration < 1.2 && e.notes!.length > 1).every((e) => e.release === DAMPER),
@@ -81,9 +91,10 @@ describe("predictable comping", () => {
   for (const [name, style, chart, straightAnds] of [
     ["swing", swing, swingForm, false],
     ["bossa", bossa, bossaForm, true],
+    ["waltz", waltz, waltzForm, false],
   ] as const) {
     it(`${name}: comes back to one place in the bar and repeats its two-bar figure, varied a little`, () => {
-      const m = shape(style, chart, straightAnds);
+      const m = shape(style, chart, straightAnds, chart.beatsPerBar ?? 4);
       // The references' busiest eighth is in 50 to 100% of bars; the old comping's in about 40%.
       expect(m.anchor).toBeGreaterThan(0.5);
       // Bars two apart share more than neighbours (the A B A B groove), but bars still vary.
