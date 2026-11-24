@@ -10,7 +10,7 @@ src/audio/sprites.json, which the site bundles:
   { "<instrument>": { "file": "...", "regions": { "<name>": [start, end] } },
     "drums": { ..., "kit": <assets/samples/drums/kit.json with region names> } }
 
-Region names are note names for the tonal instruments (Ds3 is "D#3") and file
+Region names are note names for the tonal instruments (Ds3 and Eb3 are "D#3") and file
 stems ("kick-v1-r1") for the drums. Times are seconds. The output is the same on
 every run.
 
@@ -36,7 +36,8 @@ TABLE = ROOT / "src" / "audio" / "sprites.json"
 RATE = 44100
 GAP = 0.1  # seconds of silence before each sample and after the last
 INSTRUMENTS = {"piano": "5", "bass": "5", "guitar": "5", "drums": "4"}  # LAME -q:a
-FLAT_TO_SHARP = {"Ds": "D#", "Fs": "F#", "Bb": "A#", "Db": "C#"}
+# File stems spell sharps with "s" ("Fs3") and may use flats; regions are named with sharps ("F#3").
+FLAT_TO_SHARP = {"Cs": "C#", "Ds": "D#", "Fs": "F#", "Gs": "G#", "As": "A#", "Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#"}
 
 
 def decode(path: Path) -> np.ndarray:

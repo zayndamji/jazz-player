@@ -109,7 +109,7 @@ To add a style, implement `Style` from `src/styles/types.ts` in a new file in `s
 
 - The timeline lays a chart out in playing order: count-in, intro, choruses, ending.
 - A style turns the timeline into notes for the tempo and feel. Each style is modelled on a measured reference recording.
-- Piano and guitar play rootless voicings, each voice-led from the last and shaped by the next chord.
+- The piano plays rootless voicings and the guitar real guitar grips over its thumb, each voice-led from the last and sharing the tensions the next chord asks for.
 - The player schedules everything on the Tone.js clock in beats, so tempo, key and style changes apply while playing.
 - The lead sheet is MusicXML rendered by OpenSheetMusicDisplay and transposed with the chart.
 - There is no server. Everything, including the audio, runs in the browser.
@@ -140,6 +140,7 @@ To add a style, implement `Style` from `src/styles/types.ts` in a new file in `s
 - [OpenSheetMusicDisplay](https://github.com/opensheetmusicdisplay/opensheetmusicdisplay) (BSD-3-Clause): lead sheet rendering, using VexFlow (MIT)
 - [React](https://github.com/facebook/react) (MIT), [Vite](https://github.com/vitejs/vite) and [Vitest](https://github.com/vitest-dev/vitest) (MIT), [TypeScript](https://github.com/microsoft/TypeScript) (Apache-2.0)
 - [Salamander Grand Piano](https://archive.org/details/SalamanderGrandPianoV3) by Alexander Holm (CC BY 3.0): piano samples
-- Fluid R3 GM SoundFont by Frank Wen (MIT): bass and nylon guitar samples, rendered to MP3 by Benjamin Gleitzman in [midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) (renderings CC BY 3.0)
+- Fluid R3 GM SoundFont by Frank Wen (MIT): bass samples, rendered to MP3 by Benjamin Gleitzman in [midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) (renderings CC BY 3.0)
+- [FreePats Spanish Classical Guitar](https://github.com/freepats/spanish-classical-guitar) by roberto@zenvoid.org (CC0): nylon guitar samples
 - [Virtuosity Drums](https://github.com/sfzinstruments/virtuosity_drums) by Versilian Studios and Karoryfer Samples (CC0): drum samples
 - Brushes are synthesized in `src/audio/drumkit.ts`
