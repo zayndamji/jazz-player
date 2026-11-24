@@ -147,7 +147,8 @@ function barText(chart: Chart, ref: BarRef): string {
 }
 
 /** True when a form section plays in a head chorus (`head`) or a solo chorus. */
-export const playsIn = (section: Section, head: boolean) => !section.play || (section.play === "head") === head;
+export const playsIn = (section: Section, head: boolean, first = head) =>
+  !section.play || (section.play === "first" ? first : (section.play === "head") === head);
 
 /**
  * The order bars are played in: intro, the form a number of times, ending.
@@ -163,7 +164,7 @@ export function playOrder(chart: Chart, choruses: number, withIntro = true, with
   if (withIntro) bars.filter((b) => b.ref.part === "intro").forEach((b) => items.push({ ref: b.ref, chorus: 0 }));
   for (let c = 1; c <= choruses; c++) {
     const head = c === 1 || (headLast && c === choruses);
-    bars.filter((b) => b.ref.part === "form" && playsIn(chart.form[b.ref.section], head)).forEach((b) => items.push({ ref: b.ref, chorus: c }));
+    bars.filter((b) => b.ref.part === "form" && playsIn(chart.form[b.ref.section], head, c === 1)).forEach((b) => items.push({ ref: b.ref, chorus: c }));
   }
   if (withEnding) {
     chart.ending?.forEach((section, i) => {

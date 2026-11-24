@@ -4,6 +4,7 @@ import { latinForm } from "../fixtures";
 import { validateChart } from "../charts";
 import { STYLES } from "../styles";
 import { buildSchedule } from "./schedule";
+import { playOrder } from "./timeline";
 
 /** The made-up Latin chart with a four-bar break after the last A, played in the head only. */
 const withBreak: Chart = {
@@ -35,4 +36,15 @@ describe("breaks", () => {
       const after = s.bars[rests[3].index + 1];
       expect(s.events.some((e) => e.track === "bass" && e.time >= after.startBeat - 0.12 && e.time < after.startBeat + 4)).toBe(true);
     });
+
+  it("plays a first-chorus section only before the solos", () => {
+    const first: Chart = { ...withBreak, form: withBreak.form.map((sec) => (sec.label === "Break" ? { ...sec, play: "first" as const } : sec)) };
+    expect(validateChart(first)).toEqual([]);
+    const breakAt = first.form.findIndex((sec) => sec.label === "Break");
+    const choruses = playOrder(first, 3).filter((i) => i.ref.part === "form" && i.ref.section === breakAt && !i.tonic).map((i) => i.chorus);
+    expect([...new Set(choruses)]).toEqual([1]);
+    // A single chorus is the first one.
+    expect(playOrder(first, 1).some((i) => i.ref.section === breakAt && i.ref.part === "form")).toBe(true);
+    expect(validateChart({ ...first, form: first.form.map((sec) => ({ ...sec, play: "first" as const })) })).not.toEqual([]);
+  });
 });

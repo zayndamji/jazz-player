@@ -125,7 +125,7 @@ export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued
                     ) : (
                       <span className="section-label static">{label}</span>
                     ))}
-                  {r === 0 && section.play && <span className="section-role">{section.play === "head" ? "head" : "solos"}</span>}
+                  {r === 0 && section.play && <span className="section-role">{section.play === "head" ? "head" : section.play === "first" ? "first head" : "solos"}</span>}
                   {r === 0 && section.break && <span className="section-role">break</span>}
                   {r === 0 && sectionStyles && !section.break && <span className="section-role">{(STYLES[section.style ?? chart.style]?.name ?? "").toLowerCase()}</span>}
                 </div>

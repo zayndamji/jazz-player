@@ -66,9 +66,11 @@ export interface Section {
   sheetBar?: number;
   /**
    * Form sections only: "head" plays in head choruses (the first and the last), "solos" in
-   * the choruses between, for tunes whose solo changes differ from the head. Default: every chorus.
+   * the choruses between, for tunes whose solo changes differ from the head; "first" only in the
+   * first chorus, for a passage that leads into the solos (A Night in Tunisia's interlude and break).
+   * Default: every chorus.
    */
-  play?: "head" | "solos";
+  play?: "head" | "solos" | "first";
   /**
    * The backing style this section plays in, when it differs from the chart's `style`: Latin A sections
    * with a swing bridge ("latin" on the A's, the chart's style "swing"). Used when the tune plays in its own
