@@ -174,7 +174,12 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   // A looped section or range has no head to tell apart, so all its passes are solos.
   const lastChorus = Math.max(1, ...full.map((b) => b.chorus));
   const sectionLoop = opts.loopSection != null || !!opts.loopRange;
-  markTrading(full, opts.trade ?? "off", (c) => sectionLoop || (c >= 2 && (opts.choruses === "loop" || c < lastChorus)));
+  const soloChorus = (c: number) => c >= 2 && (opts.choruses === "loop" || c < lastChorus);
+  markTrading(full, opts.trade ?? "off", (c) => sectionLoop || soloChorus(c));
+  // The chart's solo style plays every solo chorus (a looped section or run of bars keeps the sections' own styles).
+  const own = style.id === chart.style;
+  if (own && chart.soloStyle && STYLES[chart.soloStyle] && !sectionLoop)
+    for (const b of full) if (b.ref?.part === "form" && !b.tonic && soloChorus(b.chorus)) b.style = chart.soloStyle;
 
   const countInBars = opts.countInBars ?? (opts.countIn ? 2 : 0);
   const countIn: TimelineBar[] = Array.from({ length: countInBars }, (_, i) => ({
@@ -193,7 +198,6 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const music = full.slice(startAt).map((b, i) => ({ ...b, index: i + countInBars, startBeat: (i + countInBars) * beatsPerBar }));
   // A section's own style plays only when the tune plays in its own style; then every bar says which it plays in,
   // the count-in taking the first bar's (a pickup into the first bar belongs to that style).
-  const own = style.id === chart.style;
   for (const b of music) b.style = own && b.style && STYLES[b.style] ? b.style : style.id;
   for (const bar of countIn) bar.style = music[0]?.style ?? style.id;
   const bars = [...countIn, ...music];
@@ -357,10 +361,10 @@ export function mixFor(chart: Chart, style: Style): Partial<Record<Track, number
   return mix;
 }
 
-/** The styles a chart plays in its own style: the chart's, then those its sections name (`Section.style`), each once. */
+/** The styles a chart plays in its own style: the chart's, then those its sections name (`Section.style`) and its `soloStyle`, each once. */
 export function chartStyles(chart: Chart): Style[] {
   const sections = [...(chart.intro ? [chart.intro] : []), ...chart.form, ...(chart.ending ?? [])];
-  const ids = [chart.style, ...sections.map((s) => s.style ?? chart.style)];
+  const ids = [chart.style, ...sections.map((s) => s.style ?? chart.style), ...(chart.soloStyle ? [chart.soloStyle] : [])];
   return [...new Set(ids)].map((id) => STYLES[id]).filter((s): s is Style => !!s);
 }
 

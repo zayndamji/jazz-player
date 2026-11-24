@@ -62,5 +62,10 @@ export function validateChart(chart: Chart): string[] {
   if (plays.some((p) => p !== undefined && p !== "head" && p !== "solos" && p !== "first")) errors.push(`"play" must be "head", "solos" or "first"`);
   if (plays.some((p) => p) && (!plays.some((p) => p !== "solos") || !plays.some((p) => p === undefined || p === "solos")))
     errors.push(`with "play" set, some form sections must play in the head and some in the solos`);
+  if (chart.soloOrder !== undefined) {
+    const ok = Array.isArray(chart.soloOrder) && chart.soloOrder.length > 0 && chart.soloOrder.every((i) => Number.isInteger(i) && i >= 0 && i < (chart.form?.length ?? 0));
+    if (!ok) errors.push(`"soloOrder" must list form sections by index, from 0`);
+    else if (chart.soloOrder.some((i) => chart.form[i].play === "head" || chart.form[i].play === "first")) errors.push(`"soloOrder" can't name a section that plays only in the head`);
+  }
   return errors;
 }

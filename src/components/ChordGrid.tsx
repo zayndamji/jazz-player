@@ -36,6 +36,9 @@ interface Props {
 const GUTTER_WORD = 6;
 const PHONE_GUTTER_WORD = 4;
 
+/** A style's name as printed under a rehearsal letter: "latin", "swing". */
+const styleName = (id: string) => (STYLES[id]?.name ?? id).toLowerCase();
+
 function ChordSymbol({ symbol, next, showScale, keyPc, sounding }: { symbol: string; /** The chord after it, which can choose the scale. */ next: string | null; showScale: boolean; keyPc: number; sounding: boolean }) {
   const { root, quality, bass } = displayParts(symbol);
   const scale = showScale ? chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], keyPc, next ? parseChord(next) : null) : null;
@@ -99,6 +102,12 @@ export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued
   }
 
   // One Tab stop for all the bars (the current, cued or first bar), and one for the section letters.
+  /** The style a form section plays in the solo choruses when it differs from its own (the chart's `soloStyle`). */
+  const soloStyleOf = (section: Section) => {
+    const solo = chart.soloStyle;
+    const plays = section.play === undefined || section.play === "solos";
+    return solo && plays && chart.form.includes(section) && solo !== (section.style ?? chart.style) ? solo : null;
+  };
   const allBars: BarRef[] = sections.flatMap(({ part, index, section }) => section.bars.map((_, bar) => ({ part, section: index, bar })));
   const stop = allBars[tabStop(allBars, active, cued, sameRef)];
 
@@ -138,7 +147,8 @@ export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued
                   {r === 0 && !above && <span className="gutter-label">{tag}</span>}
                   {r === 0 && section.play && <span className="section-role">{section.play === "head" ? "head" : section.play === "first" ? "first head" : "solos"}</span>}
                   {r === 0 && section.break && <span className="section-role">break</span>}
-                  {r === 0 && sectionStyles && !section.break && <span className="section-role">{(STYLES[section.style ?? chart.style]?.name ?? "").toLowerCase()}</span>}
+                  {r === 0 && sectionStyles && !section.break && <span className="section-role">{styleName(section.style ?? chart.style)}</span>}
+                  {r === 0 && sectionStyles && soloStyleOf(section) && <span className="section-role">{styleName(soloStyleOf(section)!)} in solos</span>}
                 </div>
                 {row.map((text, i) => {
                   const bar = r * 4 + i;

@@ -151,6 +151,16 @@ export const playsIn = (section: Section, head: boolean, first = head) =>
   !section.play || (section.play === "first" ? first : (section.play === "head") === head);
 
 /**
+ * The form bars of one chorus, in playing order: the sections that play in it (`playsIn`), in form order; a solo
+ * chorus of a chart with `soloOrder` plays those sections in that order instead (Autumn Serenade's solos on C A B).
+ */
+function chorusBars(chart: Chart, bars: ChartBar[], head: boolean, first: boolean): ChartBar[] {
+  const form = bars.filter((b) => b.ref.part === "form");
+  if (!head && chart.soloOrder?.length) return chart.soloOrder.flatMap((s) => form.filter((b) => b.ref.section === s));
+  return form.filter((b) => playsIn(chart.form[b.ref.section], head, first));
+}
+
+/**
  * The order bars are played in: intro, the form a number of times, ending.
  * The first chorus is the head, and so is the last when the song ends; the
  * choruses between are solos (it matters only for sections marked `play`).
@@ -164,7 +174,7 @@ export function playOrder(chart: Chart, choruses: number, withIntro = true, with
   if (withIntro) bars.filter((b) => b.ref.part === "intro").forEach((b) => items.push({ ref: b.ref, chorus: 0 }));
   for (let c = 1; c <= choruses; c++) {
     const head = c === 1 || (headLast && c === choruses);
-    bars.filter((b) => b.ref.part === "form" && playsIn(chart.form[b.ref.section], head, c === 1)).forEach((b) => items.push({ ref: b.ref, chorus: c }));
+    chorusBars(chart, bars, head, c === 1).forEach((b) => items.push({ ref: b.ref, chorus: c }));
   }
   if (withEnding) {
     chart.ending?.forEach((section, i) => {
@@ -215,7 +225,7 @@ export function loopedChoruses(chart: Chart, first: number, count: number, withI
   const bars = chartBars(chart);
   if (withIntro && first === 1) bars.filter((b) => b.ref.part === "intro").forEach((b) => items.push({ ref: b.ref, chorus: 0 }));
   for (let c = first; c < first + count; c++) {
-    bars.filter((b) => b.ref.part === "form" && playsIn(chart.form[b.ref.section], c === 1)).forEach((b) => items.push({ ref: b.ref, chorus: c }));
+    chorusBars(chart, bars, c === 1, c === 1).forEach((b) => items.push({ ref: b.ref, chorus: c }));
   }
   return items;
 }

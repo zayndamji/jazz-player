@@ -42,6 +42,17 @@ export interface Chart {
   pedal?: string;
   /** Trading with the drums the page starts with, when the tune's record trades (Tenor Madness trades fours). Default off. */
   trade?: "fours" | "eights" | "fours-out";
+  /**
+   * The style the solo choruses play in, when the tune plays in its own style: the head keeps its sections' styles
+   * (Latin A's, a swing bridge) and every solo chorus plays in this one (A Night in Tunisia's solos, swung). A looped
+   * section or run of bars keeps the sections' own styles.
+   */
+  soloStyle?: string;
+  /**
+   * The form sections a solo chorus plays, by index into `form`, in order, when it isn't the form order: Autumn
+   * Serenade's solos on C A B, the vamp first. The head choruses keep the form order.
+   */
+  soloOrder?: number[];
   /** Played once before the first chorus. */
   intro?: Section;
   /** The repeating form, in playing order. */
