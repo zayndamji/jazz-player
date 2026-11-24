@@ -20,11 +20,13 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  *   anticipated and tied over the bar line, so beat 1 isn't struck. In the heads the bass often plays
  *   "1, and of 2, 4" instead (beat 1 struck, beat 4 a chord tone or a half step into the next root),
  *   which a listener can count. The first bar, or the first after another style, strikes beat 1.
- * - Piano: two-bar figures kept for each section (comping.ts), lined up with the clave. In the heads,
- *   mostly comping on the anticipations (the ands of 2 and 4, held), or on the clave; in the solos,
- *   mostly montunos: broken eighths, an octave with a chord tone inside on the beats, a small chord on
- *   the ands. Every and takes the chord of the beat after it, so the piano anticipates with the bass,
- *   and the and of 4 plays the next bar's chord.
+ * - Piano: two-bar figures kept for each section (comping.ts), lined up with the clave: mostly comping
+ *   on the anticipations (the ands of 2 and 4, held), or on the clave, which leaves the soloist room. Now
+ *   and then a section, more often at the peak chorus, plays a montuno: broken eighths, an octave with a
+ *   chord tone inside on the beats, a small chord on the ands, softer than the comping. A montuno under
+ *   every solo was heard as busy, pulling attention from the soloist (the maintainer, 2026-11-24).
+ *   Every and takes the chord of the beat after it, so the piano anticipates with the bass, and the and
+ *   of 4 plays the next bar's chord.
  * - Drums: the cáscara on the ride (in the heads) or its bell (in the solos), the clave on the
  *   cross-stick, the kick on the and of 2 and 4 with the bass, the hi-hat foot on 2 and 4. In the
  *   solos the left hand now and then plays the conga's tumbao instead of the clave: the cross-stick
@@ -74,6 +76,8 @@ const PIANO_GROOVES = [
   g("push", 0.6, [[1, 0.6, 0.44], [4, 1.2, 0.46]], [[3, 0.6, 0.44], [7, 1.4, 0.46]]),
 ];
 const INTRO_GROOVE = 2;
+/** A montuno's eighths sit under the comping's level, so the figure stays behind the soloist. */
+const MONTUNO_LEVEL = 0.82;
 
 /** Where a varied comping bar may add a hit: the ands most. */
 const ADDS = [1, 2, 3, 4, 5, 6, 7].map((slot) => ({ slot, weight: slot % 2 ? 1 : 0.6 }));
@@ -229,7 +233,7 @@ export const latin: Style = {
         : intro
           ? PIANO_GROOVES[INTRO_GROOVE]
           : pianoBook.grooveFor(bar.chorus, bar.label, (avoid) =>
-              weighted(PIANO_GROOVES.map((f) => ({ weight: f.weight * (f.montuno ? (solos ? 1.4 : 0.35) : solos ? 0.5 : 1) * plan.density ** (f.montuno ? 2 : 0), value: f })), random, avoid),
+              weighted(PIANO_GROOVES.map((f) => ({ weight: f.weight * (f.montuno ? (plan.role === "peak" ? 0.5 : solos ? 0.2 : 0.12) : 1) * plan.density ** (f.montuno ? 2 : 0), value: f })), random, avoid),
             );
       const settled = straight || head;
       const chances = straight ? { first: 0, middle: 0, last: 0 } : settled ? { first: 0.04, middle: 0.1, last: 0.25 } : { first: 0.06, middle: 0.18, last: 0.35 };
@@ -263,7 +267,7 @@ export const latin: Style = {
           track: "piano",
           time: t + beat + clock.at("piano"),
           duration,
-          velocity: human(velocity * lift * pianoGain, 0.1),
+          velocity: human(velocity * lift * pianoGain * (groove.montuno ? MONTUNO_LEVEL : 1), 0.1),
           notes,
           ...pianoTouch(notes, random),
           ...(duration < 1.2 ? { release: DAMPER } : {}),
