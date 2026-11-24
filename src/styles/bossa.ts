@@ -1,7 +1,8 @@
 import type { ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
-import { GUITAR_RANGE, PIANO_RANGE, voicingIntervals, type VoicingRange } from "../engine/voicing";
-import { BASS_HIGH, BASS_LOW, bassUnder, chordAfter, endsSection, isFormEnd, shifted, voiceClear } from "./context";
+import { guitarFingers, guitarThumb } from "../engine/guitar";
+import { PIANO_RANGE, voicingIntervals, type VoicingRange } from "../engine/voicing";
+import { BASS_HIGH, BASS_LOW, bassOnsets, bassStruck, bassUnder, chordAfter, endsSection, isFormEnd, shifted, voiceClear } from "./context";
 import { DAMPER, GrooveBook, grooveBar, holdLength, type CompHit, type Groove } from "./comping";
 import { drumGain, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
@@ -12,9 +13,11 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  * Bossa nova, straight eighths, in a two-bar cycle. The patterns follow a
  * measured Band-in-a-Box bossa track (context/reference-backing-track.md):
  * - Bass: 1, and of 2, 3, and of 4. The eighths anticipate the next note.
- * - Guitar: short syncopated chords on a two-bar figure, picked per cycle from a
- *   few variations, Gilberto's 1, 2, 3, and of 3, and of 4 among them. It leads the
- *   comping, as on the Getz/Gilberto records (context/original-records.md).
+ * - Guitar: plays like a nylon-string bossa guitarist (src/engine/guitar.ts): the thumb on 1 and 3
+ *   on the bass player's note (root or 5th, never anticipated), and the fingers plucking three-note
+ *   grips together, a pinch rather than a strum, on a two-bar figure picked per cycle from a few
+ *   variations, Gilberto's 1, 2, 3, and of 3, and of 4 among them; each chord rings until the next.
+ *   It leads the comping, as on the Getz/Gilberto records (context/original-records.md).
  * - Piano: under the guitar and light: its own sparse two-bar figure of medium-length
  *   chords, so the comping has two voices that answer each other. With the chart's
  *   `comp: "sparse"` it lays out for most of the heads, as Jobim does under the voice,
@@ -222,6 +225,8 @@ export const bossa: Style = {
   mix: { bass: 3, guitar: -1.5, piano: -3.5, drums: 0 },
   generate(bars, seed, feel) {
     const random = seededRandom(seed);
+    // The guitar's pinch and thumb draw on their own sequence, so the rest of the band plays as it would without them.
+    const hand = seededRandom(seed + 101);
     const human = (v: number, spread = 0.08) => Math.min(1, Math.max(0.05, v + (random() - 0.5) * spread));
     const clock = timing(random, feel?.tempo ?? 150);
     const pocket: Record<DrumSound, "hat" | "ride" | "kick" | "snare" | "pedal" | "fill"> = {
@@ -235,6 +240,11 @@ export const bossa: Style = {
 
     let piano: number[] | null = null;
     let guitar: number[] | null = null;
+    // The guitar's finger chords and thumb notes, whose lengths are settled once all are placed.
+    const fingers: { event: NoteEvent; until: number }[] = [];
+    const thumbs: { event: NoteEvent; until: number }[] = [];
+    /** A pinch: the three fingers within a few milliseconds of each other in no set order, the top a little louder. */
+    const pluck = (notes: number[]) => ({ offsets: notes.map(() => hand() * 0.006), levels: notes.map((_, k) => (k === notes.length - 1 ? 1.08 : 1)) });
     let figure = 0;
     const book = new GrooveBook(random, 0.5);
     let pushedIn = false; // this bar's first chord was already played on the and of 4
@@ -311,9 +321,9 @@ export const bossa: Style = {
           bassAt({ track: "bass", time: t + c.beat, duration: bassLength, velocity: last ? 0.85 : 0.8, notes: [n] });
           const after = last ? null : bar.chords[k + 1].chord;
           piano = voiceClear(c.chord, piano, PIANO_RANGE, after, n);
-          guitar = voiceClear(c.chord, guitar, GUITAR_RANGE, after, n);
+          guitar = guitarFingers(c.chord, guitar, { next: after, bass: n });
           events.push({ track: "piano", time: t + c.beat, duration: last ? length : length - 0.1, velocity: last ? 0.5 : 0.46, notes: piano, ...pianoTouch(piano, random, true) });
-          events.push({ track: "guitar", time: t + c.beat + 0.02, duration: last ? length : length - 0.1, velocity: last ? 0.6 : 0.55, notes: guitar });
+          events.push({ track: "guitar", time: t + c.beat + 0.02, duration: last ? length : length - 0.1, velocity: last ? 0.6 : 0.55, notes: guitar, ...pluck(guitar) });
           drum(t + c.beat, "kick", last ? 0.8 : 0.6);
           if (last) drum(t + c.beat, "crash", 0.55, 0);
         });
@@ -358,18 +368,44 @@ export const bossa: Style = {
       const push = !!nextChord?.attack && !next?.final && nextChord.chord !== bar.chords.at(-1)?.chord && !straight && random() < PUSH[inPhrase];
       const pushTo = push ? chordAfter(music, i + 1, 0) : null;
 
-      // Guitar: the two-bar figure, re-voiced at each hit so changes land where they fall.
-      for (const [beat, length, velocity] of GUITAR_FIGURES[figure].bars[cycle]) {
-        if (push && beat >= 3) continue;
-        if (pushedIn && beat < 1) continue;
+      // Guitar: the fingers play the two-bar figure, re-voiced at each hit so changes land where they
+      // fall; each chord rings until the next hit, never past a change of chord. The thumb plays 1 and
+      // 3 on the bass's note, with the fingers when they pluck there; it never anticipates.
+      const onsets = bassOnsets(barBass, t);
+      /** Where the chord sounding at `beat` stops: the next change in the bar, else the bar's end (the push's and of 4). */
+      const changeAfter = (beat: number) => bar.chords.find((c) => c.attack && c.beat > beat + 0.01)?.beat ?? (push ? 3.5 : changesNext ? 4 : 4.5);
+      const changesNext = !!nextChord?.attack && nextChord.chord !== bar.chords.at(-1)?.chord;
+      const figureHits = GUITAR_FIGURES[figure].bars[cycle].filter(([beat]) => !(push && beat >= 3) && !(pushedIn && beat < 1));
+      /** The finger chords of this bar as [beat, notes, time], for the thumb under them. */
+      const plucked: [number, number[], number][] = [];
+      for (const [beat, , velocity] of figureHits) {
         const slot = chordAt(bar, beat);
         if (!slot) continue;
-        guitar = voiceClear(slot.chord, guitar, GUITAR_RANGE, chordAfter(music, i, beat), under(beat, length * 0.85));
-        events.push({ track: "guitar", time: t + beat + clock.at("guitar"), duration: length * 0.85, velocity: human(velocity * 0.55 * lift, 0.1), notes: guitar });
+        const at = t + beat + clock.at("guitar");
+        guitar = guitarFingers(slot.chord, guitar, { next: chordAfter(music, i, beat), bass: under(beat, 0.5) });
+        const event: NoteEvent = { track: "guitar", time: at, duration: 1, velocity: human(velocity * 0.6 * lift, 0.1), notes: guitar, ...pluck(guitar) };
+        events.push(event);
+        fingers.push({ event, until: t + changeAfter(beat) });
+        plucked.push([beat, guitar, at]);
+      }
+      const thumbFrom = guitar;
+      for (const beat of [0, 2]) {
+        const slot = chordAt(bar, beat);
+        if (!slot) continue;
+        const bassNote = bassStruck(onsets, beat, 0.1, null);
+        // With the fingers when they pluck on the beat (at the same instant), under the chord sounding then.
+        const together = plucked.find(([b]) => Math.abs(b - beat) < 0.01);
+        const sounding = together?.[1] ?? plucked.filter(([b]) => b < beat).at(-1)?.[1] ?? thumbFrom ?? guitarFingers(slot.chord, null, { next: chordAfter(music, i, beat) });
+        const event: NoteEvent = { track: "guitar", time: together ? together[2] : t + beat + clock.at("guitar"), duration: 1.9, velocity: Math.max(0.05, 0.34 * lift + (hand() - 0.5) * 0.08), notes: [guitarThumb(slot.chord, sounding, bassNote)] };
+        events.push(event);
+        thumbs.push({ event, until: t + changeAfter(beat) });
       }
       if (push) {
-        guitar = voiceClear(nextChord!.chord, guitar, GUITAR_RANGE, pushTo, under(3.5, 1));
-        events.push({ track: "guitar", time: t + 3.5 + clock.at("guitar"), duration: 0.8, velocity: human(0.48 * lift, 0.1), notes: guitar });
+        guitar = guitarFingers(nextChord!.chord, guitar, { next: pushTo, bass: under(3.5, 1) });
+        const event: NoteEvent = { track: "guitar", time: t + 3.5 + clock.at("guitar"), duration: 1, velocity: human(0.52 * lift, 0.1), notes: guitar, ...pluck(guitar) };
+        events.push(event);
+        // The pushed chord rings into its own bar, until the next hit there.
+        fingers.push({ event, until: t + 4 + (next?.chords.find((c) => c.attack && c.beat > 0.01)?.beat ?? 4.5) });
       }
 
       // Piano: the section's two-bar groove, A B A B through the phrase, the first bar as written and
@@ -387,7 +423,6 @@ export const bossa: Style = {
       hits.sort((a, b) => a[0] - b[0]);
       // How much of the room to the next hit a chord holds: under the guitar's short chords the piano sustains.
       const share = solos ? 0.82 : 0.9;
-      const changesNext = !!nextChord?.attack && nextChord.chord !== bar.chords.at(-1)?.chord;
       hits.forEach(([beat, length, velocity], h) => {
         if (push && beat >= 3) return;
         if (pushedIn && beat < 1) return;
@@ -443,6 +478,16 @@ export const bossa: Style = {
     function bigFillBefore(prevBar: TimelineBar, bar: TimelineBar) {
       return isFormEnd(prevBar, bar);
     }
+
+    // The guitar's notes ring as a guitarist's do: a chord until just before the next one (a string
+    // plucked again stops first), at most two beats and never past its chord; the thumb until the next thumb note.
+    const ring = (list: { event: NoteEvent; until: number }[], most: number) =>
+      list.forEach(({ event, until }, k) => {
+        const next = list[k + 1]?.event.time ?? Infinity;
+        event.duration = Math.max(0.3, Math.min(most, next - event.time - 0.08, until - event.time - 0.06));
+      });
+    ring(fingers.sort((a, b) => a.event.time - b.event.time), 2);
+    ring(thumbs, 2);
 
     return events.sort((a, b) => a.time - b.time);
   },

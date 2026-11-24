@@ -219,12 +219,17 @@ describe("bossa style", () => {
   });
 
   it("never has guitar and piano on different chords at once", () => {
-    const pcSet = (notes: number[]) => [...new Set(notes.map((n) => n % 12))].sort().join(",");
+    // The guitar's grips take three of the piano's voiced tones, or the chord's root or plain 5th.
     const piano = schedule.events.filter((e) => e.track === "piano");
     let checked = 0;
-    for (const g of schedule.events.filter((e) => e.track === "guitar")) {
+    for (const g of schedule.events.filter((e) => e.track === "guitar" && e.notes!.length > 1)) {
       const under = piano.filter((p) => p.time <= g.time + 0.03 && p.time + p.duration > g.time + 0.03);
-      for (const p of under) expect(pcSet(p.notes!), `beat ${g.time.toFixed(2)}`).toBe(pcSet(g.notes!));
+      const bar = schedule.bars.filter((b) => b.startBeat <= g.time + 0.6).at(-1)!;
+      const chord = bar.chords.filter((c) => c.beat <= g.time - bar.startBeat + 0.6).at(-1)!.chord;
+      for (const p of under) {
+        const allowed = new Set([...p.notes!.map((n) => n % 12), chord.root, (chord.root + 7) % 12]);
+        for (const n of g.notes!) expect(allowed.has(n % 12), `beat ${g.time.toFixed(2)}`).toBe(true);
+      }
       checked += under.length;
     }
     expect(checked).toBeGreaterThan(50);

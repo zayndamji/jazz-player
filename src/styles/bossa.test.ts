@@ -49,15 +49,51 @@ describe("bossa style", () => {
     }
   });
 
-  it("keeps the piano and guitar a minor third clear of the bass", () => {
+  it("keeps the piano and the guitar's chords a minor third clear of the bass", () => {
     for (const chart of [bossaForm, minorBossa])
       for (let transpose = -5; transpose <= 6; transpose++) {
         const s = take(chart, transpose);
         const bass = track(s, "bass");
-        for (const e of [...track(s, "piano"), ...track(s, "guitar")])
+        for (const e of [...track(s, "piano"), ...track(s, "guitar").filter((g) => g.notes!.length > 1)])
           for (const b of bass)
             if (b.time < e.time + e.duration - 0.1 && b.time + b.duration > e.time + 0.1) expect(Math.min(...e.notes!)).toBeGreaterThan(b.notes![0] + 2);
       }
+  });
+
+  it("plucks the guitar's chords as three-note grips, together, with the top note under A4", () => {
+    for (const chart of [bossaForm, minorBossa])
+      for (let transpose = -5; transpose <= 6; transpose++) {
+        const chords = track(take(chart, transpose), "guitar").filter((g) => g.notes!.length > 1);
+        expect(chords.length).toBeGreaterThan(0);
+        for (const e of chords) {
+          const n = e.notes!;
+          expect(n).toHaveLength(3);
+          expect(Math.max(...n)).toBeLessThanOrEqual(69);
+          expect(Math.min(...n)).toBeGreaterThanOrEqual(50);
+          // One note per string: never a half step between neighbours, and seconds only at the top.
+          for (let k = 1; k < n.length; k++) expect(n[k] - n[k - 1]).toBeGreaterThan(k === n.length - 1 ? 1 : 2);
+          // A pinch, not a strum: every note within 6 ms.
+          expect(Math.max(...e.offsets!)).toBeLessThanOrEqual(0.006);
+        }
+      }
+  });
+
+  it("plays the guitar's thumb on 1 and 3, on the bass's note (root or fifth)", () => {
+    for (let transpose = -5; transpose <= 6; transpose++) {
+      const s = take(minorBossa, transpose);
+      const bass = track(s, "bass");
+      const thumbs = track(s, "guitar").filter((g) => g.notes!.length === 1);
+      expect(thumbs.length).toBeGreaterThan(0);
+      for (const e of thumbs) {
+        const bar = barOf(s, e)!;
+        const beat = e.time - bar.startBeat;
+        expect(Math.min(Math.abs(beat), Math.abs(beat - 2))).toBeLessThan(0.1);
+        const struck = bass.filter((b) => b.time <= e.time + 0.1).at(-1)!;
+        const chord = chordUnder(s, e)!;
+        const pc = e.notes![0] % 12;
+        expect(pc === struck.notes![0] % 12 || pc === chord.bass).toBe(true);
+      }
+    }
   });
 
   it("plays each chord of the last bar and holds the last one", () => {
