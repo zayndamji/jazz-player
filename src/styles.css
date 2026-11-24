@@ -817,7 +817,7 @@ input:disabled {
   color: var(--ink);
 }
 
-/* A quiet second line under a setting's label: "all tunes" under Written for. */
+/* A quiet second line under a setting's label: "all tunes" under Instrument. */
 .field .field-note {
   display: block;
   font-size: 12px;
@@ -841,6 +841,38 @@ input:disabled {
   border: 1px solid var(--control-line);
   border-radius: 4px;
   background: var(--bg);
+}
+
+/* Transpose in More: − key (+n) +, framed like the selects beside it. */
+.stepper {
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
+  align-items: stretch;
+  border: 1px solid var(--control-line);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.stepper button {
+  border: 0;
+  background: none;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.stepper button:hover:not(:disabled) {
+  background: var(--bar-control);
+}
+
+.stepper button:disabled {
+  color: var(--control-line);
+}
+
+.stepper output {
+  padding: 4px 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  border-inline: 1px solid var(--line);
 }
 
 .check {
@@ -1174,8 +1206,12 @@ kbd {
   .toggle,
   .quiet,
   .field select,
+  .stepper,
   .check {
     min-height: 44px;
+  }
+  .stepper {
+    grid-template-columns: 44px 1fr 44px;
   }
   .segmented button {
     min-height: 44px;

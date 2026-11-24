@@ -44,6 +44,11 @@ const readInstrument = () => {
 /** "up 2" or "down 3": how far a key is from the original, in half steps. */
 const steps = (n: number) => (n > 0 ? `up ${n}` : `down ${-n}`);
 
+/** Half steps the Transpose control reaches either way: every key, with the tritone both ways. */
+const TRANSPOSE_RANGE = 6;
+/** "+4", "−3", "+0": a transposition as the Transpose control shows it. */
+const signed = (n: number) => (n < 0 ? `−${-n}` : `+${n}`);
+
 /** One player for the whole site, so samples load once even when switching tunes. */
 let sharedPlayer: Player | null = null;
 
@@ -856,8 +861,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
           <label className="field">
             <span>Groove</span>
             <select value={variation} onChange={(e) => setVariation(e.target.value as Variation)}>
-              <option value="varied">Variation</option>
-              <option value="straight">Straight</option>
+              <option value="varied">Varied</option>
+              <option value="straight">Steady</option>
             </select>
           </label>
           {style.twoFeel && (
@@ -872,20 +877,20 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         "key",
         "Key",
         <>
-          <label className="field">
-            <span>Band plays in</span>
-            <select value={transpose} onChange={(e) => setTranspose(Number(e.target.value))}>
-              {Array.from({ length: 12 }, (_, i) => {
-                const n = i - 6;
-                const pc = (chartKeyPc + n + 12) % 12;
-                return (
-                  <option key={n} value={n}>
-                    {keyLabel(pc, minor)} {n === 0 ? "(original)" : `(${steps(n)})`}
-                  </option>
-                );
-              })}
-            </select>
-          </label>
+          <div className="field">
+            <span id="transpose-label">Transpose</span>
+            <div className="stepper" role="group" aria-labelledby="transpose-label">
+              <button type="button" aria-label="Down a half step" disabled={transpose <= -TRANSPOSE_RANGE} onClick={() => setTranspose((t) => Math.max(-TRANSPOSE_RANGE, t - 1))}>
+                −
+              </button>
+              <output aria-live="polite" title={transpose === 0 ? "The original key" : `${steps(transpose)} from ${keyLabel(chartKeyPc, minor)}`}>
+                {keyLabel((chartKeyPc + transpose + 12) % 12, minor)} ({signed(transpose)})
+              </output>
+              <button type="button" aria-label="Up a half step" disabled={transpose >= TRANSPOSE_RANGE} onClick={() => setTranspose((t) => Math.min(TRANSPOSE_RANGE, t + 1))}>
+                +
+              </button>
+            </div>
+          </div>
           <label className="field">
             <span>Key each chorus</span>
             <select value={keyStep} onChange={(e) => setKeyStep(Number(e.target.value) as KeyStep)}>
@@ -898,7 +903,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
           </label>
           <label className="field">
             <span>
-              Written for <span className="field-note">all tunes</span>
+              Instrument <span className="field-note">all tunes</span>
             </span>
             <select value={instrumentId} onChange={(e) => setInstrumentId(e.target.value)}>
               {INSTRUMENTS.map((i) => (
@@ -929,7 +934,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
                   {r === "loop" ? "Until stopped" : r}
                 </option>
               ))}
-              <option value="live">Live</option>
+              <option value="live">Live: end on cue</option>
             </select>
           </label>
           <label className="field">
@@ -984,7 +989,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             <span>Chords shown</span>
             <select value={chordsShown} onChange={(e) => setChordsShown(e.target.value as ChordsShown)}>
               <option value="always">Always</option>
-              <option value="after-first">After the first chorus: hidden</option>
+              <option value="after-first">Hidden after chorus 1</option>
               <option value="hidden">Hidden</option>
             </select>
           </label>
@@ -993,7 +998,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             <select value={speedUp} onChange={(e) => setSpeedUp(Number(e.target.value) as SpeedUp)}>
               {SPEED_UPS.map((n) => (
                 <option key={n} value={n}>
-                  {n === 0 ? "Off" : `+${n} BPM each pass`}
+                  {n === 0 ? "Off" : `+${n} BPM each loop`}
                 </option>
               ))}
             </select>

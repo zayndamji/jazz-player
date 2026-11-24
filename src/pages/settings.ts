@@ -96,7 +96,7 @@ const isBool = (v: unknown): v is boolean => typeof v === "boolean";
 const isInt = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 
 export const validTempo = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= TEMPO.min && v <= TEMPO.max;
-export const validTranspose = (v: unknown): v is number => isInt(v, -6, 5);
+export const validTranspose = (v: unknown): v is number => isInt(v, -6, 6);
 export const validStyle = (v: unknown): v is string => typeof v === "string" && Object.prototype.hasOwnProperty.call(STYLES, v);
 export const validChoruses = (v: unknown): v is Repeat => REPEATS.includes(v as Repeat);
 

@@ -57,7 +57,7 @@ describe("tune settings", () => {
   it("ignores bad fields and keeps good ones", () => {
     const got = parseSettings({
       tempo: 900,
-      transpose: 6,
+      transpose: 7,
       style: "polka",
       choruses: 7,
       countIn: 3,
