@@ -60,7 +60,7 @@ describe("bossa style", () => {
       }
   });
 
-  it("plucks the guitar's chords as three-note grips, together, with the top note under A4", () => {
+  it("plucks the guitar's chords as three-note grips in a light roll, with the top note under A4", () => {
     for (const chart of [bossaForm, minorBossa])
       for (let transpose = -5; transpose <= 6; transpose++) {
         const chords = track(take(chart, transpose), "guitar").filter((g) => g.notes!.length > 1);
@@ -72,8 +72,9 @@ describe("bossa style", () => {
           expect(Math.min(...n)).toBeGreaterThanOrEqual(50);
           // One note per string: never a half step between neighbours, and seconds only at the top.
           for (let k = 1; k < n.length; k++) expect(n[k] - n[k - 1]).toBeGreaterThan(k === n.length - 1 ? 1 : 2);
-          // A pinch, not a strum: every note within 6 ms.
-          expect(Math.max(...e.offsets!)).toBeLessThanOrEqual(0.006);
+          // A light roll up from the lowest string: rising, all of it within 25 ms (a strum takes longer).
+          for (let k = 1; k < n.length; k++) expect(e.offsets![k]).toBeGreaterThan(e.offsets![k - 1]);
+          expect(e.offsets!.at(-1)!).toBeLessThanOrEqual(0.025);
         }
       }
   });
@@ -89,6 +90,8 @@ describe("bossa style", () => {
         const beat = e.time - bar.startBeat;
         expect(Math.min(Math.abs(beat), Math.abs(beat - 2))).toBeLessThan(0.1);
         const struck = bass.filter((b) => b.time <= e.time + 0.1).at(-1)!;
+        // At the bass's own instant, so the two sound as one note.
+        expect(e.time).toBeCloseTo(struck.time, 6);
         const chord = chordUnder(s, e)!;
         const pc = e.notes![0] % 12;
         expect(pc === struck.notes![0] % 12 || pc === chord.bass).toBe(true);

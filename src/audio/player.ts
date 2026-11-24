@@ -153,9 +153,10 @@ export class Player {
       // The melody is a second voice on the piano samples (the same buffer): brighter, with a shorter release so a line reads as legato.
       this.melody = new SpriteSampler({ buffer: piano, regions: sprites.piano.regions, release: 0.3, brightness: { low: 5000, high: 16000 } }).connect(channels.melody);
       this.bass = new SpriteSampler({ buffer: bass, regions: sprites.bass.regions, release: 0.25 }).connect(channels.bass);
-      // A treble lift gives the nylon guitar the presence of the reference recording.
-      const guitarTone = new Tone.Filter({ type: "highshelf", frequency: 2500, gain: 5 }).connect(channels.guitar);
-      this.guitar = new SpriteSampler({ buffer: guitar, regions: sprites.guitar.regions, release: 0.12 }).connect(guitarTone);
+      // A small treble lift for presence; each pluck is darker the softer it is (1.8 to 8 kHz by velocity),
+      // as a nylon string played softly is, since the samples have one loudness.
+      const guitarTone = new Tone.Filter({ type: "highshelf", frequency: 2500, gain: 2 }).connect(channels.guitar);
+      this.guitar = new SpriteSampler({ buffer: guitar, regions: sprites.guitar.regions, release: 0.12, brightness: { low: 1800, high: 8000 } }).connect(guitarTone);
       this.drums = new DrumKit(channels.drums);
       this.drums.load(drums, sprites.drums.regions, sprites.drums.kit);
       this.click = new Tone.Synth({

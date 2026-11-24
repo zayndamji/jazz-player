@@ -14,9 +14,10 @@ import type { DrumSound, NoteEvent, Style } from "./types";
  * measured Band-in-a-Box bossa track (context/reference-backing-track.md):
  * - Bass: 1, and of 2, 3, and of 4. The eighths anticipate the next note.
  * - Guitar: plays like a nylon-string bossa guitarist (src/engine/guitar.ts): the thumb on 1 and 3
- *   on the bass player's note (root or 5th, never anticipated), and the fingers plucking three-note
- *   grips together, a pinch rather than a strum, on a two-bar figure picked per cycle from a few
- *   variations, Gilberto's 1, 2, 3, and of 3, and of 4 among them; each chord rings until the next.
+ *   on the bass player's note and instant (root or 5th, never anticipated), and the fingers plucking
+ *   three-note grips in a light roll (about 5 ms a string), neither a block nor a strum, on a two-bar
+ *   figure picked per cycle from a few variations, Gilberto's 1, 2, 3, and of 3, and of 4 among them;
+ *   each chord rings until the next.
  *   It leads the comping, as on the Getz/Gilberto records (context/original-records.md).
  * - Piano: under the guitar and light: its own sparse two-bar figure of medium-length
  *   chords, so the comping has two voices that answer each other. With the chart's
@@ -243,8 +244,15 @@ export const bossa: Style = {
     // The guitar's finger chords and thumb notes, whose lengths are settled once all are placed.
     const fingers: { event: NoteEvent; until: number }[] = [];
     const thumbs: { event: NoteEvent; until: number }[] = [];
-    /** A pinch: the three fingers within a few milliseconds of each other in no set order, the top a little louder. */
-    const pluck = (notes: number[]) => ({ offsets: notes.map(() => hand() * 0.006), levels: notes.map((_, k) => (k === notes.length - 1 ? 1.08 : 1)) });
+    /**
+     * The fingers' chord: a light roll from the lowest string up, about 5 ms a string with a little
+     * play (10 to 16 ms in all, how a hand plucks, not a block or a strummed pick), starting `after`
+     * seconds in (behind the thumb when both play); the top note a little louder, each string a little uneven.
+     */
+    const pluck = (notes: number[], after = 0) => ({
+      offsets: notes.map((_, k) => after + k * 0.005 + hand() * 0.003),
+      levels: notes.map((_, k) => (k === notes.length - 1 ? 1.06 : k === 0 ? 0.94 : 0.97) * (0.95 + hand() * 0.1)),
+    });
     let figure = 0;
     const book = new GrooveBook(random, 0.5);
     let pushedIn = false; // this bar's first chord was already played on the and of 4
@@ -302,6 +310,8 @@ export const bossa: Style = {
       const range: VoicingRange = shifted(PIANO_RANGE, shift);
 
       const barBass: NoteEvent[] = [];
+      /** The bass's notes on 1 and 3, which the guitar's thumb plays with, at the same instant. */
+      const bassMains: (NoteEvent | null)[] = [null, null];
       const bassAt = (e: NoteEvent) => {
         events.push(e);
         barBass.push(e);
@@ -339,6 +349,7 @@ export const bossa: Style = {
         const pickup = pickups[half];
         const mainEvent: NoteEvent | null = main === null ? null : { track: "bass", time: t + half * 2 + clock.at("bass"), duration: 1.4, velocity: human(0.85 * (0.94 + 0.06 * lift), 0.1), notes: [main] };
         if (mainEvent) bassAt(mainEvent);
+        bassMains[half] = mainEvent;
         if (pickup === null) continue;
         // In the solos, now and then a half step into a new chord instead of anticipating it
         // (from the side that keeps the line within an octave).
@@ -377,7 +388,7 @@ export const bossa: Style = {
       const changesNext = !!nextChord?.attack && nextChord.chord !== bar.chords.at(-1)?.chord;
       const figureHits = GUITAR_FIGURES[figure].bars[cycle].filter(([beat]) => !(push && beat >= 3) && !(pushedIn && beat < 1));
       /** The finger chords of this bar as [beat, notes, time], for the thumb under them. */
-      const plucked: [number, number[], number][] = [];
+      const plucked: [number, number[], NoteEvent][] = [];
       for (const [beat, , velocity] of figureHits) {
         const slot = chordAt(bar, beat);
         if (!slot) continue;
@@ -386,7 +397,7 @@ export const bossa: Style = {
         const event: NoteEvent = { track: "guitar", time: at, duration: 1, velocity: human(velocity * 0.6 * lift, 0.1), notes: guitar, ...pluck(guitar) };
         events.push(event);
         fingers.push({ event, until: t + changeAfter(beat) });
-        plucked.push([beat, guitar, at]);
+        plucked.push([beat, guitar, event]);
       }
       const thumbFrom = guitar;
       for (const beat of [0, 2]) {
@@ -396,8 +407,16 @@ export const bossa: Style = {
         // With the fingers when they pluck on the beat (at the same instant), under the chord sounding then.
         const together = plucked.find(([b]) => Math.abs(b - beat) < 0.01);
         const sounding = together?.[1] ?? plucked.filter(([b]) => b < beat).at(-1)?.[1] ?? thumbFrom ?? guitarFingers(slot.chord, null, { next: chordAfter(music, i, beat) });
-        const event: NoteEvent = { track: "guitar", time: together ? together[2] : t + beat + clock.at("guitar"), duration: 1.9, velocity: Math.max(0.05, 0.34 * lift + (hand() - 0.5) * 0.08), notes: [guitarThumb(slot.chord, sounding, bassNote)] };
+        // On the bass's own instant, so the two sound as one note, not a flam; the fingers roll in just behind.
+        const time = bassMains[beat / 2]?.time ?? together?.[2].time ?? t + beat + clock.at("guitar");
+        const event: NoteEvent = { track: "guitar", time, duration: 1.4, velocity: Math.max(0.05, 0.26 * lift + (hand() - 0.5) * 0.06), notes: [guitarThumb(slot.chord, sounding, bassNote)] };
         events.push(event);
+        if (together) {
+          const chord = together[2];
+          const roll = pluck(chord.notes!, 0.008);
+          chord.time = time;
+          chord.offsets = roll.offsets;
+        }
         thumbs.push({ event, until: t + changeAfter(beat) });
       }
       if (push) {
@@ -487,7 +506,7 @@ export const bossa: Style = {
         event.duration = Math.max(0.3, Math.min(most, next - event.time - 0.08, until - event.time - 0.06));
       });
     ring(fingers.sort((a, b) => a.event.time - b.event.time), 2);
-    ring(thumbs, 2);
+    ring(thumbs, 1.4);
 
     return events.sort((a, b) => a.time - b.time);
   },
