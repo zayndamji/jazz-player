@@ -32,6 +32,10 @@ interface Props {
   sectionStyles?: boolean;
 }
 
+/** The longest word a section name can have and still fit in the gutter beside the first barline ("Ending", "Tag ×2"); on a phone's narrower gutter, `PHONE_GUTTER_WORD` ("Coda"). */
+const GUTTER_WORD = 6;
+const PHONE_GUTTER_WORD = 4;
+
 function ChordSymbol({ symbol, next, showScale, keyPc, sounding }: { symbol: string; /** The chord after it, which can choose the scale. */ next: string | null; showScale: boolean; keyPc: number; sounding: boolean }) {
   const { root, quality, bass } = displayParts(symbol);
   const scale = showScale ? chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], keyPc, next ? parseChord(next) : null) : null;
@@ -106,25 +110,32 @@ export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued
         const looping = part === "form" && loopSection === index;
         const name = part === "form" ? section.label : sectionName(section.label);
         const label = section.repeat && section.repeat > 1 ? `${name} ×${section.repeat}` : name;
+        const tag =
+          part === "form" ? (
+            <button
+              type="button"
+              className="section-label"
+              aria-pressed={looping}
+              aria-label={`${looping ? "Stop looping" : "Loop"} section ${section.label}`}
+              onClick={() => onSection(index)}
+            >
+              {label}
+            </button>
+          ) : (
+            <span className="section-label static">{label}</span>
+          );
+        // A name with a word too long for the gutter ("Interlude") is printed above the section, as the Real Book does;
+        // on a phone a shorter word already is ("Break"). The stylesheet shows one of the two places.
+        const longest = Math.max(...label.split(/\s+/).map((word) => word.length));
+        const above = longest > GUTTER_WORD;
+        const aboveOnPhone = !above && longest > PHONE_GUTTER_WORD;
         return (
-          <section className={`section part-${part}${looping ? " looping" : ""}`} key={`${part}${index}`}>
+          <section className={`section part-${part}${looping ? " looping" : ""}${aboveOnPhone ? " heading-on-phone" : ""}`} key={`${part}${index}`}>
+            {(above || aboveOnPhone) && <div className="section-heading">{tag}</div>}
             {rows.map((row, r) => (
               <div className="row" key={r}>
                 <div className="gutter">
-                  {r === 0 &&
-                    (part === "form" ? (
-                      <button
-                        type="button"
-                        className="section-label"
-                        aria-pressed={looping}
-                        aria-label={`${looping ? "Stop looping" : "Loop"} section ${section.label}`}
-                        onClick={() => onSection(index)}
-                      >
-                        {label}
-                      </button>
-                    ) : (
-                      <span className="section-label static">{label}</span>
-                    ))}
+                  {r === 0 && !above && <span className="gutter-label">{tag}</span>}
                   {r === 0 && section.play && <span className="section-role">{section.play === "head" ? "head" : section.play === "first" ? "first head" : "solos"}</span>}
                   {r === 0 && section.break && <span className="section-role">break</span>}
                   {r === 0 && sectionStyles && !section.break && <span className="section-role">{(STYLES[section.style ?? chart.style]?.name ?? "").toLowerCase()}</span>}

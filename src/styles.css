@@ -240,6 +240,21 @@ input:disabled {
   line-height: 1.35;
 }
 
+/* A section name too long for the gutter, on its own line above the section. */
+.section-heading {
+  display: flex;
+  padding: 6px 0 4px;
+}
+
+/* A name that fits the desktop gutter but not a phone's: in the gutter on desktop, above on a phone. */
+.heading-on-phone > .section-heading {
+  display: none;
+}
+
+.gutter-label {
+  display: contents;
+}
+
 /* Under a rehearsal letter: the section plays only in the head or only in solos. */
 .section-role {
   display: block;
@@ -931,6 +946,12 @@ input:disabled {
 }
 
 @media (max-width: 760px) {
+  .heading-on-phone > .section-heading {
+    display: flex;
+  }
+  .heading-on-phone .gutter-label {
+    display: none;
+  }
   .short {
     display: inline;
   }
