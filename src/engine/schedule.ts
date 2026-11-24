@@ -1,6 +1,7 @@
 import { isMinorKey, keyPitchClass, spellingPc } from "../chart/chords";
 import type { Chart } from "../chart/types";
-import type { NoteEvent, Style, Track, Variation } from "../styles/types";
+import { STYLES } from "../styles";
+import type { Feel, NoteEvent, Style, Track, Variation } from "../styles/types";
 import { fitUnderMelody, melodyEvents, melodySwing, type MelodyMode, type MelodyNote } from "./melody";
 import { applyTrading, markTrading, type TradeMode } from "./trading";
 import { buildTimeline, keyCycle, loopedChoruses, playOrder, rangeOrder, sameRef, sectionOrder, tonicItem, type BarRange, type BarRef, type PlayItem, type TimelineBar } from "./timeline";
@@ -190,6 +191,11 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   }));
   for (const bar of countIn) bar.transpose = full[startAt]?.transpose ?? opts.transpose;
   const music = full.slice(startAt).map((b, i) => ({ ...b, index: i + countInBars, startBeat: (i + countInBars) * beatsPerBar }));
+  // A section's own style plays only when the tune plays in its own style; then every bar says which it plays in,
+  // the count-in taking the first bar's (a pickup into the first bar belongs to that style).
+  const own = style.id === chart.style;
+  for (const b of music) b.style = own && b.style && STYLES[b.style] ? b.style : style.id;
+  for (const bar of countIn) bar.style = music[0]?.style ?? style.id;
   const bars = [...countIn, ...music];
 
   const beats: BeatMark[] = bars.flatMap((bar) =>
@@ -213,7 +219,8 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const band = bandFor(chart, style);
   const pedal = chart.pedal ? keyPitchClass(chart.pedal) : undefined;
   const tempo = opts.tempo ?? chart.tempo;
-  const played = style.generate(bars, 7, { tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, pedal, variation: opts.variation ?? "varied" }).filter((e) => band.includes(e.track));
+  const feel: Feel = { tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, pedal, variation: opts.variation ?? "varied" };
+  const played = playStyles(bars, style, feel, beatsPerBar, chart.band).filter((e) => band.includes(e.track));
   let events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"), { style: style.id, bpm: tempo });
   const melody = opts.melody && opts.melody.mode !== "off" ? opts.melody : null;
   if (melody) {
@@ -221,7 +228,7 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
     // section or range has no head, so only "every chorus" plays there. The intro and ending count as head.
     // The held tonic that ends a song without an ending has no melody of its own.
     const isHead = (b: TimelineBar) => !b.tonic && (b.ref?.part !== "form" || b.chorus === 1 || (opts.choruses !== "loop" && b.chorus === lastChorus));
-    const tune = melodyEvents(chart, bars, melody.measures, (b) => !b.tonic && (melody.mode === "every" || (!sectionLoop && isHead(b))), { swing: melodySwing(style.id, tempo), bpm: tempo });
+    const tune = melodyEvents(chart, bars, melody.measures, (b) => !b.tonic && (melody.mode === "every" || (!sectionLoop && isHead(b))), { swing: (b) => melodySwing(b.style ?? style.id, tempo), bpm: tempo });
     // The comping steps under the melody wherever both sound.
     events = [...fitUnderMelody(events, tune), ...tune].sort((a, b) => a.time - b.time);
   }
@@ -350,7 +357,60 @@ export function mixFor(chart: Chart, style: Style): Partial<Record<Track, number
   return mix;
 }
 
-/** The parts that play a chart in a style. */
+/** The styles a chart plays in its own style: the chart's, then those its sections name (`Section.style`), each once. */
+export function chartStyles(chart: Chart): Style[] {
+  const sections = [...(chart.intro ? [chart.intro] : []), ...chart.form, ...(chart.ending ?? [])];
+  const ids = [chart.style, ...sections.map((s) => s.style ?? chart.style)];
+  return [...new Set(ids)].map((id) => STYLES[id]).filter((s): s is Style => !!s);
+}
+
+/** True when the chart's sections play in more than one style, as they do when the tune plays in its own style. */
+export const mixesStyles = (chart: Chart) => chartStyles(chart).length > 1;
+
+/**
+ * The parts that play a chart in a style: the chart's `band`, else the style's; in the chart's own style, every
+ * part any of its sections' styles plays (a bossa bridge in a swing tune brings its guitar).
+ */
 export function bandFor(chart: Chart, style: Style): Track[] {
-  return chart.band ?? style.band;
+  if (chart.band) return chart.band;
+  if (style.id !== chart.style) return style.band;
+  const all = new Set(chartStyles(chart).flatMap((s) => s.band));
+  return [...style.band, ...[...all].filter((t) => !style.band.includes(t))];
+}
+
+/** Notes ring this far (beats) into a bar of another style, so a change of feel doesn't leave a gap. */
+const STYLE_OVERLAP = 0.02;
+
+/**
+ * The band's notes when each bar may name its own style (`TimelineBar.style`, set by `buildSchedule`). With
+ * one style that style plays everything. Otherwise every style plays the whole timeline, so each knows the
+ * chords around it, the form and the chorus arc, and keeps its notes in its own bars (a note belongs to the
+ * bar it starts in; one played a little early, up to 0.12 beat, to the bar after). A note that would ring
+ * into a bar of another style stops there. The styles' own mixes differ (swing's bass sits 6 dB over the
+ * bossa's), and the player sets one, the chosen style's: each other style's notes take the difference as `gain`.
+ * Each style plays only its own parts (`band`, the chart's when it names one): a swing bridge in a bossa tune
+ * has no guitar, though the bossa A's bring the guitar into the band.
+ */
+export function playStyles(bars: TimelineBar[], style: Style, feel: Feel, beatsPerBar: number, band?: Track[]): NoteEvent[] {
+  const idOf = (b: TimelineBar) => b.style ?? style.id;
+  const ids = [...new Set(bars.map(idOf))];
+  if (ids.length === 1 && ids[0] === style.id) return style.generate(bars, 7, feel);
+  const barAt = (time: number) => bars[Math.min(bars.length - 1, Math.max(0, Math.floor(time / beatsPerBar + 0.03)))];
+  // Where the style changes after each bar: the first beat of the next bar in another style.
+  const change: number[] = [];
+  for (let i = bars.length - 1; i >= 0; i--) change[i] = i + 1 < bars.length && idOf(bars[i + 1]) !== idOf(bars[i]) ? bars[i + 1].startBeat : (change[i + 1] ?? Infinity);
+  const out: NoteEvent[] = [];
+  for (const id of ids) {
+    const s = STYLES[id] ?? style;
+    const parts = band ?? s.band;
+    for (const e of s.generate(bars, 7, feel)) {
+      const bar = barAt(e.time);
+      if (idOf(bar) !== id || !parts.includes(e.track)) continue;
+      const stop = change[bar.index] + STYLE_OVERLAP;
+      const duration = e.track !== "drums" && e.time + e.duration > stop ? Math.max(0.05, stop - e.time) : e.duration;
+      const db = (s.mix?.[e.track] ?? 0) - (style.mix?.[e.track] ?? 0);
+      out.push(db || duration !== e.duration ? { ...e, duration, ...(db ? { gain: (e.gain ?? 1) * 10 ** (db / 20) } : {}) } : e);
+    }
+  }
+  return out.sort((a, b) => a.time - b.time);
 }

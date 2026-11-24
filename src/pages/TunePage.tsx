@@ -11,11 +11,11 @@ import { LeadSheet } from "../components/LeadSheet";
 import { Mixer, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
 import { MELODY_LABELS, MELODY_MODES, type MelodyMode, type MelodyNote } from "../engine/melody";
-import { bandFor, buildSchedule, chorusesFor, chorusLayoutChanges, clickLabel, performanceBeats, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
+import { bandFor, buildSchedule, chorusesFor, mixesStyles, chorusLayoutChanges, clickLabel, performanceBeats, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
 import { chartBars, chorusTranspose, chordAt, fold, itemAtFraction, keyCycle, nextChord, performanceFraction, navOrder, playOrder, rangeBars, rangeOrder, sameRef, stepBar, stepSection, type BarRange, type BarRef, type KeyStep, type PlayItem } from "../engine/timeline";
 import { STYLES, playableStyle, stylesFor } from "../styles";
 import type { Style, Variation } from "../styles/types";
-import { barName, barsLabel, keyLabel, keyWords, sectionName as shownSection, shownNumber } from "./format";
+import { barName, barsLabel, keyLabel, keyWords, sectionName as shownSection, shownNumber, styleNames } from "./format";
 import { TRADE_LABELS, TRADE_MODES, tradeLabel, type TradeMode } from "../engine/trading";
 import { shareUrl, rememberable, withLink, type LinkSettings } from "./share";
 import { recordOpened } from "./tuneList";
@@ -84,6 +84,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   /** The band's style: the chart's own by default, any other on request. */
   const [styleId, setStyleId] = useState(playableStyle(chart, initial.style));
   const style = STYLES[playableStyle(chart, styleId)];
+  /** The tune plays in its own style and its sections in more than one (Latin A's, a swing bridge). */
+  const sectionStyles = style.id === chart.style && mixesStyles(chart);
   const chartKeyPc = keyPitchClass(chart.key);
   const minor = isMinorKey(chart.key);
   const bars = useMemo(() => chartBars(chart), [chart]);
@@ -852,8 +854,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             <select value={styleId} onChange={(e) => setStyleId(e.target.value)}>
               {stylesFor(chart).map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.id === chart.style ? " (original)" : ""}
+                  {s.id === chart.style ? `${styleNames(chart)} (original)` : s.name}
                 </option>
               ))}
             </select>
@@ -1051,7 +1052,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         </a>
         <h1>{chart.title}</h1>
         <p className="meta">
-          <span>{style.name}</span>
+          <span>{sectionStyles ? styleNames(chart) : style.name}</span>
           <span>
             {keyWords(concertKeyPc, minor)}
             {shownTranspose !== 0 && `, ${steps(shownTranspose)} from ${keyLabel(chartKeyPc, minor)}`}
@@ -1099,6 +1100,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             onBar={onBar}
             onRange={onRange}
             onSection={(s) => toggleLoop(s)}
+            sectionStyles={sectionStyles}
           />
         )}
       </main>

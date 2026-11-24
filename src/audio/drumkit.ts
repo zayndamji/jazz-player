@@ -28,6 +28,7 @@ const TRIM: Record<DrumSound, number> = {
   hat: 3.2,
   pedal: 0.9,
   ride: 1.8,
+  bell: 0.9,
   crash: 0.45,
   tomHigh: 0.7,
   tomLow: 0.75,

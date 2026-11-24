@@ -152,7 +152,7 @@ const LEAP = 12;
  * The bass note of pitch class `pc` nearest `from` (and `to`, when given), never more than an
  * octave from either, leaning toward `home`; `avoid` (a repeated note) is taken only when nothing else fits.
  */
-function placeBass(pc: number, from: number, to: number | null = null, home: number | null = BASS_HOME, avoid: number | null = null): number {
+export function placeBass(pc: number, from: number, to: number | null = null, home: number | null = BASS_HOME, avoid: number | null = null): number {
   let best = from;
   let bestScore = Infinity;
   for (let n = BASS_LOW + ((pc - BASS_LOW + 120) % 12); n <= BASS_HIGH; n += 12) {
@@ -174,7 +174,7 @@ const rubs = (pc: number, chord: ParsedChord, next: ParsedChord | null) =>
  * voicing (with `next`, the chord after, as the piano and guitar voice it) has a tone a half step from
  * the fifth, a b13 or #5 (written, or a dominant into minor) or a #11 or b5 on a dominant, the root again.
  */
-function otherPc(chord: ParsedChord, next: ParsedChord | null): number {
+export function otherPc(chord: ParsedChord, next: ParsedChord | null): number {
   if (chord.bass !== chord.root) return chord.root;
   const fifth = (chord.root + (chord.intervalNames.includes("5d") && chord.intervalNames.includes("3m") ? 6 : 7)) % 12;
   return rubs(fifth, chord, next) ? chord.root : fifth;
@@ -231,7 +231,7 @@ export const bossa: Style = {
     const human = (v: number, spread = 0.08) => Math.min(1, Math.max(0.05, v + (random() - 0.5) * spread));
     const clock = timing(random, feel?.tempo ?? 150);
     const pocket: Record<DrumSound, "hat" | "ride" | "kick" | "snare" | "pedal" | "fill"> = {
-      hat: "hat", ride: "ride", kick: "kick", rim: "snare", snare: "snare", pedal: "pedal", crash: "fill", tomHigh: "fill", tomLow: "fill", brush: "snare", brushTap: "snare",
+      hat: "hat", ride: "ride", bell: "ride", kick: "kick", rim: "snare", snare: "snare", pedal: "pedal", crash: "fill", tomHigh: "fill", tomLow: "fill", brush: "snare", brushTap: "snare",
     };
     const events: NoteEvent[] = [];
     // The chorus's drum level (feel.ts `ChorusPlan.drums`), as a gain that leaves the sample layer alone.

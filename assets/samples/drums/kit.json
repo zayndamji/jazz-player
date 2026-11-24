@@ -88,6 +88,20 @@
    "ride-v3-r2.mp3"
   ]
  ],
+ "bell": [
+  [
+   "bell-v1-r1.mp3",
+   "bell-v1-r2.mp3"
+  ],
+  [
+   "bell-v2-r1.mp3",
+   "bell-v2-r2.mp3"
+  ],
+  [
+   "bell-v3-r1.mp3",
+   "bell-v3-r2.mp3"
+  ]
+ ],
  "crash": [
   [
    "crash-v1-r1.mp3"

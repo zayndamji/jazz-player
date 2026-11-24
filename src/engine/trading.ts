@@ -469,11 +469,13 @@ export function applyTrading(events: NoteEvent[], bars: TimelineBar[], beatsPerB
       const key = (first.chorus * 53 + (first.ref ? first.ref.section * 31 + first.ref.bar : 0)) * 17;
       const random = seededRandom(seed * 1000 + key);
       const gain = levels.get(run);
-      kept.push(...drumSolo(run.map((b) => b.startBeat), beatsPerBar, random, feel, gain));
+      // In a tune whose sections play in different styles, the solo takes the style of the bars it plays over.
+      const runFeel = feel && first.style ? { ...feel, style: first.style } : feel;
+      kept.push(...drumSolo(run.map((b) => b.startBeat), beatsPerBar, random, runFeel, gain));
       const after = first.startBeat + run.length * beatsPerBar;
       if (bars.some((b) => b.startBeat === after && b.trade === "you")) {
         // The crash back, a touch off the grid like the band's downbeat, softer behind brushes and bossa.
-        const grid = gridFor(feel, beatsPerBar);
+        const grid = gridFor(feel && first.style ? { ...feel, style: first.style } : feel, beatsPerBar);
         const ms = Math.max(-8, Math.min(8, gauss(random) * 3));
         kept.push(hit(after + (ms / 1000) * (grid.bpm / 60), "crash", grid.kit === "brushes" ? 0.42 : grid.kit === "samba" ? 0.5 : 0.6, 1.5, gain));
       }

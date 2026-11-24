@@ -69,6 +69,11 @@ export interface TimelineBar {
   open?: boolean;
   /** In the copies the Transport loops (set by `buildSchedule`): the arc doesn't ramp into them, since the loop wraps back to them. */
   repeats?: boolean;
+  /**
+   * The style id this bar plays in, when its section names one (`Section.style`). `buildSchedule` keeps it only
+   * when the tune plays in its own style, and sets it on every bar then, so a bar without it plays the style chosen.
+   */
+  style?: string;
 }
 
 /** What to play, before chords are filled in. */
@@ -247,6 +252,7 @@ export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number
     const contrast = item.ref.part === "form" && label !== (firstLabel.get(item.chorus) ?? chart.form[0].label);
     const bar: TimelineBar = { transpose: barTranspose, index, startBeat: index * beats, ref: item.ref, chorus: item.chorus, label, contrast, chords, countIn: false, final: !!item.tonic };
     if (item.tonic) bar.tonic = true;
+    if (section?.style) bar.style = section.style;
     return bar;
   });
   const last = bars.at(-1);

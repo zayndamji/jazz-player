@@ -1,0 +1,16 @@
+{
+  "id": "latin-form",
+  "title": "Latin form (test fixture)",
+  "key": "F",
+  "tempo": 190,
+  "beatsPerBar": 4,
+  "style": "latin",
+  "intro": { "label": "Intro", "bars": ["Gm7", "C7", "Gm7", "C7"] },
+  "form": [
+    { "label": "A", "bars": ["Fmaj7", "%", "Fm7", "%", "Gm7", "C7", "Am7 D7", "Gm7 C7"] },
+    { "label": "A", "bars": ["Fmaj7", "%", "Fm7", "%", "Gm7", "C7", "Fmaj7", "%"] },
+    { "label": "B", "style": "swing", "bars": ["Cm7", "F7", "Bbmaj7", "%", "Bm7b5", "E7", "Am7 D7", "Gm7 C7"] },
+    { "label": "A", "bars": ["Fmaj7", "%", "Fm7", "%", "Gm7", "C7", "Fmaj7", "Gm7 C7"] }
+  ],
+  "ending": [{ "label": "End", "bars": ["Gm7 C7", "Fmaj7"] }]
+}

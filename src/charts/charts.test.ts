@@ -14,6 +14,9 @@ describe("charts", () => {
     expect(chart.id).toBe(file);
     expect(validateChart(chart)).toEqual([]);
     expect(STYLES[chart.style], `style "${chart.style}"`).toBeDefined();
+    // A section's own style is one the player knows and that plays the chart's meter.
+    for (const section of [...(chart.intro ? [chart.intro] : []), ...chart.form, ...(chart.ending ?? [])])
+      if (section.style) expect(STYLES[section.style] && playsMeter(STYLES[section.style], chart.beatsPerBar), `section ${section.label} style "${section.style}"`).toBe(true);
   });
 
   // Any tune can be played in any style, at its own tempo, fast, and in two.

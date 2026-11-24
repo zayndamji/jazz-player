@@ -104,7 +104,9 @@ describe("iReal charts", () => {
 
   it("maps iReal styles", () => {
     expect(styleFor("Bossa Nova", 4)).toBe("bossa");
-    expect(styleFor("Latin", 4)).toBe("bossa");
+    expect(styleFor("Latin", 4)).toBe("latin");
+    expect(styleFor("Afro Cuban", 4)).toBe("latin");
+    expect(styleFor("Samba", 4)).toBe("bossa");
     expect(styleFor("Ballad Swing", 4)).toBe("ballad");
     expect(styleFor("Medium Up Swing", 4)).toBe("swing");
     expect(styleFor("Even 8ths", 4)).toBe("swing");

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { barName, barsLabel, sectionName, shownNumber } from "./format";
+import { latinForm, swingForm } from "../fixtures";
+import { barName, barsLabel, sectionName, shownNumber, styleNames } from "./format";
 
 const bar = (part: "intro" | "form" | "ending", number: number) => ({ ref: { part }, number });
 
@@ -26,5 +27,12 @@ describe("section names", () => {
     expect(sectionName("Coda")).toBe("Ending");
     expect(sectionName("Tag")).toBe("Tag");
     expect(sectionName("A")).toBe("A");
+  });
+});
+
+describe("style names", () => {
+  it("names every style a tune's sections play", () => {
+    expect(styleNames(latinForm)).toBe("Latin and swing");
+    expect(styleNames(swingForm)).toBe("Swing");
   });
 });

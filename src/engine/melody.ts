@@ -109,8 +109,11 @@ export function melodySwing(styleId: string, bpm: number): number {
 
 /** How the melody is played rather than printed. */
 export interface MelodyFeel {
-  /** Where an offbeat eighth falls in the beat: 0.5 (the default) plays it as written, 2/3 a triplet swing. */
-  swing?: number;
+  /**
+   * Where an offbeat eighth falls in the beat: 0.5 (the default) plays it as written, 2/3 a triplet swing;
+   * or a ratio per bar, for a tune whose sections play in different styles (Latin A's straight, a swing bridge).
+   */
+  swing?: number | ((bar: TimelineBar) => number);
   /** Tempo in BPM; with it each note gets a small seeded timing error and sits a little behind the beat. */
   bpm?: number;
   /** Seed for the timing error. */
@@ -178,7 +181,7 @@ export function melodyEvents(chart: Chart, bars: TimelineBar[], measures: Melody
     if (!notes) return;
     const next = bars[i + 1];
     const continues = sounding(next) && numberOf(next!) === n! + 1;
-    const warp = swingWarp(notes, feel.swing ?? 0.5);
+    const warp = swingWarp(notes, typeof feel.swing === "function" ? feel.swing(bar) : (feel.swing ?? 0.5));
     let last: { start: number; time: number } | undefined;
     for (const note of notes) {
       const length = continues ? note.length : Math.min(note.length, chart.beatsPerBar - note.start);

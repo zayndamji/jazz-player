@@ -65,7 +65,7 @@ export const five: Style = {
     const first = music[0].startBeat;
     const place = (time: number, part: Parameters<typeof clock.at>[0]) => Math.max(first, time + clock.at(part));
     const pocket: Record<DrumSound, "ride" | "hat" | "pedal" | "kick" | "snare" | "fill"> = {
-      ride: "ride", hat: "hat", pedal: "pedal", kick: "kick", snare: "snare", rim: "snare", tomHigh: "fill", tomLow: "fill", crash: "fill", brush: "snare", brushTap: "snare",
+      ride: "ride", bell: "ride", hat: "hat", pedal: "pedal", kick: "kick", snare: "snare", rim: "snare", tomHigh: "fill", tomLow: "fill", crash: "fill", brush: "snare", brushTap: "snare",
     };
     // The chorus's drum level (feel.ts `ChorusPlan.drums`), as a gain that leaves the sample layer alone.
     let drumLevel = 1;

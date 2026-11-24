@@ -4,6 +4,7 @@ import { chordScale } from "../chart/scales";
 import type { Chart, Section } from "../chart/types";
 import { chartBars, sameRef, type BarRef } from "../engine/timeline";
 import { barName, sectionName, shownNumber } from "../pages/format";
+import { STYLES } from "../styles";
 import { neighbourRow, scrollBehavior, tabStop, useBarPress, useFocusFollow } from "./barPress";
 
 interface Props {
@@ -27,6 +28,8 @@ interface Props {
   /** Loop from the bar last clicked to this one (Shift-click, or press and hold on touch). */
   onRange: (ref: BarRef) => void;
   onSection: (section: number) => void;
+  /** Print each section's style under its letter: the tune plays in its own style, and its sections in more than one. */
+  sectionStyles?: boolean;
 }
 
 function ChordSymbol({ symbol, next, showScale, keyPc, sounding }: { symbol: string; /** The chord after it, which can choose the scale. */ next: string | null; showScale: boolean; keyPc: number; sounding: boolean }) {
@@ -44,7 +47,7 @@ function ChordSymbol({ symbol, next, showScale, keyPc, sounding }: { symbol: str
   );
 }
 
-export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued, showScales, hideChords = false, loopSection, loopRange, onBar, onRange, onSection }: Props) {
+export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued, showScales, hideChords = false, loopSection, loopRange, onBar, onRange, onSection, sectionStyles = false }: Props) {
   const press = useBarPress(onBar, onRange);
   const introBars = chart.intro?.bars.length ?? 0;
   const numbers = new Map(chartBars(chart).map((b) => [`${b.ref.part}${b.ref.section}.${b.ref.bar}`, b]));
@@ -123,6 +126,7 @@ export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued
                       <span className="section-label static">{label}</span>
                     ))}
                   {r === 0 && section.play && <span className="section-role">{section.play === "head" ? "head" : "solos"}</span>}
+                  {r === 0 && sectionStyles && <span className="section-role">{(STYLES[section.style ?? chart.style]?.name ?? "").toLowerCase()}</span>}
                 </div>
                 {row.map((text, i) => {
                   const bar = r * 4 + i;

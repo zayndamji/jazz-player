@@ -144,7 +144,7 @@ function waltzFills(sw: number) {
 }
 
 const DRUM_POCKET: Record<DrumSound, "ride" | "hat" | "pedal" | "kick" | "snare" | "fill"> = {
-  ride: "ride", hat: "hat", pedal: "pedal", kick: "kick", snare: "snare", rim: "snare",
+  ride: "ride", bell: "ride", hat: "hat", pedal: "pedal", kick: "kick", snare: "snare", rim: "snare",
   tomHigh: "fill", tomLow: "fill", crash: "fill", brush: "snare", brushTap: "snare",
 };
 

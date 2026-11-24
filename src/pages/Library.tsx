@@ -3,7 +3,8 @@ import { isMinorKey, keyPitchClass } from "../chart/chords";
 import { allCharts, isImported, removeImported } from "../charts/imported";
 import { hasHead } from "../charts/heads";
 import { STYLES } from "../styles";
-import { keyLabel } from "./format";
+import { chartStyles } from "../engine/schedule";
+import { keyLabel, styleNames } from "./format";
 import { ImportPanel } from "./ImportPanel";
 import { countLabel, listTunes, readOpened, readView, saveView, type Sort } from "./tuneList";
 
@@ -25,7 +26,7 @@ export function Library({ missing }: { /** A tune id in the address that matches
   const [version, setVersion] = useState(0);
   const charts = useMemo(allCharts, [version]);
   const shown = useMemo(() => listTunes(charts, view, opened), [charts, view, opened]);
-  const styles = [...new Set(charts.map((c) => c.style))];
+  const styles = [...new Set(charts.flatMap((c) => [c.style, ...chartStyles(c).map((s) => s.id)]))];
 
   return (
     <div className="app library">
@@ -75,7 +76,7 @@ export function Library({ missing }: { /** A tune id in the address that matches
             <a href={`#/tune/${c.id}`}>
               <span className="tune-title">{c.title}</span>
               <span className="tune-meta">
-                {STYLES[c.style]?.name ?? c.style} · {keyLabel(keyPitchClass(c.key), isMinorKey(c.key))} · {c.tempo} BPM{hasHead(c.id) && " · Lead sheet"}
+                {styleNames(c)} · {keyLabel(keyPitchClass(c.key), isMinorKey(c.key))} · {c.tempo} BPM{hasHead(c.id) && " · Lead sheet"}
                 {isImported(c) && " · Imported"}
               </span>
             </a>

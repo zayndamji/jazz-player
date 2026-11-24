@@ -8,6 +8,7 @@ build the file the site loads.
 
   python3 scripts/fetch_drum_samples.py            # fetch and convert
   python3 scripts/fetch_drum_samples.py --dry-run  # list what it would fetch
+  python3 scripts/fetch_drum_samples.py --only bell # fetch only these sounds (kit.json still lists all)
 
 Needs ffmpeg (and curl, or a Python with SSL certificates). Plain Python 3.
 """
@@ -32,6 +33,7 @@ KIT = {
     "hat": ("oh", "hh", "hh_closed", [1, 2, 3, 4], [1, 2], 0.5, False),
     "pedal": ("oh", "hh", "hh_pedal", [1, 2, 3], [1], 0.6, False),
     "ride": ("oh", "ride", "ride_ride", [1, 2, 3], [1, 2], 2.5, False),
+    "bell": ("oh", "ride", "ride_bell", [1, 2, 3], [1, 2], 2.0, False),
     "crash": ("oh", "crash", "crash_crash", [1, 2, 3], [1], 3.5, False),
     "tomHigh": ("oh", "htom", "htom_center", [6, 12], [None], 1.0, False),
     "tomLow": ("oh", "ltom", "ltom_center", [6, 12], [None], 1.2, False),
@@ -73,6 +75,7 @@ def convert(src: Path, dst: Path, seconds: float, mono: bool):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--only", nargs="+", metavar="SOUND", help="fetch only these sounds; the others' files stay as they are")
     args = ap.parse_args()
     if not args.dry_run and not shutil.which("ffmpeg"):
         sys.exit("ffmpeg is needed: brew install ffmpeg")
@@ -86,7 +89,8 @@ def main():
             for rr in rrs:
                 name = f"{sound}-v{layer}" + (f"-r{rr}" if rr else "") + ".mp3"
                 takes.append(name)
-                jobs.append((f"{REPO}/{mic}/{folder}/{source_name(mic, art, layer, rr)}", name, seconds, mono))
+                if not args.only or sound in args.only:
+                    jobs.append((f"{REPO}/{mic}/{folder}/{source_name(mic, art, layer, rr)}", name, seconds, mono))
             manifest[sound].append(takes)
 
     if args.dry_run:

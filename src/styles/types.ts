@@ -1,8 +1,8 @@
 import type { TimelineBar } from "../engine/timeline";
 
 export type Track = "bass" | "piano" | "guitar" | "drums" | "melody";
-/** "brush" is a sweep across the snare, "brushTap" a brush stroke on it; both are synthesized. */
-export type DrumSound = "kick" | "rim" | "hat" | "pedal" | "ride" | "snare" | "tomHigh" | "tomLow" | "crash" | "brush" | "brushTap";
+/** "bell" is the ride cymbal's bell. "brush" is a sweep across the snare, "brushTap" a brush stroke on it; both are synthesized. */
+export type DrumSound = "kick" | "rim" | "hat" | "pedal" | "ride" | "bell" | "snare" | "tomHigh" | "tomLow" | "crash" | "brush" | "brushTap";
 
 /** One note or drum hit, timed in beats from the start of playback. */
 export interface NoteEvent {
@@ -18,7 +18,10 @@ export interface NoteEvent {
   levels?: number[];
   /** Seconds the notes fade after `duration` ends, in place of the instrument's own release (a piano's damper on a short chord). */
   release?: number;
-  /** Drums: a level factor on top of velocity, which leaves the sample layer as it is (a style's cymbal balance). */
+  /**
+   * A level factor on top of velocity, which leaves the sample layer (drums) or the tone (piano) as it is: a
+   * style's cymbal balance, or a section in another style brought to the chosen style's mix (`playStyles`).
+   */
   gain?: number;
   /** Which drum for the drums track. */
   drum?: DrumSound;

@@ -114,8 +114,11 @@ export class SpriteSampler {
     return this;
   }
 
-  /** Velocity is the gain, as in Tone.Sampler. `release` replaces the instrument's release for this note. */
-  triggerAttackRelease(midi: number, duration: number, time: number, velocity = 1, release = this.options.release) {
+  /**
+   * Velocity is the gain, as in Tone.Sampler. `release` replaces the instrument's release for this note. `gain`
+   * scales the level and leaves the velocity's brightness alone.
+   */
+  triggerAttackRelease(midi: number, duration: number, time: number, velocity = 1, release = this.options.release, gain = 1) {
     const { midi: sampled, rate } = pickSample(midi, this.names);
     const region = this.byMidi.get(sampled)!;
     const { offset, maxLen } = voiceSpan(region, rate);
@@ -126,6 +129,7 @@ export class SpriteSampler {
       playbackRate: rate,
     });
     const amp = Tone.getContext().createGain();
+    amp.gain.value = gain;
     source.connect(amp);
     let filter: Tone.Filter | undefined;
     const b = this.options.brightness;

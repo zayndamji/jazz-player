@@ -7,7 +7,9 @@ import type { Variation } from "./types";
 
 /** The drums' rhythm in each bar (sound and half beat, wide enough for the timing pockets), for the bars inside the form away from its ends. */
 function drumBars(chartId: string, styleId: string, variation: Variation) {
-  const chart = FIXTURES.find((c) => c.id === chartId)!;
+  const found = FIXTURES.find((c) => c.id === chartId)!;
+  // One style's groove: sections that name their own style play in it too.
+  const chart = { ...found, form: found.form.map(({ style: _, ...section }) => section) };
   const s = buildSchedule(chart, STYLES[styleId], { choruses: 3, countIn: false, transpose: 0, intro: false, ending: false, variation });
   const per = chart.beatsPerBar;
   return s.bars
@@ -28,8 +30,9 @@ describe("straight feel", () => {
       it(`keeps one drum groove in ${style.id} over ${chart.id}`, () => {
         const straight = new Set(drumBars(chart.id, style.id, "straight"));
         const varied = new Set(drumBars(chart.id, style.id, "varied"));
-        // Every style's straight groove repeats every bar (bossa's cross-stick is on 2 and 4, not a two-bar clave).
-        expect(straight.size).toBe(1);
+        // Every style's straight groove repeats every bar (bossa's cross-stick is on 2 and 4, not a two-bar clave);
+        // Latin's repeats every two, the clave's 2 side and 3 side.
+        expect(straight.size).toBe(style.id === "latin" ? 2 : 1);
         expect(varied.size).toBeGreaterThan(1);
       });
     }

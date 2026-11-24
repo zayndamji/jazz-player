@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Chart } from "../chart/types";
-import { balladForm, bossaForm, swingForm } from "../fixtures";
+import { balladForm, bossaForm, latinForm, swingForm } from "../fixtures";
 import { countLabel, listTunes, readOpened, readView, recordOpened, saveView } from "./tuneList";
 
 const local = new Map<string, string>();
@@ -21,6 +21,12 @@ describe("library list", () => {
     expect(titles).toEqual([...titles].sort((a, b) => a.localeCompare(b)));
     expect(listTunes(charts, { ...view, query: "BOSSA" }, {}).map((c) => c.id)).toEqual([bossaForm.id]);
     expect(listTunes(charts, { ...view, style: "ballad" }, {}).map((c) => c.id)).toEqual([balladForm.id]);
+  });
+
+  it("lists a tune under every style its sections play", () => {
+    const all = [...charts, latinForm];
+    expect(listTunes(all, { ...view, style: "latin" }, {}).map((c) => c.id)).toEqual([latinForm.id]);
+    expect(listTunes(all, { ...view, style: "swing" }, {}).map((c) => c.id)).toEqual([latinForm.id, swingForm.id]);
   });
 
   it("puts the most recently opened first, the rest A to Z", () => {

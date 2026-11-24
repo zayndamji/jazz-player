@@ -358,8 +358,8 @@ export class Player {
         const velocity = e.velocity * (e.levels?.[i] ?? 1) * (e.track === "guitar" && !e.levels ? 1 - i * 0.04 : 1);
         const at = time + (e.offsets?.[i] ?? 0) + strum;
         if (cut !== null && at >= cut) return;
-        if (cut !== null && at + duration > cut) instrument.triggerAttackRelease(n, cut - at, at, velocity, FADE);
-        else instrument.triggerAttackRelease(n, duration, at, velocity, e.release);
+        if (cut !== null && at + duration > cut) instrument.triggerAttackRelease(n, cut - at, at, velocity, FADE, e.gain);
+        else instrument.triggerAttackRelease(n, duration, at, velocity, e.release, e.gain);
       });
     }
   }

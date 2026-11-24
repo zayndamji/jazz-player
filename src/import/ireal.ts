@@ -91,12 +91,13 @@ export function styleFor(ireal: string, beatsPerBar: number): string {
   const s = ireal.toLowerCase();
   if (beatsPerBar === 5) return "five";
   if (beatsPerBar === 3 || /waltz/.test(s)) return "waltz";
-  if (/bossa|latin|samba|brazil|afro/.test(s)) return "bossa";
+  if (/bossa|samba|brazil/.test(s)) return "bossa";
+  if (/latin|afro|mambo|cha|salsa/.test(s)) return "latin";
   if (/ballad/.test(s)) return "ballad";
   return "swing";
 }
 
-const DEFAULT_TEMPO: Record<string, number> = { swing: 140, bossa: 130, ballad: 66, waltz: 150 };
+const DEFAULT_TEMPO: Record<string, number> = { swing: 140, bossa: 130, latin: 180, ballad: 66, waltz: 150 };
 
 /** iReal chord quality as our chord parser reads it. */
 export function qualityOf(raw: string): string {

@@ -1,4 +1,6 @@
 import { keyName as plainKeyName, minorKeyName } from "../chart/chords";
+import type { Chart } from "../chart/types";
+import { chartStyles } from "../engine/schedule";
 
 const pretty = (name: string) => name.replace("b", "♭").replace("#", "♯");
 
@@ -45,4 +47,10 @@ export function barsLabel(first: NumberedBar, last: NumberedBar, introBars: numb
   if (a !== null && b !== null) return `Bars ${a}-${b}`;
   if (a === null && b === null) return `Intro bars ${first.number}-${last.number}`;
   return `Intro to bar ${b}`;
+}
+
+/** A chart's own styles by name: "Latin and swing" for Latin A's with a swing bridge, one name when its sections all play one style. */
+export function styleNames(chart: Chart): string {
+  const names = chartStyles(chart).map((s, k) => (k ? s.name.toLowerCase() : s.name));
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? chart.style);
 }

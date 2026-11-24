@@ -69,6 +69,12 @@ export interface Section {
    * the choruses between, for tunes whose solo changes differ from the head. Default: every chorus.
    */
   play?: "head" | "solos";
+  /**
+   * The backing style this section plays in, when it differs from the chart's `style`: Latin A sections
+   * with a swing bridge ("latin" on the A's, the chart's style "swing"). Used when the tune plays in its own
+   * style; any other style chosen on the page plays the whole tune.
+   */
+  style?: string;
 }
 
 /** One chord placed in a bar. */

@@ -420,7 +420,7 @@ const CYMBALS = 10 ** (2 / 20);
 
 /** Which timing pocket (feel.ts) each drum sits in. */
 const DRUM_POCKET: Record<DrumSound, "ride" | "hat" | "pedal" | "kick" | "snare" | "fill"> = {
-  ride: "ride", hat: "hat", pedal: "pedal", kick: "kick", snare: "snare", rim: "snare",
+  ride: "ride", bell: "ride", hat: "hat", pedal: "pedal", kick: "kick", snare: "snare", rim: "snare",
   tomHigh: "fill", tomLow: "fill", crash: "fill", brush: "snare", brushTap: "snare",
 };
 
