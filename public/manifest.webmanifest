@@ -1,6 +1,6 @@
 {
-  "name": "Jazz Player",
-  "short_name": "Jazz Player",
+  "name": "Bandstand",
+  "short_name": "Bandstand",
   "description": "Jazz chord charts with a generated backing band and metronome.",
   "start_url": "./",
   "scope": "./",

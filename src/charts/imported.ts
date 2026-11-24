@@ -5,7 +5,7 @@ import { CHARTS, getChart, validateChart } from ".";
 
 /** Charts the user imported, kept in this browser. Ids start with this so they never meet a real tune's. */
 export const IMPORTED_PREFIX = "imported-";
-export const IMPORTED_KEY = "jazz-player.imported";
+export const IMPORTED_KEY = "bandstand.imported";
 
 export const isImported = (chart: { id: string }) => chart.id.startsWith(IMPORTED_PREFIX);
 

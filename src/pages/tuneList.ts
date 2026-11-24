@@ -9,8 +9,8 @@ export interface LibraryView {
   sort: Sort;
 }
 
-const VIEW_KEY = "jazz-player.library";
-const OPENED_KEY = "jazz-player.opened";
+const VIEW_KEY = "bandstand.library";
+const OPENED_KEY = "bandstand.opened";
 
 /** The search, style filter and sort, kept for the visit so going to a tune and back finds the list as it was. */
 export function readView(): LibraryView {

@@ -42,7 +42,7 @@ describe("remembering the list and when tunes opened", () => {
     expect(readView()).toEqual(view);
     saveView({ query: "blue", style: "swing", sort: "recent" });
     expect(readView()).toEqual({ query: "blue", style: "swing", sort: "recent" });
-    session.set("jazz-player.library", '{"query":5,"sort":"x"}');
+    session.set("bandstand.library", '{"query":5,"sort":"x"}');
     expect(readView()).toEqual(view);
   });
 
@@ -51,7 +51,7 @@ describe("remembering the list and when tunes opened", () => {
     recordOpened("b", 200);
     recordOpened("a", 300);
     expect(readOpened()).toEqual({ a: 300, b: 200 });
-    local.set("jazz-player.opened", "nonsense");
+    local.set("bandstand.opened", "nonsense");
     expect(readOpened()).toEqual({});
   });
 });
