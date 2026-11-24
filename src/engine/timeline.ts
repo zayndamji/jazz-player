@@ -237,7 +237,7 @@ export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number
     } else {
       parsed.chords.forEach((slot, i) => {
         const next = parsed.chords[i + 1];
-        const chord = parseChord(transposeSymbol(slot.symbol, barTranspose, barKeyPc));
+        const chord = { ...parseChord(transposeSymbol(slot.symbol, barTranspose, barKeyPc)), key: barKeyPc };
         chords.push({ beat: slot.beat, length: (next ? next.beat : beats) - slot.beat, chord, attack: true });
         previous = chord;
       });

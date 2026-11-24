@@ -20,6 +20,11 @@ export interface ParsedChord {
   intervals: number[];
   /** Names of the chord's intervals, from tonal, e.g. ["1P", "3M", "5A", "7m"]. */
   intervalNames: string[];
+  /**
+   * The major key the chart has the chord in (a minor key's relative major), as a pitch class; set by
+   * `buildTimeline`. Picks a minor-key dominant's 9th and 13th (`minorKeyTensions`).
+   */
+  key?: number;
 }
 
 const SYMBOL = /^([A-G])([#b♯♭]?)(.*?)(?:\/([A-G])([#b♯♭]?))?$/;
@@ -143,6 +148,23 @@ export function minorKeyDominant(c: ParsedChord, next: ParsedChord | null | unde
   const dominant = c.intervalNames.includes("3M") && c.intervalNames.includes("7m");
   const major = next.intervalNames.includes("3M") && !next.intervalNames.includes("7m");
   return dominant && major && next.root === (c.root + 1) % 12;
+}
+
+const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
+
+/**
+ * The 9th and 13th a dominant heard in a minor key (`minorKeyDominant`) takes, as semitones above its
+ * root. When it resolves to a minor chord of the key it's heard in (`ParsedChord.key`), the key's own:
+ * the V of the tonic minor (G7 to Cm in C minor) and of iii or vi in major keep the flat 9 and flat 13
+ * the key has, while the V of ii in a major key (D7 to Gm7 in F) takes the key's natural 9 with the
+ * flat 13 (Mixolydian ♭13), since a flat 9 there is outside the key and sticks out. Otherwise (no key,
+ * a borrowed minor chord like Dm7 in D major, a deceptive resolution) the flat 9 and flat 13.
+ */
+export function minorKeyTensions(c: ParsedChord, next: ParsedChord | null | undefined): { ninth: 1 | 2; thirteenth: 8 | 9 } {
+  const key = c.key;
+  const inKey = (pc: number) => key !== undefined && MAJOR_SCALE.includes((((pc - key) % 12) + 12) % 12);
+  if (!next || !resolvesToMinor(c, next) || !inKey(next.root) || !inKey(next.root + 3)) return { ninth: 1, thirteenth: 8 };
+  return { ninth: inKey(c.root + 1) || !inKey(c.root + 2) ? 1 : 2, thirteenth: inKey(c.root + 8) || !inKey(c.root + 9) ? 8 : 9 };
 }
 
 /** Holds the chord before it for one slot, as lead sheets write "Am7 / / Fmaj7". */

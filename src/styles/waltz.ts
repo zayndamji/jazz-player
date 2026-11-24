@@ -1,4 +1,4 @@
-import { minorKeyDominant, type ParsedChord } from "../chart/chords";
+import { minorKeyDominant, minorKeyTensions, type ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
 import { SWING_RANGE, VOICING_LOW, voiceChord, type VoicingRange } from "../engine/voicing";
 import { bassOnsets, bassStruck, chordAfter, endsSection, isFormEnd, keepInRange, moveOn, PIANO_FLOOR, shifted, type VoicingContext } from "./context";
@@ -206,7 +206,9 @@ const voiceFor = (chord: ParsedChord, previous: number[] | null, range: VoicingR
  */
 export function phrygianLine(line: number[], chord: ParsedChord, next: ParsedChord | null | undefined, approach: boolean): number[] {
   if (!next || !minorKeyDominant(chord, next)) return line;
-  const lower = new Set([...(has(chord, "9M") ? [] : [2]), ...(has(chord, "13M") ? [] : [9])]);
+  // Only the tensions the key lowers (`minorKeyTensions`: a V of ii in major keeps its natural 9).
+  const t = minorKeyTensions(chord, next);
+  const lower = new Set([...(has(chord, "9M") || t.ninth === 2 ? [] : [2]), ...(has(chord, "13M") || t.thirteenth === 9 ? [] : [9])]);
   const pc = (n: number) => (((n - chord.root) % 12) + 12) % 12;
   return line.map((n, b) => (b === 0 || (approach && b === line.length - 1) || !lower.has(pc(n)) ? n : n - 1));
 }

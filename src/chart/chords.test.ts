@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayParts, isMinorKey, keyPitchClass, minorKeyDominant, parseBar, parseChord, resolvesToMinor, spellingPc, transposeSymbol } from "./chords";
+import { displayParts, isMinorKey, keyPitchClass, minorKeyDominant, minorKeyTensions, parseBar, parseChord, resolvesToMinor, spellingPc, transposeSymbol } from "./chords";
 import { FIXTURES } from "../fixtures";
 
 describe("parseChord", () => {
@@ -135,5 +135,25 @@ describe("bars and keys", () => {
     expect(isMinorKey("Eb")).toBe(false);
     expect(spellingPc(4, true)).toBe(7); // E minor is spelled like G major
     expect(transposeSymbol("B7", 2, spellingPc(6, true))).toBe("C#7"); // a B-flat part in F# minor
+  });
+});
+
+describe("minorKeyTensions", () => {
+  const inKey = (symbol: string, key: number) => ({ ...parseChord(symbol), key });
+  it("keeps the flat 9 and flat 13 into the tonic minor, and into iii or vi of a major key", () => {
+    expect(minorKeyTensions(inKey("G7", 3), inKey("Cm7", 3))).toEqual({ ninth: 1, thirteenth: 8 }); // C minor
+    expect(minorKeyTensions(inKey("E7", 0), inKey("Am7", 0))).toEqual({ ninth: 1, thirteenth: 8 }); // vi in C
+    expect(minorKeyTensions(inKey("B7", 0), inKey("Em7", 0))).toEqual({ ninth: 1, thirteenth: 8 }); // iii in C
+  });
+
+  it("takes the natural 9 with the flat 13 into ii of a major key (Mixolydian b13)", () => {
+    expect(minorKeyTensions(inKey("D7", 5), inKey("Gm7", 5))).toEqual({ ninth: 2, thirteenth: 8 }); // F major
+    expect(minorKeyTensions(inKey("A7", 0), inKey("Dm7", 0))).toEqual({ ninth: 2, thirteenth: 8 }); // C major
+  });
+
+  it("keeps the flat 9 and flat 13 without a key, into a borrowed minor chord, or deceptively", () => {
+    expect(minorKeyTensions(parseChord("D7"), parseChord("Gm7"))).toEqual({ ninth: 1, thirteenth: 8 });
+    expect(minorKeyTensions(inKey("A7", 2), inKey("Dm7", 2))).toEqual({ ninth: 1, thirteenth: 8 }); // Dm7 borrowed in D major
+    expect(minorKeyTensions(inKey("G7", 3), inKey("Abmaj7", 3))).toEqual({ ninth: 1, thirteenth: 8 });
   });
 });

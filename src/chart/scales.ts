@@ -1,5 +1,5 @@
 import { Scale } from "tonal";
-import { minorKeyDominant, noteName, prefersFlats, type ParsedChord } from "./chords";
+import { minorKeyDominant, minorKeyTensions, noteName, prefersFlats, type ParsedChord } from "./chords";
 
 export interface ChordScale {
   /** Short name shown under the chord, e.g. "Dorian". */
@@ -23,6 +23,7 @@ const SCALES: Record<string, ScaleDef> = {
   mixolydian: { name: "Mixolydian", tonal: "mixolydian", intervals: [0, 2, 4, 5, 7, 9, 10] },
   lydianDominant: { name: "Lydian dominant", tonal: "lydian dominant", intervals: [0, 2, 4, 6, 7, 9, 10] },
   phrygianDominant: { name: "Phrygian dominant", tonal: "phrygian dominant", intervals: [0, 1, 4, 5, 7, 8, 10] },
+  mixolydianFlat13: { name: "Mixolydian ♭13", tonal: "mixolydian b6", intervals: [0, 2, 4, 5, 7, 8, 10] },
   locrian2: { name: "Locrian ♮2", tonal: "locrian #2", intervals: [0, 2, 3, 5, 6, 8, 10] },
   wholeTone: { name: "Whole tone", tonal: null, intervals: [0, 2, 4, 6, 8, 10] },
   altered: { name: "Altered", tonal: null, intervals: [0, 1, 3, 4, 6, 8, 10] },
@@ -45,7 +46,12 @@ export function scaleKind(c: ParsedChord, next?: ParsedChord | null): keyof type
   if (minor && has("5d")) return has("7m") ? "locrian2" : "wholeHalf";
   if (minor) return has("7M") ? "melodicMinor" : "dorian";
   if (dom7) {
-    if (minorKeyDominant(c, next) && !MAJOR_KEY_TENSIONS.some(has)) return "phrygianDominant";
+    if (minorKeyDominant(c, next) && !MAJOR_KEY_TENSIONS.some(has)) {
+      // From the key it's heard in: Phrygian dominant, or Mixolydian b13 for a V of ii in major.
+      const t = minorKeyTensions(c, next);
+      if (t.ninth === 1 || has("9m")) return t.thirteenth === 8 ? "phrygianDominant" : "halfWhole";
+      return t.thirteenth === 8 ? "mixolydianFlat13" : "mixolydian";
+    }
     const flat9 = has("9m");
     const sharp9 = has("9A");
     const flat13 = has("5A") || has("13m");
@@ -71,7 +77,8 @@ const pretty = (n: string) => n.replace(/##/g, "𝄪").replace(/#/g, "♯").repl
 
 /** Scale for a chord, spelled from the chord's written root. */
 export function chordScale(c: ParsedChord, rootName: string, keyPc: number, next?: ParsedChord | null): ChordScale {
-  const def = SCALES[scaleKind(c, next)];
+  // The key the chord is printed in, for a minor-key dominant's tensions, when the chord doesn't carry one.
+  const def = SCALES[scaleKind(c.key === undefined ? { ...c, key: keyPc } : c, next)];
   let notes: string[] = [];
   if (def.tonal) notes = Scale.get(`${rootName} ${def.tonal}`).notes;
   if (!notes.length) {

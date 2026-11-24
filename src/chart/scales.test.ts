@@ -49,3 +49,14 @@ describe("chordScale", () => {
     expect(chordScale(c("A7"), "A", 2).name).toBe("Mixolydian");
   });
 });
+
+describe("a V of ii in a major key", () => {
+  it("is Mixolydian b13, not Phrygian dominant", () => {
+    const d7 = { ...parseChord("D7"), key: 5 };
+    const gm7 = { ...parseChord("Gm7"), key: 5 };
+    expect(scaleKind(d7, gm7)).toBe("mixolydianFlat13");
+    expect(chordScale(parseChord("D7"), "D", 5, parseChord("Gm7"))).toEqual({ name: "Mixolydian ♭13", notes: ["D", "E", "F♯", "G", "A", "B♭", "C"] });
+    // A written b9 keeps it.
+    expect(scaleKind({ ...parseChord("D7b9"), key: 5 }, gm7)).toBe("phrygianDominant");
+  });
+});

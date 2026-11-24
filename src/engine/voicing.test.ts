@@ -159,3 +159,12 @@ describe("voiceChord", () => {
     expect(voiceChord(chord("Em7"), null)).toEqual(a);
   });
 });
+
+describe("a V of ii in a major key", () => {
+  it("voices the natural 9 and the flat 13, the tones of the key (D7 to Gm7 in F)", () => {
+    const pcs = voicingIntervals({ ...parseChord("D7"), key: 5 }, { ...parseChord("Gm7"), key: 5 });
+    expect(pcs).toEqual([4, 8, 10, 2]);
+    // Written b9 stays.
+    expect(voicingIntervals({ ...parseChord("D7b9"), key: 5 }, { ...parseChord("Gm7"), key: 5 })).toEqual([4, 8, 10, 1]);
+  });
+});

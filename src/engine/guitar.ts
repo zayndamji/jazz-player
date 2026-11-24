@@ -143,13 +143,16 @@ export function guitarFingers(c: ParsedChord, previous: number[] | null, context
 }
 
 /**
- * The thumb's note: the bass player's note when it is the chord's root, 5th or written bass (the
- * thumb plays root and 5th on 1 and 3, as the bass does), else the chord's bass; on the low strings
- * and under the fingers by at least a minor third.
+ * The thumb's note: the bass player's note when it is the chord's root, 3rd, 5th or written bass (the
+ * thumb plays root and 5th on 1 and 3, as the bass does, and follows it to the 3rd where the line takes
+ * it, so the two never sound different notes at once), else the chord's bass; on the low strings and
+ * under the fingers by at least a minor third.
  */
 export function guitarThumb(c: ParsedChord, fingers: number[], bassNote: number | null): number {
   const fifth = c.intervalNames.includes("5d") ? 6 : c.intervalNames.includes("5A") ? 8 : 7;
-  const pc = bassNote !== null && [c.root, c.bass, (c.root + fifth) % 12].includes(bassNote % 12) ? bassNote % 12 : c.bass;
+  const third = c.intervalNames.includes("3m") ? 3 : c.intervalNames.includes("3M") ? 4 : null;
+  const tones = [c.root, c.bass, (c.root + fifth) % 12, ...(third === null ? [] : [(c.root + third) % 12])];
+  const pc = bassNote !== null && tones.includes(bassNote % 12) ? bassNote % 12 : c.bass;
   const below = (fingers[0] ?? THUMB_HIGH + 3) - 3;
   let best: number | null = null;
   for (let n = THUMB_LOW; n <= THUMB_HIGH; n++) if (n % 12 === pc && n <= below) best = n;

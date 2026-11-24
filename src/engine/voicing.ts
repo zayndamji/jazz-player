@@ -1,4 +1,4 @@
-import { minorKeyDominant, type ParsedChord } from "../chart/chords";
+import { minorKeyDominant, minorKeyTensions, type ParsedChord } from "../chart/chords";
 
 /**
  * Four-note jazz piano voicings without the root (the bass has it):
@@ -24,7 +24,8 @@ const DOMINANT_TENSIONS = ["9m", "9M", "9A", "13m", "13M", "5A", "5d", "11A"];
  * 5th or colour tone, 7th (or 6th), 9th; the first and third are the guide tones.
  * `next` is the chord that follows: a dominant heard in a minor key (`minorKeyDominant`:
  * down a fifth to a minor chord, or deceptively up a half step to a major one) takes the
- * b9 and b13 (3, b13, b7, b9) when nothing or only the b9 is written. Other written tensions win.
+ * b9 and b13 (3, b13, b7, b9) when nothing or only the b9 is written, or the natural 9 where the key
+ * has it and not the b9 (a V of ii in major, `minorKeyTensions`). Other written tensions win.
  */
 export function voicingIntervals(c: ParsedChord, next?: ParsedChord | null): number[] {
   const h = (name: string) => has(c, name);
@@ -50,7 +51,11 @@ export function voicingIntervals(c: ParsedChord, next?: ParsedChord | null): num
   }
   if (sus) return [5, h("13M") ? 9 : 7, seventh ?? 9, ninth]; // 4, 5 or 13, b7, 9: no 3rd under the 11th
   if (major && seventh === 10) {
-    if (minorKeyDominant(c, next) && DOMINANT_TENSIONS.filter(h).every((t) => t === "9m")) return [4, 8, 10, 1];
+    if (minorKeyDominant(c, next) && DOMINANT_TENSIONS.filter(h).every((t) => t === "9m")) {
+      // The key's own 9th and 13th (`minorKeyTensions`); a written b9 stays.
+      const t = minorKeyTensions(c, next);
+      return [4, t.thirteenth, 10, h("9m") ? 1 : t.ninth];
+    }
     // Colour tone: a written 13 or b13, else the #11 or b5, else b13 under a #9 (altered), else 13.
     const colour = h("13M") ? 9 : flat13 ? 8 : sharp11 ? 6 : h("9A") ? 8 : 9;
     // A written 13 with #11 voices the #11 in place of an unaltered 9th.
