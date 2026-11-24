@@ -221,7 +221,7 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const tempo = opts.tempo ?? chart.tempo;
   const feel: Feel = { tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, pedal, variation: opts.variation ?? "varied" };
   const played = playStyles(bars, style, feel, beatsPerBar, chart.band).filter((e) => band.includes(e.track));
-  let events = applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"), { style: style.id, bpm: tempo });
+  let events = restInBreaks(applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"), { style: style.id, bpm: tempo }), bars, beatsPerBar);
   const melody = opts.melody && opts.melody.mode !== "off" ? opts.melody : null;
   if (melody) {
     // The head choruses are the first and, when the song ends, the last (as `playOrder` has it); a looped
@@ -376,6 +376,24 @@ export function bandFor(chart: Chart, style: Style): Track[] {
   if (style.id !== chart.style) return style.band;
   const all = new Set(chartStyles(chart).flatMap((s) => s.band));
   return [...style.band, ...[...all].filter((t) => !style.band.includes(t))];
+}
+
+/**
+ * The band rests in a break's bars (`TimelineBar.rest`): every note that starts there goes (one played a little
+ * early, up to 0.12 beat, counts as the bar's), and a bass, piano or guitar note ringing into a break stops where
+ * it starts. Drums ring on: a cymbal into a break is how a band stops.
+ */
+export function restInBreaks(events: NoteEvent[], bars: TimelineBar[], beatsPerBar: number): NoteEvent[] {
+  if (!bars.some((b) => b.rest)) return events;
+  const barAt = (time: number) => bars[Math.min(bars.length - 1, Math.max(0, Math.floor(time / beatsPerBar + 0.03)))];
+  const starts = bars.filter((b, i) => b.rest && !bars[i - 1]?.rest).map((b) => b.startBeat);
+  const out: NoteEvent[] = [];
+  for (const e of events) {
+    if (barAt(e.time).rest) continue;
+    const stop = e.track === "drums" ? undefined : starts.find((s) => s > e.time && s < e.time + e.duration);
+    out.push(stop === undefined ? e : { ...e, duration: stop - e.time });
+  }
+  return out;
 }
 
 /** Notes ring this far (beats) into a bar of another style, so a change of feel doesn't leave a gap. */

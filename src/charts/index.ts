@@ -51,6 +51,7 @@ export function validateChart(chart: Chart): string[] {
       }
       first = false;
     });
+    if (section.break !== undefined && typeof section.break !== "boolean") errors.push(`section ${section.label}: "break" must be true or false`);
   }
   for (const [track, db] of Object.entries(chart.mix ?? {}))
     if (!["bass", "guitar", "piano", "drums"].includes(track) || typeof db !== "number" || Math.abs(db) > 24) errors.push(`"mix" needs parts (bass, guitar, piano, drums) with a dB change within 24`);

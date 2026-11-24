@@ -50,7 +50,7 @@ Each tune is a folder in `tunes/<id>/` (gitignored). The folder name is the tune
 
 - Bars: chords split the bar evenly (`"Em7/A A7"`), a `/` holds the chord for a beat (`"Am7 / / Fmaj7"` changes on beat 4), and `"%"` repeats the last bar.
 - Chord symbols take the usual spellings: `Bø7`, `C°7`, `C-^7`, `G7(b9,b13)`, `G7alt`, `D7sus2`.
-- Sections: a section can name its own style, for tunes that change feel (`{ "label": "B", "style": "swing", "bars": [...] }` in a Latin tune).
+- Sections: a section can name its own style, for tunes that change feel (`{ "label": "B", "style": "swing", "bars": [...] }` in a Latin tune), and `"break": true` stops the band for a solo break.
 - Key: store every tune in its original concert key (a B♭ part in D is a tune in C). Write minor keys with an `m` (`"Em"`).
 - Lead sheet: save `tunes/<id>/head.musicxml` from MuseScore, or type the melody as `head.txt` and run `python3 scripts/make_head.py tunes/<id>/head.txt` (the format is in the script's help).
 - `npm test` checks every chart's chords and style. The full shape, with optional fields such as `twoFeel`, `band`, `comp` and `mix`, is `Chart` in [`src/chart/types.ts`](src/chart/types.ts).

@@ -75,6 +75,11 @@ export interface Section {
    * style; any other style chosen on the page plays the whole tune.
    */
   style?: string;
+  /**
+   * A break: the band stops for the whole section (the 4-bar solo break of A Night in Tunisia) while the
+   * chords print and the metronome and melody go on. Notes ringing into it stop where it starts. Default false.
+   */
+  break?: boolean;
 }
 
 /** One chord placed in a bar. */

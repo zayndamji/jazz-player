@@ -74,6 +74,8 @@ export interface TimelineBar {
    * when the tune plays in its own style, and sets it on every bar then, so a bar without it plays the style chosen.
    */
   style?: string;
+  /** In a break (`Section.break`): the band rests. */
+  rest?: boolean;
 }
 
 /** What to play, before chords are filled in. */
@@ -253,6 +255,7 @@ export function buildTimeline(chart: Chart, items: PlayItem[], transpose: number
     const bar: TimelineBar = { transpose: barTranspose, index, startBeat: index * beats, ref: item.ref, chorus: item.chorus, label, contrast, chords, countIn: false, final: !!item.tonic };
     if (item.tonic) bar.tonic = true;
     if (section?.style) bar.style = section.style;
+    if (section?.break && !item.tonic) bar.rest = true;
     return bar;
   });
   const last = bars.at(-1);
