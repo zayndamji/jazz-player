@@ -289,9 +289,9 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         p.jumpTo(schedule);
         setArriving(full.start ?? null);
       } else if (entry === "here") {
-        // The new schedule's first bar is the one sounding: put its downbeat where that bar began.
+        // The new schedule's first bar is the one sounding: put its downbeat where that bar began. It takes over on the next beat.
         const pos = positionNow.current;
-        p.setSchedule(schedule, pos ? pos.origin + pos.schedule.bars[pos.bar].startBeat : p.origin);
+        p.swapTo(schedule, pos ? pos.origin + pos.schedule.bars[pos.bar].startBeat : p.origin);
       } else p.setSchedule(schedule);
       setLoops(0);
       setFinishing(false);
@@ -352,7 +352,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       const opts = { ...now.opts, choruses, transpose, keyStep, trade, melody: melodyOpts(), tempo, twoFeel, variation };
       const schedule = buildSchedule(chart, style, opts);
       current.current = { opts, schedule, style, repeat };
-      player.current.setSchedule(schedule);
+      player.current.swapTo(schedule);
     };
     if (!sameShape) return rebuild();
     const id = window.setTimeout(rebuild, 400);

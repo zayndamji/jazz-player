@@ -53,6 +53,11 @@ const JUMP_EARLY = 0.03;
  */
 const LEAD = 0.25;
 
+/** A swap in place strikes again only the new schedule's notes with more than this many beats still to sound. */
+const RESTRIKE_LEFT = 0.4;
+/** ...at this share of their velocity: a held chord carried over, not a new accent. */
+const RESTRIKE_LEVEL = 0.8;
+
 /** Seconds the band fades over at the end of the song (a user's stop keeps `FADE`). How long it rings first: `ringSeconds` in schedule.ts. */
 export const END_FADE = 1.5;
 
@@ -60,6 +65,20 @@ type SpriteName = "piano" | "bass" | "guitar" | "drums";
 const SPRITES: SpriteName[] = ["piano", "bass", "guitar", "drums"];
 
 const ticks =(beats: number) => `${Math.round(beats * Tone.getTransport().PPQ)}i`;
+
+/**
+ * A schedule as `swapTo` hands it over at beat `at` (its own beats): with each bass, piano, guitar or melody note
+ * that began before `at` and has more than `RESTRIKE_LEFT` beats still to sound struck again on `at` for what is
+ * left of it, a little softer, since the old schedule's sounding notes fade there. None inside a loop's repeating
+ * copies, where the extra note would come back on every pass.
+ */
+export function swappedIn(schedule: Schedule, at: number): Schedule {
+  if (schedule.loop && at >= schedule.loop.start - 1e-6) return schedule;
+  const restruck = schedule.events
+    .filter((e) => e.track !== "drums" && e.notes?.length && e.time < at - 0.01 && e.time + e.duration > at + RESTRIKE_LEFT)
+    .map((e): NoteEvent => ({ ...e, time: at, duration: e.time + e.duration - at, offsets: undefined, velocity: e.velocity * RESTRIKE_LEVEL }));
+  return restruck.length ? { ...schedule, events: [...schedule.events, ...restruck].sort((a, b) => a.time - b.time) } : schedule;
+}
 
 /**
  * Plays a Schedule with Tone.js. All times are in beats on the Transport, so
@@ -89,6 +108,8 @@ export class Player {
   /** Each schedule's parts are a generation; a jump ends the earlier ones' notes on its beat (`cut`). */
   private generation = 0;
   private cut: { generation: number; time: number } | null = null;
+  /** A schedule swapped in place (`swapTo`) plays nothing before this time (seconds), the old one's until then. */
+  private from: { generation: number; time: number } | null = null;
   /** Parts of the schedule a jump left, playing on until the jump's beat; disposed after it. */
   private retiring: { parts: Tone.ToneEvent[]; timer: number }[] = [];
   private sprites: Promise<Record<SpriteName, Tone.ToneAudioBuffer>> | null = null;
@@ -205,6 +226,8 @@ export class Player {
       schedule.events.map((e): [string, NoteEvent] => [ticks(e.time + origin - notesFrom), e]),
     );
     this.clock = new Tone.Part<[string, BeatMark]>((time, mark) => {
+      // Swapped in place: the old clock still ticks and draws up to the swap's beat.
+      if (this.from && generation === this.from.generation && time < this.from.time) return;
       if (mark.click && (mark.countIn || (this.metronomeOn && clicksOn(this.clickMode, mark.beat, schedule.beatsPerBar)))) {
         this.click.triggerAttackRelease(mark.beat === 0 ? "E6" : "A5", 0.03, time, mark.beat === 0 ? 0.9 : 0.55);
       }
@@ -251,6 +274,31 @@ export class Player {
    */
   jumpTo(schedule: Schedule) {
     if (!this.running || !this.playing) return this.play(schedule);
+    const { beat } = this.retireAtNextBeat();
+    this.setSchedule(schedule, beat);
+  }
+
+  /**
+   * Swap in a schedule built for the same place (a loop set or cleared from the bar that's sounding, or a key,
+   * style or tempo change), keeping the Transport where it is: the old schedule plays on to the next beat and
+   * stops there as a jump does (what still rings fades, what it queued past the beat never sounds), and the new
+   * one takes over on that beat. Its notes before the beat are skipped, so the two never sound together, and a
+   * chord or bass note of it that began earlier and should still be sounding is struck on the beat for what is
+   * left of it, so nothing drops out (not inside a loop's repeating copies, where it would come back every pass).
+   */
+  swapTo(schedule: Schedule, origin = this.origin) {
+    if (!this.running || !this.playing || !this.notes) return this.setSchedule(schedule, origin);
+    const { beat, time } = this.retireAtNextBeat();
+    this.from = { generation: this.generation + 1, time: time - JUMP_EARLY };
+    this.setSchedule(swappedIn(schedule, beat - origin), origin);
+  }
+
+  /**
+   * Hand the old schedule over on the next beat past Tone's lookahead: its parts stop there (the notes a hair
+   * early), what they still play before it ends there, and what is sounding then fades. Returns that beat
+   * (Transport beats) and its time (seconds).
+   */
+  private retireAtNextBeat(): { beat: number; time: number } {
     const transport = Tone.getTransport();
     const PPQ = transport.PPQ;
     // Tone.now() is already the lookahead ahead of what's heard: everything before it is scheduled.
@@ -273,7 +321,7 @@ export class Player {
     // What the old parts still play before the beat ends on it; what is sounding then fades.
     this.cut = { generation: this.generation + 1, time: time - JUMP_EARLY };
     this.releaseAll(FADE, time - JUMP_EARLY);
-    this.setSchedule(schedule, beat);
+    return { beat, time };
   }
 
   private disposeRetiring() {
@@ -348,6 +396,7 @@ export class Player {
     // A schedule a jump has left plays on until the jump's beat, and nothing of it rings past it.
     const cut = this.cut && generation < this.cut.generation ? this.cut.time : null;
     if (cut !== null && time >= cut) return;
+    if (this.from && generation === this.from.generation && time < this.from.time) return;
     if (e.track === "drums" && e.drum) this.drums.play(e.drum, time, e.velocity, e.gain, cut ?? undefined);
     else if (e.notes) {
       const duration = Tone.Time(ticks(e.duration)).toSeconds();
@@ -371,6 +420,7 @@ export class Player {
     this.clearEndTimer();
     this.releaseAll();
     this.cut = null;
+    this.from = null;
     this.disposeRetiring();
     // Only stop a running Transport: Tone's TickSource.stop on a stopped one cancels its last stop, so for
     // one tick of the clock it runs on from where it stopped and plays whatever the schedule has there.
@@ -393,6 +443,7 @@ export class Player {
     if (this.running) transport.stop();
     this.running = false;
     this.cut = null;
+    this.from = null;
     this.disposeRetiring();
     transport.position = 0;
     // A stop in or after the ritard leaves the Transport on the user's tempo.
