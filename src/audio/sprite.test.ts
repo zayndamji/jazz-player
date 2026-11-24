@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLAMP_FADE, noteSpan, noteToMidi, pickSample, voiceSpan } from "./sprite";
+import { CLAMP_FADE, fadeVoice, noteSpan, noteToMidi, pickSample, voiceSpan } from "./sprite";
 import sprites from "./sprites.json";
 
 describe("pickSample", () => {
@@ -98,5 +98,29 @@ describe("sprites.json", () => {
     for (const layers of Object.values(sprites.drums.kit)) {
       for (const takes of layers) for (const take of takes) expect(sprites.drums.regions).toHaveProperty(take);
     }
+  });
+});
+
+describe("fadeVoice", () => {
+  const amp = () => {
+    const calls: string[] = [];
+    const gain = {
+      cancelScheduledValues: (t: number) => calls.push(`cancel ${t}`),
+      setValueAtTime: (v: number, t: number) => calls.push(`set ${v} ${t}`),
+      setTargetAtTime: (v: number, t: number, tau: number) => calls.push(`target ${v} ${t} ${tau}`),
+    };
+    return { node: { gain } as unknown as GainNode, calls };
+  };
+
+  it("fades a voice that has started from the given time", () => {
+    const { node, calls } = amp();
+    fadeVoice(node, 1, 2, 0.1);
+    expect(calls).toEqual(["cancel 2", "target 0 2 0.02"]);
+  });
+
+  it("silences a voice queued to start at or after that time, so it never sounds", () => {
+    const { node, calls } = amp();
+    fadeVoice(node, 2.05, 2, 0.1);
+    expect(calls).toEqual(["cancel 2", "set 0 2"]);
   });
 });

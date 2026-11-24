@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import type { DrumSound } from "../styles/types";
-import type { Regions } from "./sprite";
+import { fadeVoice, type Regions } from "./sprite";
 
 /**
  * Sampled acoustic kit (Virtuosity Drums, CC0), all in one file. The kit table in
@@ -94,7 +94,7 @@ function brushTap(rate: number, seed: number): Float32Array {
 export class DrumKit {
   private layers = new Map<DrumSound, Take[][]>();
   private last = new Map<DrumSound, number>();
-  private playing = new Set<Tone.ToneBufferSource>();
+  private playing = new Set<{ amp: GainNode; start: number }>();
 
   constructor(private output: Tone.ToneAudioNode) {}
 
@@ -116,10 +116,10 @@ export class DrumKit {
   /**
    * Play a hit. Velocity picks the layer and scales the level within it; `gain` scales the level alone.
    * Every hit rings its whole region (the crash 3.5 s, the ride 2.5 s, both faded to about -77 dB at the
-   * region's end in the sprite), with no choke: only `stopAll` shortens it, and the player waits for the
+   * region's end in the sprite), with no choke: only `stopAll` (or a jump's `until`) shortens it, and the player waits for the
    * last crash to ring out before it fades the band at the end of a song (`ringSeconds` in schedule.ts).
    */
-  play(sound: DrumSound, time: number, velocity: number, gain = 1) {
+  play(sound: DrumSound, time: number, velocity: number, gain = 1, until?: number) {
     const layers = this.layers.get(sound);
     if (!layers?.length) return;
     const v = Math.min(1, Math.max(0, velocity));
@@ -131,25 +131,25 @@ export class DrumKit {
     if (takes.length > 1 && n === prev) n = (n + 1 + Math.floor(Math.random() * (takes.length - 1))) % takes.length;
     this.last.set(sound, n);
     const take = takes[n];
-    const source = new Tone.ToneBufferSource(take.buffer).connect(this.output);
-    this.playing.add(source);
+    const source = new Tone.ToneBufferSource(take.buffer);
+    // Each hit has its own level for `stopAll` to fade (`fadeVoice` says why not Tone's stop).
+    const amp = Tone.getContext().createGain();
+    source.connect(amp);
+    Tone.connect(amp, this.output);
+    const hit = { amp, start: time };
+    this.playing.add(hit);
     source.onended = () => {
-      this.playing.delete(source);
+      this.playing.delete(hit);
+      amp.disconnect();
       source.dispose();
     };
     source.start(time, take.offset, take.length, gain * TRIM[sound] * (0.45 + 0.55 * v));
+    if (until !== undefined) fadeVoice(amp, time, until, 0.08);
   }
 
-  /** Fade out every hit that is sounding or about to (ride, crash and brush tails), over `fade` seconds. */
-  stopAll(fade = 0.08) {
-    const now = Tone.now();
-    for (const source of [...this.playing]) {
-      try {
-        source.fadeOut = fade;
-        source.stop(now);
-      } catch {
-        // Already finished.
-      }
-    }
+  /** Fade out every hit sounding at `at` (ride, crash and brush tails) over `fade` seconds; one queued to start later never sounds. */
+  stopAll(fade = 0.08, at = Tone.now()) {
+    for (const hit of this.playing) fadeVoice(hit.amp, hit.start, at, fade);
+    this.playing.clear();
   }
 }

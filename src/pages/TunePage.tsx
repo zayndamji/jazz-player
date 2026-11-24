@@ -59,6 +59,13 @@ type Status = "idle" | "loading" | "playing";
 /** What the band repeats until stopped: one form section, a run of bars, or nothing. */
 type Loop = { section: number } | { range: BarRange } | null;
 
+/**
+ * How a new schedule takes over while playing: from the top (with the count-in), on the next beat
+ * (a jump to another bar), in place at the bar that's playing (a loop turned on or off, a layout
+ * change), or during the count-in, which keeps counting into the new place.
+ */
+type Entry = "top" | "jump" | "here" | "count-in";
+
 const sectionStart = (section: number): PlayItem => ({ ref: { part: "form", section, bar: 0 }, chorus: 1 });
 
 export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from the address, for this visit only. */ link?: LinkSettings }) {
@@ -120,6 +127,15 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   const [picked, setPicked] = useState<BarRef | null>(null);
   const [mix, setMix] = useState(initial.mix);
   const [position, setPosition] = useState<Position | null>(null);
+  /** The beat last reported, for swapping a schedule in at the bar that's sounding. */
+  const positionNow = useRef<Position | null>(null);
+  /** While a jump waits for the next beat, the bar it goes to, shown until the band gets there. */
+  const [arriving, setArrivingState] = useState<PlayItem | null>(null);
+  const arrivingNow = useRef<PlayItem | null>(null);
+  const setArriving = (item: PlayItem | null) => {
+    arrivingNow.current = item;
+    setArrivingState(item);
+  };
   const [loops, setLoops] = useState(0);
   const [muted, setMuted] = useState(() => readMuted());
   const [volume, setVolume] = useState(() => readVolume());
@@ -169,7 +185,12 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   const getPlayer = () => {
     if (!sharedPlayer) sharedPlayer = new Player();
     const p = sharedPlayer;
-    p.onPosition = setPosition;
+    p.onPosition = (pos) => {
+      positionNow.current = pos;
+      setPosition(pos);
+      // The first beat of the schedule a jump went to: the band is there.
+      if (arrivingNow.current && (!pos || pos.schedule === current.current?.schedule)) setArriving(null);
+    };
     // Every pass of a loop (the player calls this from a Transport event, not from the playhead) can raise the tempo.
     p.onPass = () => {
       if (speedUpNow.current > 0) setTempo((t) => raisedTempo(t, speedUpNow.current));
@@ -177,6 +198,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     // A wrap goes back a whole key cycle of choruses, so the chorus count on screen moves on by that many.
     p.onLoop = () => setLoops((n) => n + (current.current?.schedule.cycle ?? 1));
     p.onEnd = (finished) => {
+      positionNow.current = null;
+      setArriving(null);
       setStatus("idle");
       setFinishing(false);
       current.current = null;
@@ -222,10 +245,14 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   }, [chart.id, headAvailable, melody]);
 
   const start = useCallback(
-    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "variation" | "countInBars" | "intro" | "ending" | "keyStep" | "trade" | "melody">, choruses: Repeat = repeat) => {
+    async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "variation" | "countInBars" | "intro" | "ending" | "keyStep" | "trade" | "melody">, choruses: Repeat = repeat, entry: Entry = "top") => {
       const p = getPlayer();
-      setError(null);
-      setStatus("loading");
+      // While playing the sounds are in, so a jump or a swap doesn't flash "Loading" or disable Play.
+      const swap = entry !== "top" && p.playing;
+      if (!swap) {
+        setError(null);
+        setStatus("loading");
+      }
       try {
         await p.load();
       } catch (e) {
@@ -250,8 +277,15 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       p.setMasterLevel(volume);
       p.setMasterMute(muted);
       p.setTempo(tempo);
-      p.setSchedule(schedule);
-      p.play();
+      if (!swap || !p.playing) p.play(schedule);
+      else if (entry === "jump") {
+        p.jumpTo(schedule);
+        setArriving(full.start ?? null);
+      } else if (entry === "here") {
+        // The new schedule's first bar is the one sounding: put its downbeat where that bar began.
+        const pos = positionNow.current;
+        p.setSchedule(schedule, pos ? pos.origin + pos.schedule.bars[pos.bar].startBeat : p.origin);
+      } else p.setSchedule(schedule);
       setLoops(0);
       setFinishing(false);
       setCue(null);
@@ -287,7 +321,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         current.current = { ...now, repeat };
         const here = placeNow();
         if (!here) return false;
-        keys.current.begin(here, false, loopOf(now.opts), withChoruses);
+        keys.current.begin(here, false, loopOf(now.opts), withChoruses, nowBar?.countIn ? "count-in" : "here");
         return true;
       };
       if (now.repeat !== repeat && !looped) {
@@ -323,7 +357,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     () => performanceBeats(chart, { choruses: repeat === "loop" ? 1 : repeat, countInBars, intro, ending }),
     [chart, repeat, countInBars, intro, ending],
   );
-  const nowBar = position && schedule ? schedule.bars[position.bar] : null;
+  /** The bar sounding, in the schedule its beat came from (a jump's old schedule plays on until the next beat). */
+  const nowBar = position ? (position.schedule.bars[position.bar] ?? null) : null;
   const looping = current.current?.opts.loopSection != null || current.current?.opts.loopRange != null;
   /**
    * The chorus a bar is in. A loop's bars are numbered from where it started and the schedule
@@ -357,19 +392,22 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
    * after the count was lowered). A loop, or choruses until stopped, builds from the chorus
    * it starts in, and the readout counts on from there.
    */
-  const begin = (item: PlayItem | null, withCountIn: boolean, toLoop: Loop, choruses: Repeat = repeat) => {
+  const begin = (item: PlayItem | null, withCountIn: boolean, toLoop: Loop, choruses: Repeat = repeat, entry?: Entry) => {
+    // While playing: on the next beat, or into the count-in that is running.
+    const how: Entry = entry ?? (!playing ? "top" : nowBar?.countIn ? "count-in" : "jump");
     let from = item ?? loopStart(toLoop);
     // Loops and choruses until stopped number their choruses from the one they start in, so a later one starts as itself.
     if (from && toLoop !== null) from = { ...from, chorus: from.ref.part === "form" ? Math.max(1, from.chorus) : 0 };
     else if (from && typeof choruses === "number" && from.chorus > choruses) from = { ...from, chorus: choruses };
     void start(
       {
-        countIn: withCountIn,
+        countIn: how === "count-in" || withCountIn,
         loopSection: toLoop && "section" in toLoop ? toLoop.section : null,
         loopRange: toLoop && "range" in toLoop ? toLoop.range : null,
         start: from,
       },
       choruses,
+      how,
     );
   };
 
@@ -423,8 +461,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       return;
     }
     if (status === "playing") {
-      // A jump the arrow keys are still waiting to make becomes the cue; either way it doesn't restart the band after the pause.
-      const target = pending.current?.item ?? placeNow();
+      // A jump still waiting to be made becomes the cue; either way it doesn't restart the band after the pause.
+      const target = pending.current?.item ?? arrivingNow.current ?? placeNow();
       cancelPending();
       setCue(target);
       player.current?.stop();
@@ -496,9 +534,26 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     go(stepSection(navOrder(chart, repeat, null, from?.chorus ?? 1, intro, ending), from, delta), null);
   };
 
-  const playFrom = (ref: BarRef, toLoop: Loop) => {
-    const chorus = ref.part === "form" ? (playing && nowBar ? realChorus(nowBar.chorus) : (cue?.chorus || 1)) : 0;
-    begin({ ref, chorus }, playing ? false : countIn, toLoop);
+  const playFrom = (ref: BarRef, toLoop: Loop, entry?: Entry) => {
+    const chorus = ref.part === "form" ? (playing && nowBar?.ref ? realChorus(nowBar.chorus) : (cue?.chorus || 1)) : 0;
+    begin({ ref, chorus }, playing ? false : countIn, toLoop, repeat, entry);
+  };
+
+  /**
+   * While playing, carry on with a different loop (or none) without a break: from the bar that's
+   * sounding when it's in the new loop, else from the loop's start on the next beat. In the count-in,
+   * count into the place it was counting into, or the loop's start.
+   */
+  const relayLoop = (toLoop: Loop) => {
+    if (nowBar?.countIn) {
+      const target = current.current?.opts.start ?? null;
+      const keep = target && (toLoop === null || inLoop(target.ref, toLoop));
+      begin(keep ? target : loopStart(toLoop), true, toLoop, repeat, "count-in");
+      return;
+    }
+    const here = nowBar?.ref;
+    if (here && (toLoop === null || inLoop(here, toLoop))) playFrom(here, toLoop, "here");
+    else begin(loopStart(toLoop), false, toLoop);
   };
 
   const onBar = (ref: BarRef) => {
@@ -515,7 +570,9 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     const first = rangeBars(chart, range)[0];
     if (!first) return onBar(ref);
     setLoop({ range });
-    begin({ ref: first.ref, chorus: 1 }, playing ? false : countIn, { range });
+    // Playing inside the new range: loop it from here without a break.
+    if (playing) return relayLoop({ range });
+    begin({ ref: first.ref, chorus: 1 }, countIn, { range });
   };
 
   /** Stop looping, and carry on from the same bar when playing. */
@@ -523,10 +580,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     if (!loop) return;
     cancelPending();
     setLoop(null);
-    if (playing) {
-      const here = nowBar?.ref;
-      if (here) playFrom(here, null);
-    }
+    if (playing) relayLoop(null);
   };
 
   /** Loop the section that's playing, or the one last clicked; again to stop looping. */
@@ -541,8 +595,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       if (next !== null && cue && !(cue.ref.part === "form" && cue.ref.section === next)) setCue(sectionStart(next));
       return;
     }
-    const inSection = here?.part === "form" && here.section === target;
-    playFrom(next !== null && !inSection ? sectionStart(target).ref : (here ?? sectionStart(target).ref), nextLoop);
+    cancelPending();
+    relayLoop(nextLoop);
   };
 
   /** Every bar of the performance in order: intro, all the choruses, ending (one chorus when they repeat until stopped). */
@@ -714,7 +768,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     if (!nowBar?.ref || !c || c.schedule.loop || c.opts.choruses === "loop") return undefined;
     const from = c.opts.start;
     const startIndex = from ? performance.findIndex((x) => sameRef(x.ref, from.ref) && x.chorus === from.chorus) : 0;
-    return startIndex < 0 ? undefined : startIndex + nowBar.index - c.schedule.bars.filter((b) => b.countIn).length;
+    return startIndex < 0 ? undefined : startIndex + nowBar.index - (position?.schedule ?? c.schedule).bars.filter((b) => b.countIn).length;
   })();
   const progress = placeShown && !nowBar?.countIn ? performanceFraction(performance, placeShown, nowBar ? (position?.beat ?? 0) : 0, chart.beatsPerBar, performanceIndex) : null;
 
@@ -729,8 +783,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     if (!slot) return null;
     const spellFor = (t: number) => spellingPc((chartKeyPc + fold(t + instrument.offset) + 12) % 12, minor);
     const symbol = transposeSymbol(slot.chord.symbol, fold(instrument.offset), spellFor(nowBar.transpose));
-    const loopAt = current.current?.schedule.loop;
-    const next = nextChord(current.current!.schedule.bars, nowBar.index, position.beat, 2, loopAt ? loopAt.start / chart.beatsPerBar : null);
+    const loopAt = position.schedule.loop;
+    const next = nextChord(position.schedule.bars, nowBar.index, position.beat, 2, loopAt ? loopAt.start / chart.beatsPerBar : null);
     const nextSymbol = next ? transposeSymbol(next.chord.symbol, fold(instrument.offset), spellFor(next.transpose)) : null;
     // The next chord picks the scale for a dominant that resolves to minor (Phrygian dominant).
     const scale = chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], spellFor(nowBar.transpose), nextSymbol ? parseChord(nextSymbol) : null);
@@ -742,7 +796,9 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     };
   }, [nowBar, position, instrument.offset, chartKeyPc, minor, chart.beatsPerBar, chordsHidden]);
 
-  const sheetBar = nowBar?.ref ? (nowNumber?.sheetNumber ?? null) : null;
+  /** The bar lit as playing: where the keys or a click are taking the band, else the bar sounding. */
+  const activeRef = jump?.ref ?? arriving?.ref ?? nowBar?.ref ?? null;
+  const sheetBar = activeRef ? (bars.find((b) => sameRef(b.ref, activeRef))?.sheetNumber ?? null) : null;
   const cueSheetBar = !nowBar?.ref && nowNumber ? nowNumber.sheetNumber : null;
   /** The chart bar a bar of the lead sheet shows (the first, for bars a tag repeats), for its number. */
   const sheetBarOf = (n: number) => bars.find((x) => x.sheetNumber === n);
@@ -1028,8 +1084,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             chart={chart}
             shift={shift}
             keyPc={printedSpellPc}
-            active={jump?.ref ?? nowBar?.ref ?? null}
-            activeBeat={!jump && nowBar?.ref && position ? position.beat : null}
+            active={activeRef}
+            activeBeat={!jump && !arriving && nowBar?.ref && position ? position.beat : null}
             cued={status === "idle" ? (cue?.ref ?? null) : null}
             showScales={showScales}
             hideChords={chordsHidden}

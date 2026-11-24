@@ -67,6 +67,22 @@ export interface SpriteSamplerOptions {
 
 interface Voice {
   source: Tone.ToneBufferSource;
+  /** The voice's own level, which `releaseAll` fades (see `fadeVoice`). */
+  amp: GainNode;
+  start: number;
+}
+
+/**
+ * Fade a voice's own gain to silence from `at` over about `fade` seconds, or mute it outright when it
+ * hasn't started by then. Not through Tone's `stop`: on a source queued to start later (Tone schedules
+ * the lookahead early), its stop keeps the start level set for the start time, so the note would still
+ * sound at full level until the source ends; and on a note already in its release, the stop cancels that
+ * fade and brings the note back up first. The native source plays on, silent, to its own end.
+ */
+export function fadeVoice(amp: GainNode, start: number, at: number, fade: number) {
+  amp.gain.cancelScheduledValues(at);
+  if (start >= at) amp.gain.setValueAtTime(0, at);
+  else amp.gain.setTargetAtTime(0, at, Math.max(0.005, fade / 5));
 }
 
 /**
@@ -109,14 +125,16 @@ export class SpriteSampler {
       fadeOut: release,
       playbackRate: rate,
     });
+    const amp = Tone.getContext().createGain();
+    source.connect(amp);
     let filter: Tone.Filter | undefined;
     const b = this.options.brightness;
     if (b) {
       const v = Math.min(1, Math.max(0, velocity));
       filter = new Tone.Filter({ type: "lowpass", rolloff: -12, frequency: b.low * (b.high / b.low) ** v });
-      source.connect(filter);
+      Tone.connect(amp, filter);
       filter.connect(this.output);
-    } else source.connect(this.output);
+    } else Tone.connect(amp, this.output);
 
     source.start(time, offset, maxLen, velocity);
     // End the note early enough for its release fade to finish inside the region: this clamp is
@@ -127,21 +145,21 @@ export class SpriteSampler {
     source.fadeOut = fade;
     source.stop(time + hold);
 
-    const voice: Voice = { source };
+    const voice: Voice = { source, amp, start: time };
     this.voices.add(voice);
     source.onended = () => {
       this.voices.delete(voice);
+      amp.disconnect();
       filter?.dispose();
     };
   }
 
-  /** Fade every sounding voice out, over `fade` seconds when given (else the instrument's own release). */
-  releaseAll(fade?: number) {
-    const now = Tone.now();
-    for (const { source } of this.voices) {
-      if (fade !== undefined) source.fadeOut = fade;
-      source.stop(now);
-    }
+  /**
+   * Fade every voice sounding or queued at `at` (default now) over `fade` seconds (else the instrument's
+   * own release); a voice queued to start at or after `at` never sounds.
+   */
+  releaseAll(fade = this.options.release, at = Tone.now()) {
+    for (const { amp, start } of this.voices) fadeVoice(amp, start, at, fade);
     this.voices.clear();
   }
 }

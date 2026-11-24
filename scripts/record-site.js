@@ -24,7 +24,8 @@
   rec.ondataavailable = (e) => chunks.push(e.data);
   const stopped = new Promise((r) => (rec.onstop = r));
   rec.start();
-  const startBeat = transport.ticks / transport.PPQ;
+  // A jump or a loop turned on or off moves where the schedule sits on the Transport (`player.origin`).
+  const startBeat = transport.ticks / transport.PPQ - (player.origin ?? 0);
   await new Promise((r) => setTimeout(r, SECONDS * 1000));
   rec.stop();
   await stopped;
