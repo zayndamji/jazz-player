@@ -1,4 +1,4 @@
-# Bandstand
+# Jazz Stand
 
 A framework for practicing jazz tunes in the browser. You add your tunes as chord charts (and lead sheets, if you like); it shows the chart or the lead sheet and plays a backing band (bass, piano and drums, plus guitar in bossa nova) that follows the chords. Styles so far: bossa nova, swing (slow-medium to up-tempo, with an optional two-feel), ballad, jazz waltz and jazz in 5 (5/4). The repo holds the framework only: tunes are your own content, kept out of git, and one made-up example (a blues in F) ships with it.
 

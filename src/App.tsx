@@ -33,7 +33,7 @@ export default function App() {
   // Looked up once per tune, so the chart keeps its identity while the address changes settings.
   const chart = useMemo(() => (id ? findChart(id) : undefined), [id]);
   useEffect(() => {
-    document.title = chart ? `${chart.title} · Bandstand` : "Bandstand";
+    document.title = chart ? `${chart.title} · Jazz Stand` : "Jazz Stand";
   }, [chart]);
   // The address can carry settings after a ?, which the tune reads once when it opens.
   const link = useMemo(() => parseLink(hash), [hash]);

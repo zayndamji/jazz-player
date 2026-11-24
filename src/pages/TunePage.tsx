@@ -25,10 +25,10 @@ import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
 import { readStored, store } from "./storage";
 import { useWakeLock } from "./useWakeLock";
 
-const MUTE_KEY = "jazz-player.muted";
-const VOLUME_KEY = "jazz-player.volume";
-const INSTRUMENT_KEY = "jazz-player.instrument";
-const SHORTCUTS_KEY = "jazz-player.shortcuts";
+const MUTE_KEY = "jazz-stand.muted";
+const VOLUME_KEY = "jazz-stand.volume";
+const INSTRUMENT_KEY = "jazz-stand.instrument";
+const SHORTCUTS_KEY = "jazz-stand.shortcuts";
 const readMuted = () => readStored(MUTE_KEY) === "1";
 /** The master volume, 0 to 1, shared by every tune like Mute. */
 const readVolume = () => {

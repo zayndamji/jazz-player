@@ -5,12 +5,12 @@
 // first chorus starts in the recording, and returns the analyzer command to run.
 // Set window.RECORD_SECONDS and window.RECORD_NAME first to change the length and name.
 // From a browser tool: eval(await (await fetch("/scripts/record-site.js")).text()).
-// Needs `npm run dev` (window.__jazzPlayer and the /__recording endpoint from
+// Needs `npm run dev` (window.__jazzStand and the /__recording endpoint from
 // scripts/save-recordings.mjs).
 (async () => {
   const SECONDS = window.RECORD_SECONDS ?? 60;
   const NAME = window.RECORD_NAME ?? ""; // file name without extension; default site-<style>
-  const hook = window.__jazzPlayer;
+  const hook = window.__jazzStand;
   if (!hook?.player?.schedule) return "Start playback on a tune page under npm run dev first.";
   const { Tone, preMute, player } = hook;
   const tune = location.hash.match(/#\/tune\/([a-z0-9-]+)/)?.[1];

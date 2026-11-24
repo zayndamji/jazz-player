@@ -1,6 +1,6 @@
 {
-  "name": "Bandstand",
-  "short_name": "Bandstand",
+  "name": "Jazz Stand",
+  "short_name": "Jazz Stand",
   "description": "Jazz chord charts with a generated backing band and metronome.",
   "start_url": "./",
   "scope": "./",

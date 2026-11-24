@@ -16,7 +16,7 @@ function walk(dir: string): string[] {
 function pwa(): Plugin {
   let publicDir = "";
   return {
-    name: "bandstand-pwa",
+    name: "jazz-stand-pwa",
     apply: "build",
     configResolved(config) {
       publicDir = config.publicDir;

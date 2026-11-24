@@ -4,10 +4,10 @@
 // the browser console (or run it with a browser automation tool). It listens
 // for 15 seconds and returns { peak, share }. It only listens; it changes nothing.
 // It listens before the site's Mute button, so it works with the sound muted.
-// Needs the dev server (npm run dev), which exposes window.__jazzPlayer.
+// Needs the dev server (npm run dev), which exposes window.__jazzStand.
 (async () => {
-  const hook = window.__jazzPlayer;
-  if (!hook) return "No window.__jazzPlayer: run the dev server and start playback first.";
+  const hook = window.__jazzStand;
+  if (!hook) return "No window.__jazzStand: run the dev server and start playback first.";
   const { Tone, preMute } = hook;
   const ctx = Tone.getContext().rawContext;
   const an = ctx.createAnalyser();

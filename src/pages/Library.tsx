@@ -30,7 +30,7 @@ export function Library({ missing }: { /** A tune id in the address that matches
   return (
     <div className="app library">
       <header className="head">
-        <h1>Bandstand</h1>
+        <h1>Jazz Stand</h1>
         <p className="meta">
           <span>{countLabel(shown.length, charts.length)}</span>
         </p>

@@ -65,7 +65,7 @@ export interface TuneSettings {
   mix: Record<Mixable, MixState>;
 }
 
-export const tuneKey = (chartId: string) => `bandstand.tune.${chartId}`;
+export const tuneKey = (chartId: string) => `jazz-stand.tune.${chartId}`;
 
 export function defaultSettings(chart: Chart): TuneSettings {
   return {

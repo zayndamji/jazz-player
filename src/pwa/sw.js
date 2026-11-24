@@ -1,10 +1,10 @@
-// Bandstand service worker. Built into dist/sw.js by the pwa plugin in vite.config.ts,
+// Jazz Stand service worker. Built into dist/sw.js by the pwa plugin in vite.config.ts,
 // which fills in the two placeholders below.
 const VERSION = __VERSION__;
 const PRECACHE = __PRECACHE__;
-const PREFIX = "bandstand-";
-/** Cache names from the site's earlier name, cleared on activate. */
-const OLD_PREFIXES = ["jazz-player-"];
+const PREFIX = "jazz-stand-";
+/** Cache names from the site's earlier names, cleared on activate. */
+const OLD_PREFIXES = ["bandstand-", "jazz-player-"];
 const CACHE = PREFIX + VERSION;
 const scope = self.registration.scope;
 const PAGE = new URL("./", scope).href;
