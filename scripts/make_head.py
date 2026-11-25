@@ -9,6 +9,7 @@ The text format, one directive or bar per line (a line starting with "#" is a co
   key: D           key signature of what you're typing, as a major key
   transpose: -M2   optional: interval to the output (-M2 turns a B-flat part into concert)
   per-line: 4      bars per printed line (default 4)
+  time: 3/4        optional: beats per bar, in quarter notes (default 4/4)
   @Intro [C/G] r/2 [Ab7(#5)/Gb] r/2     one bar: "@Label" starts a section,
   [Dmaj7] A4/1~                          "[Chord]" sits on the next note or rest
 
@@ -17,9 +18,9 @@ sheet: in D, "F5" means F-sharp. Add "!n", "!s", "!b" or "!x" for a natural, sha
 flat or double sharp; it lasts to the end of the bar for that note, as in printed music. "r" is a
 rest. Durations: 1 whole, 2 half, 4 quarter, 8 eighth, 16 sixteenth, a "." after
 any of them for dotted, and "t4" or "t8" for triplets. "~" ties into the next note.
-Each bar must add up to 4/4. A bar in two voices puts "&&" between them: the
-first voice (stems up, with the chord symbols) then the second (stems down),
-each adding up to 4/4; accidentals carry within a voice only. Accidentals in the output are worked out again for
+Each bar must add up to the time signature (4/4 unless "time:" says otherwise). A bar
+in two voices puts "&&" between them: the first voice (stems up, with the chord symbols)
+then the second (stems down), each adding up to a full bar; accidentals carry within a voice only. Accidentals in the output are worked out again for
 the output key, so transposed parts read correctly. Plain Python 3.
 """
 
@@ -181,12 +182,12 @@ def voice(text, num, v, stem, interval, in_alters, out_alters, tied):
 
 def build(src: Path) -> str:
     title = src.parent.name if src.name == "head.txt" else src.stem.replace(".head", "")
-    key, interval, per_line, bars = "C", None, 4, []
+    key, interval, per_line, beats, bars = "C", None, 4, 4, []
     for raw in src.read_text().splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        m = re.fullmatch(r"(key|transpose|per-line|title):\s*(.+)", line)
+        m = re.fullmatch(r"(key|transpose|per-line|time|title):\s*(.+)", line)
         if m:
             name, value = m.groups()
             if name == "key":
@@ -195,6 +196,11 @@ def build(src: Path) -> str:
                 interval = parse_interval(value)
             elif name == "per-line":
                 per_line = int(value)
+            elif name == "time":
+                t = re.fullmatch(r"(\d+)/4", value.strip())
+                if not t:
+                    raise SystemExit(f"bad time {value!r}; use e.g. 3/4")
+                beats = int(t.group(1))
             else:
                 title = value.strip()
             continue
@@ -217,16 +223,16 @@ def build(src: Path) -> str:
         notes = []
         for v, part in enumerate(parts, 1):
             if v == 2:
-                notes.append(f"<backup><duration>{4 * DIV}</duration></backup>")
+                notes.append(f"<backup><duration>{beats * DIV}</duration></backup>")
             stem = ("up" if v == 1 else "down") if len(parts) == 2 else None
             xml, total = voice(part, num, v, stem, interval, in_alters, out_alters, tied)
-            if total != 4 * DIV:
-                raise SystemExit(f"bar {num} voice {v} adds up to {total / DIV} beats, not 4: {part}")
+            if total != beats * DIV:
+                raise SystemExit(f"bar {num} voice {v} adds up to {total / DIV} beats, not {beats}: {part}")
             notes += xml
         head = '<print new-system="yes"/>' if num > 1 and (num - 1) % per_line == 0 else ""
         if num == 1:
             head += (f"<attributes><divisions>{DIV}</divisions><key><fifths>{FIFTHS[out_key]}</fifths></key>"
-                     "<time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>")
+                     f"<time><beats>{beats}</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>")
         if section:
             head += f'<direction placement="above"><direction-type><rehearsal>{section}</rehearsal></direction-type></direction>'
         next_section = num < len(bars) and bars[num].lstrip().startswith("@")
