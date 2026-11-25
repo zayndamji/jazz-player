@@ -195,7 +195,7 @@ export function quartal(chord: ParsedChord, previous: number[] | null, range: Vo
 }
 
 /** The piano's voicing of a chord: quartal on the modal chords, the swing style's rootless shapes otherwise. */
-const voiceFor = (chord: ParsedChord, previous: number[] | null, range: VoicingRange, context: VoicingContext) =>
+export const voiceFor = (chord: ParsedChord, previous: number[] | null, range: VoicingRange, context: VoicingContext) =>
   (modal(chord) && quartal(chord, previous, range, context)) || voiceChord(chord, previous, range, context);
 
 /**

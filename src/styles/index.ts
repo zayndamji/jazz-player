@@ -2,6 +2,7 @@ import { ballad } from "./ballad";
 import { bossa } from "./bossa";
 import { five } from "./five";
 import { latin } from "./latin";
+import { latinWaltz } from "./latin-waltz";
 import { swing } from "./swing";
 import { waltz } from "./waltz";
 import type { Chart } from "../chart/types";
@@ -13,6 +14,7 @@ export const STYLES: Record<string, Style> = {
   [latin.id]: latin,
   [swing.id]: swing,
   [waltz.id]: waltz,
+  [latinWaltz.id]: latinWaltz,
   [five.id]: five,
 };
 

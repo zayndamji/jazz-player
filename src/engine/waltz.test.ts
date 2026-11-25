@@ -273,10 +273,10 @@ describe("the waltz style", () => {
 
 describe("styles by meter", () => {
   it("offers only styles that play the chart's meter", () => {
-    expect(stylesFor(waltzForm).map((s) => s.id)).toEqual(["waltz"]);
+    expect(stylesFor(waltzForm).map((s) => s.id)).toEqual(["waltz", "latin-waltz"]);
     expect(stylesFor(swingForm).map((s) => s.id)).not.toContain("waltz");
     expect(stylesFor(swingForm).map((s) => s.id)).not.toContain("five");
-    expect(stylesFor(swingForm).length).toBe(Object.keys(STYLES).length - 2);
+    expect(stylesFor(swingForm).length).toBe(Object.keys(STYLES).length - 3);
     expect(playsMeter(STYLES.swing, 4)).toBe(true);
     expect(playsMeter(STYLES.swing, 3)).toBe(false);
   });

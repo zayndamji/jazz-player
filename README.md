@@ -8,7 +8,7 @@ The repo is the framework only. Your tunes stay on your machine, out of git, and
 
 ## Features
 
-- Six styles: bossa nova, swing (with an optional two-feel), Latin (Afro-Cuban, on a 2-3 clave), ballad, jazz waltz (3/4) and jazz in 5 (5/4). Any tune can play in any style that fits its meter, and a section can have its own, such as Latin A sections with a swing bridge.
+- Seven styles: bossa nova, swing (with an optional two-feel), Latin (Afro-Cuban, on a 2-3 clave), ballad, jazz waltz (3/4), Latin waltz (3/4 in straight eighths) and jazz in 5 (5/4). Any tune can play in any style that fits its meter, and a section can have its own, such as Latin A sections with a swing bridge.
 - A band that plays like a live one: a lighter head, a build through the solos, fills at phrase ends, and no two choruses note for note the same.
 - Chord chart and lead sheet views, with the bar that's playing highlighted. Click any bar to play from it.
 - Loop a section or any run of bars, with an optional speed-up on each pass.

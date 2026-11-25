@@ -111,7 +111,8 @@ describe("iReal charts", () => {
     expect(styleFor("Medium Up Swing", 4)).toBe("swing");
     expect(styleFor("Even 8ths", 4)).toBe("swing");
     expect(styleFor("Jazz Waltz", 4)).toBe("waltz");
-    expect(styleFor("Bossa Nova", 3)).toBe("waltz");
+    expect(styleFor("Bossa Nova", 3)).toBe("latin-waltz");
+    expect(styleFor("Latin-Cuba: Bolero", 3)).toBe("latin-waltz");
   });
 });
 

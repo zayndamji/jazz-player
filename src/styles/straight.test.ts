@@ -31,8 +31,8 @@ describe("straight feel", () => {
         const straight = new Set(drumBars(chart.id, style.id, "straight"));
         const varied = new Set(drumBars(chart.id, style.id, "varied"));
         // Every style's straight groove repeats every bar (bossa's cross-stick is on 2 and 4, not a two-bar clave);
-        // Latin's repeats every two, the clave's 2 side and 3 side.
-        expect(straight.size).toBe(style.id === "latin" ? 2 : 1);
+        // Latin's repeats every two, the clave's 2 side and 3 side, and the Latin waltz's two-bar figure.
+        expect(straight.size).toBe(style.id === "latin" || style.id === "latin-waltz" ? 2 : 1);
         expect(varied.size).toBeGreaterThan(1);
       });
     }

@@ -63,7 +63,7 @@ export interface SoloFeel {
 }
 
 /** Style ids that play straight eighths, so their drum solos do too. */
-const STRAIGHT_STYLES = new Set(["bossa", "samba", "latin", "straight", "even", "rock", "funk", "afro", "songo"]);
+const STRAIGHT_STYLES = new Set(["bossa", "samba", "latin", "latin-waltz", "straight", "even", "rock", "funk", "afro", "songo"]);
 
 /** Above this tempo a swing solo plays mostly swung eighths, with only the odd triplet roll. */
 export const UP_TEMPO_SOLO = 220;

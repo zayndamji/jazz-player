@@ -90,6 +90,7 @@ export function decodeLink(link: string): IRealSong[] {
 export function styleFor(ireal: string, beatsPerBar: number): string {
   const s = ireal.toLowerCase();
   if (beatsPerBar === 5) return "five";
+  if (beatsPerBar === 3 && /latin|afro|bolero|bossa|samba/.test(s)) return "latin-waltz";
   if (beatsPerBar === 3 || /waltz/.test(s)) return "waltz";
   if (/bossa|samba|brazil/.test(s)) return "bossa";
   if (/latin|afro|mambo|cha|salsa/.test(s)) return "latin";
@@ -97,7 +98,7 @@ export function styleFor(ireal: string, beatsPerBar: number): string {
   return "swing";
 }
 
-const DEFAULT_TEMPO: Record<string, number> = { swing: 140, bossa: 130, latin: 180, ballad: 66, waltz: 150 };
+const DEFAULT_TEMPO: Record<string, number> = { swing: 140, bossa: 130, latin: 180, ballad: 66, waltz: 150, "latin-waltz": 130 };
 
 /** iReal chord quality as our chord parser reads it. */
 export function qualityOf(raw: string): string {
