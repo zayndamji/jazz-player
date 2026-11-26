@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayParts, isMinorKey, keyPitchClass, minorKeyDominant, minorKeyTensions, parseBar, parseChord, resolvesToMinor, spellingPc, transposeSymbol } from "./chords";
+import { displayParts, isMinorKey, keyPitchClass, minorKeyDominant, minorKeyTensions, parseBar, parseChord, resolvesToMinor, spellingPc, tokenBeats, transposeSymbol } from "./chords";
 import { FIXTURES } from "../fixtures";
 
 describe("parseChord", () => {
@@ -155,5 +155,14 @@ describe("minorKeyTensions", () => {
     expect(minorKeyTensions(parseChord("D7"), parseChord("Gm7"))).toEqual({ ninth: 1, thirteenth: 8 });
     expect(minorKeyTensions(inKey("A7", 2), inKey("Dm7", 2))).toEqual({ ninth: 1, thirteenth: 8 }); // Dm7 borrowed in D major
     expect(minorKeyTensions(inKey("G7", 3), inKey("Abmaj7", 3))).toEqual({ ninth: 1, thirteenth: 8 });
+  });
+});
+
+describe("tokenBeats", () => {
+  it("places tokens on their beats, 2+1 in 3/4 and 3+2 in 5/4", () => {
+    expect(tokenBeats(2, 4)).toEqual([0, 2]);
+    expect(tokenBeats(2, 3)).toEqual([0, 2]);
+    expect(tokenBeats(2, 5)).toEqual([0, 3]);
+    expect(tokenBeats(4, 4)).toEqual([0, 1, 2, 3]);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { isMinorKey, keyPitchClass } from "../chart/chords";
 import { allCharts, isImported, removeImported } from "../charts/imported";
 import { hasHead } from "../charts/heads";
@@ -26,6 +26,18 @@ export function Library({ missing }: { /** A tune id in the address that matches
   const [version, setVersion] = useState(0);
   const charts = useMemo(allCharts, [version]);
   const shown = useMemo(() => listTunes(charts, view, opened), [charts, view, opened]);
+  const list = useRef<HTMLUListElement>(null);
+  /** Up and Down move between the tunes, and Up from the first goes back to the search. */
+  const listKeys = (e: KeyboardEvent) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const links = [...(list.current?.querySelectorAll<HTMLAnchorElement>("a") ?? [])];
+    const at = links.indexOf(document.activeElement as HTMLAnchorElement);
+    if (at < 0) return;
+    e.preventDefault();
+    const next = at + (e.key === "ArrowDown" ? 1 : -1);
+    if (next < 0) document.querySelector<HTMLInputElement>(".filters input[type=search]")?.focus();
+    else links[Math.min(next, links.length - 1)].focus();
+  };
   const styles = [...new Set(charts.flatMap((c) => [c.style, ...chartStyles(c).map((s) => s.id)]))];
 
   return (
@@ -51,7 +63,21 @@ export function Library({ missing }: { /** A tune id in the address that matches
       )}
       {missing && <p className="not-found">No tune called {missing}.</p>}
       <div className="filters">
-        <input type="search" placeholder="Search tunes" aria-label="Search tunes" value={view.query} onChange={(e) => setView({ ...view, query: e.target.value })} />
+        <input
+          type="search"
+          placeholder="Search tunes"
+          aria-label="Search tunes"
+          value={view.query}
+          onChange={(e) => setView({ ...view, query: e.target.value })}
+          onKeyDown={(e) => {
+            // Enter opens the first match; Down goes into the list.
+            if (e.key === "Enter" && shown[0]) window.location.hash = `#/tune/${shown[0].id}`;
+            else if (e.key === "ArrowDown") {
+              e.preventDefault();
+              list.current?.querySelector<HTMLAnchorElement>("a")?.focus();
+            }
+          }}
+        />
         <select value={view.style} aria-label="Style" onChange={(e) => setView({ ...view, style: e.target.value })}>
           <option value="">All styles</option>
           {styles.map((s) => (
@@ -70,7 +96,7 @@ export function Library({ missing }: { /** A tune id in the address that matches
           </button>
         )}
       </div>
-      <ul className="tunes">
+      <ul className="tunes" ref={list} onKeyDown={listKeys}>
         {shown.map((c) => (
           <li key={c.id}>
             <a href={`#/tune/${c.id}`}>
@@ -86,6 +112,7 @@ export function Library({ missing }: { /** A tune id in the address that matches
                 className="quiet remove"
                 aria-label={`Remove ${c.title}`}
                 onClick={() => {
+                  if (!window.confirm(`Remove ${c.title}? It can't be brought back except by importing it again.`)) return;
                   removeImported(c.id);
                   setVersion((v) => v + 1);
                 }}

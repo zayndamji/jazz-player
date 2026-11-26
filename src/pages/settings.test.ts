@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { bossaForm, swingForm } from "../fixtures";
 import { TEMPO } from "../chart/types";
-import { clearSettings, defaultSettings, loadSettings, parseSettings, raisedTempo, saveSettings, tuneKey } from "./settings";
+import { clearSettings, countInBarsFor, defaultSettings, loadSettings, parseSettings, raisedTempo, saveSettings, tuneKey } from "./settings";
 
 const data = new Map<string, string>();
 beforeEach(() => {
@@ -100,5 +100,21 @@ describe("key each chorus", () => {
     expect(parseSettings({ keyStep: 5 }).keyStep).toBe(5);
     expect(parseSettings({ keyStep: -1 }).keyStep).toBe(-1);
     expect(parseSettings({ keyStep: 3 }).keyStep).toBeUndefined();
+  });
+});
+
+describe("count-in", () => {
+  it("defaults to auto: two bars when a bar is quick, one when it's slow", () => {
+    expect(defaultSettings(swingForm).countIn).toBe("auto");
+    expect(countInBarsFor("auto", 200, 4)).toBe(2);
+    expect(countInBarsFor("auto", 140, 4)).toBe(1);
+    expect(countInBarsFor("auto", 56, 4)).toBe(1);
+    expect(countInBarsFor(0, 200, 4)).toBe(0);
+    expect(parseSettings({ countIn: "auto" }).countIn).toBe("auto");
+  });
+  it("leaves a long intro out by default", () => {
+    const long = { ...swingForm, intro: { label: "Intro", bars: Array(16).fill("C") } };
+    expect(defaultSettings(long).intro).toBe(false);
+    expect(defaultSettings({ ...long, intro: { label: "Intro", bars: Array(4).fill("C") } }).intro).toBe(true);
   });
 });

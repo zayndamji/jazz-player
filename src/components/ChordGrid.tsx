@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { BEAT, barTokens, displayParts, parseBar, parseChord, transposeSymbol } from "../chart/chords";
+import { useEffect, useRef, type CSSProperties } from "react";
+import { BEAT, barTokens, displayParts, parseBar, parseChord, tokenBeats, transposeSymbol } from "../chart/chords";
 import { chordScale } from "../chart/scales";
 import type { Chart, Section } from "../chart/types";
 import { chartBars, sameRef, type BarRef } from "../engine/timeline";
@@ -39,11 +39,11 @@ const PHONE_GUTTER_WORD = 4;
 /** A style's name as printed under a rehearsal letter: "latin", "swing". */
 const styleName = (id: string) => (STYLES[id]?.name ?? id).toLowerCase();
 
-function ChordSymbol({ symbol, next, showScale, keyPc, sounding }: { symbol: string; /** The chord after it, which can choose the scale. */ next: string | null; showScale: boolean; keyPc: number; sounding: boolean }) {
+function ChordSymbol({ symbol, next, showScale, keyPc, sounding, style }: { symbol: string; /** The chord after it, which can choose the scale. */ next: string | null; showScale: boolean; keyPc: number; sounding: boolean; style?: CSSProperties }) {
   const { root, quality, bass } = displayParts(symbol);
   const scale = showScale ? chordScale(parseChord(symbol), symbol.match(/^[A-G][#b]?/)![0], keyPc, next ? parseChord(next) : null) : null;
   return (
-    <span className={sounding ? "chord sounding" : "chord"}>
+    <span className={sounding ? "chord sounding" : "chord"} style={style}>
       <span className="chord-name">
         <span className="chord-root">{root}</span>
         {quality && <span className="chord-quality">{quality}</span>}
@@ -148,12 +148,19 @@ export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued
                   {r === 0 && section.play && <span className="section-role">{section.play === "head" ? "head" : section.play === "first" ? "first head" : "solos"}</span>}
                   {r === 0 && section.break && <span className="section-role">break</span>}
                   {r === 0 && sectionStyles && !section.break && <span className="section-role">{styleName(section.style ?? chart.style)}</span>}
-                  {r === 0 && sectionStyles && soloStyleOf(section) && <span className="section-role">{styleName(soloStyleOf(section)!)} in solos</span>}
+                  {r === 0 && sectionStyles && soloStyleOf(section) && <span className="section-role">{styleName(soloStyleOf(section)!)} solos</span>}
                 </div>
                 {row.map((text, i) => {
                   const bar = r * 4 + i;
                   const ref: BarRef = { part, section: index, bar };
                   const parsed = parseBar(text, chart.beatsPerBar);
+                  const tokens = barTokens(text);
+                  const starts = tokenBeats(tokens.length, chart.beatsPerBar);
+                  // Tokens that don't fall on beats (three in a 4/4 bar) share the bar evenly instead.
+                  const offBeat = starts.some((b) => !Number.isInteger(b));
+                  const columns = offBeat ? tokens.length : chart.beatsPerBar;
+                  // Slashes already show the beats; the grid places chords that have none between them.
+                  const onBeats = tokens.length > 1 && !tokens.includes(BEAT);
                   const isActive = sameRef(active, ref);
                   const isCued = !isActive && sameRef(cued, ref);
                   const inRange = loopRange.some((r) => sameRef(r, ref));
@@ -169,8 +176,9 @@ export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued
                       ref={isActive || isCued ? activeEl : undefined}
                       tabIndex={sameRef(stop, ref) ? 0 : -1}
                       aria-current={isActive || isCued ? "true" : undefined}
-                      className={`bar${isActive ? " active" : ""}${isCued ? " cued" : ""}${inRange ? " in-range" : ""}${barTokens(text).length > 1 ? " split" : ""}${bar === section.bars.length - 1 ? " section-end" : ""}`}
+                      className={`bar${isActive ? " active" : ""}${isCued ? " cued" : ""}${inRange ? " in-range" : ""}${tokens.length > 1 ? " split" : ""}${onBeats ? " beats" : ""}${bar === section.bars.length - 1 ? " section-end" : ""}`}
                       key={bar}
+                      style={{ "--beats": columns } as CSSProperties}
                       {...press(ref)}
                       aria-label={`${barName(numbered, introBars)}${hideChords ? "" : `: ${parsed.repeat ? "same chord" : parsed.chords.map((c) => c.symbol).join(", ")}`}. Play from here.`}
                     >
@@ -183,10 +191,12 @@ export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued
                         </svg>
                       ) : (
                         // Chords in order, with a slash for each beat that holds the chord before it.
-                        barTokens(text).map((token, k) => {
+                        tokens.map((token, k) => {
+                          // Each chord or slash sits at its beat, as a printed chart spaces them.
+                          const place = onBeats ? { gridColumn: offBeat ? `${k + 1}` : `${starts[k] + 1} / ${(starts[k + 1] ?? columns) + 1}` } : undefined;
                           if (token === BEAT)
                             return (
-                              <span key={k} className="beat-slash" aria-hidden="true">
+                              <span key={k} className="beat-slash" aria-hidden="true" style={place}>
                                 /
                               </span>
                             );
@@ -195,6 +205,7 @@ export function ChordGrid({ chart, shift, keyPc, active, activeBeat = null, cued
                           return (
                             <ChordSymbol
                               key={k}
+                              style={place}
                               symbol={transposeSymbol(token, shift, keyPc)}
                               next={next ? transposeSymbol(next, shift, keyPc) : null}
                               showScale={showScales}

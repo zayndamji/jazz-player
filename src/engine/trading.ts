@@ -12,7 +12,7 @@ export const TRADE_LABELS: Record<TradeMode, string> = {
   off: "Off",
   fours: "Fours with drums",
   eights: "Eights with drums",
-  "fours-out": "Fours, band out",
+  "fours-out": "Fours, band stops",
 };
 
 /** What a traded bar is: the soloist's (the band plays), the drums' turn, or the band out. */

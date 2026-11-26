@@ -67,3 +67,15 @@ describe("shared links", () => {
     expect(withLink(defaultSettings(swingForm), { chords: "hidden" }).chords).toBe("hidden");
   });
 });
+
+describe("shared links, the rest of the form", () => {
+  const s = { tempo: 120, transpose: 0, style: "swing", instrument: "C", choruses: "loop" as const };
+  it("carries Live, the key step, a steady groove and the count-in", () => {
+    const url = shareUrl("http://x/", "t", { ...s, live: true, keyStep: 5, variation: "straight", countIn: 1 });
+    expect(parseLink(url.slice(url.indexOf("#")))).toMatchObject({ choruses: "loop", live: true, keyStep: 5, variation: "straight", countIn: 1 });
+  });
+  it("leaves the defaults out", () => {
+    const url = shareUrl("http://x/", "t", { ...s, live: false, keyStep: 0, variation: "varied", countIn: "auto" });
+    expect(url).not.toMatch(/step=|groove=|countin=|choruses=live/);
+  });
+});

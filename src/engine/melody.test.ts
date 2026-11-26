@@ -119,9 +119,9 @@ describe("melody on the timeline", () => {
     expect(melodyOf(buildSchedule(swingForm, swing, { ...base, choruses: 1, melody: { mode: "off", measures } }))).toEqual([]);
   });
 
-  it("stays out of a looped section in head mode", () => {
+  it("plays in a looped section in head mode, where the head is learned", () => {
     const s = buildSchedule(swingForm, swing, { ...base, choruses: 1, loopSection: 0 });
-    expect(melodyOf(s)).toEqual([]);
+    expect(melodyOf(s).length).toBeGreaterThan(0);
   });
 
   it("stays silent on the drums' turns when trading", () => {

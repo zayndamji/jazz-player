@@ -63,11 +63,11 @@ The player bar at the bottom has Play, the progress line, tempo, Loop, Metronome
 
 | Group | Settings |
 | --- | --- |
-| Band | Style, groove (varied or straight), two-feel heads |
+| Band | Style, groove (varied or steady), bass in two on the heads |
 | Key | Transpose, instrument, key change each chorus |
-| Form | Choruses (a number, until stopped, or live), count-in, intro and ending |
+| Form | Choruses (a number, until stopped, or until you end it), count-in (auto, none, one or two bars), intro and ending |
 | Practice | Trading, melody, chords shown, speed up, metronome beats, scale names |
-| Mix | Volume, mute and solo per part, presets |
+| Mix | Volume, mute and solo per part, ready-made part mixes |
 
 Keyboard shortcuts (press `?` on a tune for the full list):
 
@@ -77,12 +77,13 @@ Keyboard shortcuts (press `?` on a tune for the full list):
 | Home or 0 | Back to the start |
 | Left, Right | A bar back or on (Shift: a section) |
 | `-`, `=` | Slower, faster |
+| `[`, `]` | Key down or up a half step |
 | L, C, M | Loop, metronome, mute |
 | V | Chord chart or lead sheet |
 | H | Hide or show the chords |
 | Esc | Stop looping |
 
-To loop any run of bars, click the first bar and Shift-click the last (on a touch screen, press and hold the last bar). Clicking a rehearsal letter loops that section.
+To loop any run of bars, click the first bar and Shift-click the last (on a touch screen, press and hold the last bar). Clicking a rehearsal letter plays that section on a loop.
 
 ## Development
 

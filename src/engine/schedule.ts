@@ -228,11 +228,12 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   let events = restInBreaks(applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"), { style: style.id, bpm: tempo }), bars, beatsPerBar);
   const melody = opts.melody && opts.melody.mode !== "off" ? opts.melody : null;
   if (melody) {
-    // The head choruses are the first and, when the song ends, the last (as `playOrder` has it); a looped
-    // section or range has no head, so only "every chorus" plays there. The intro and ending count as head.
+    // The head choruses are the first and, when the song ends, the last (as `playOrder` has it). A looped
+    // section or range plays the melody on every pass, since looping a section is how the head is learned.
+    // The intro and ending count as head.
     // The held tonic that ends a song without an ending has no melody of its own.
     const isHead = (b: TimelineBar) => !b.tonic && (b.ref?.part !== "form" || b.chorus === 1 || (opts.choruses !== "loop" && b.chorus === lastChorus));
-    const tune = melodyEvents(chart, bars, melody.measures, (b) => !b.tonic && (melody.mode === "every" || (!sectionLoop && isHead(b))), { swing: (b) => melodySwing(b.style ?? style.id, tempo), bpm: tempo });
+    const tune = melodyEvents(chart, bars, melody.measures, (b) => !b.tonic && (melody.mode === "every" || sectionLoop || isHead(b)), { swing: (b) => melodySwing(b.style ?? style.id, tempo), bpm: tempo });
     // The comping steps under the melody wherever both sound.
     events = [...fitUnderMelody(events, tune), ...tune].sort((a, b) => a.time - b.time);
   }

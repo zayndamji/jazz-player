@@ -182,13 +182,19 @@ export function parseBar(text: string, beatsPerBar: number): ParsedBar {
   if (tokens.length === 0 || (tokens.length === 1 && tokens[0] === "%")) {
     return { chords: [], repeat: true };
   }
-  const step = beatsPerBar / tokens.length;
-  const split = tokens.length !== 2 ? 0 : beatsPerBar === 3 ? 2 : beatsPerBar === 5 ? 3 : 0;
+  const beats = tokenBeats(tokens.length, beatsPerBar);
   const chords: ChordSlot[] = [];
   tokens.forEach((symbol, i) => {
-    if (symbol !== BEAT) chords.push({ symbol, beat: split ? i * split : i * step });
+    if (symbol !== BEAT) chords.push({ symbol, beat: beats[i] });
   });
   return { chords, repeat: false };
+}
+
+/** The beat (from 0) each of a bar's tokens starts on: evenly, except two tokens in 3/4 (2+1) and 5/4 (3+2). */
+export function tokenBeats(count: number, beatsPerBar: number): number[] {
+  const step = beatsPerBar / count;
+  const split = count !== 2 ? 0 : beatsPerBar === 3 ? 2 : beatsPerBar === 5 ? 3 : 0;
+  return Array.from({ length: count }, (_, i) => (split ? i * split : i * step));
 }
 
 /** The tokens of a bar string, chords and "/" placeholders, in order. */

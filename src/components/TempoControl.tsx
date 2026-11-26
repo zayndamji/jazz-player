@@ -110,6 +110,8 @@ export function TempoControl({ tempo, original, onTempo }: Props) {
             onBlur={commit}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
+                // Without this the same Enter clicks the tempo button that takes focus back, opening the field again.
+                e.preventDefault();
                 refocus.current = true;
                 commit();
               } else if (e.key === "Escape") {
@@ -121,10 +123,10 @@ export function TempoControl({ tempo, original, onTempo }: Props) {
           />
         ) : (
           <button type="button" ref={number} className="tempo-number" title="Type a tempo" aria-label={`${tempo} BPM, type a tempo`} onClick={open}>
-            <strong>{tempo}</strong>
+            <strong>{tempo}</strong> <span className="tempo-unit">BPM</span>
           </button>
-        )}{" "}
-        BPM
+        )}
+        {editing && <span className="tempo-unit"> BPM</span>}
       </span>
       <button
         type="button"

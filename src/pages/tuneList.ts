@@ -52,11 +52,16 @@ export function recordOpened(chartId: string, now = Date.now()) {
   store(OPENED_KEY, JSON.stringify({ ...readOpened(), [chartId]: now }));
 }
 
+/** Lower case without accents, for searching. */
+const plain = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 /** The tunes matching a search and style, in the chosen order (recently opened first, then the rest A to Z). */
 export function listTunes(charts: Chart[], view: LibraryView, opened: Record<string, number>): Chart[] {
-  const q = view.query.trim().toLowerCase();
+  const q = plain(view.query.trim());
   // A tune counts under every style its sections play (Latin A's and a swing bridge: Latin and Swing).
-  const shown = charts.filter((c) => (!view.style || c.style === view.style || chartStyles(c).some((s) => s.id === view.style)) && (!q || c.title.toLowerCase().includes(q)));
+  // The search reads the title and the style names, without accents ("so danco" finds "Só Danço Samba").
+  const words = (c: Chart) => plain([c.title, ...chartStyles(c).map((s) => s.name)].join(" "));
+  const shown = charts.filter((c) => (!view.style || c.style === view.style || chartStyles(c).some((s) => s.id === view.style)) && (!q || words(c).includes(q)));
   const az = (a: Chart, b: Chart) => a.title.localeCompare(b.title);
   return [...shown].sort(view.sort === "recent" ? (a, b) => (opened[b.id] ?? 0) - (opened[a.id] ?? 0) || az(a, b) : az);
 }

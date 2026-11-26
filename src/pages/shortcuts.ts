@@ -11,6 +11,8 @@ export type ShortcutId =
   | "section-on"
   | "slower"
   | "faster"
+  | "transpose-down"
+  | "transpose-up"
   | "loop"
   | "unloop"
   | "loop-bars"
@@ -37,6 +39,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "start", keys: ["Home", "0"], aria: "Home", label: "Back to the start", group: "Playing", singleKey: false },
   { id: "slower", keys: ["-"], aria: "-", label: "Slower, 5 BPM", group: "Playing", singleKey: true },
   { id: "faster", keys: ["="], aria: "=", label: "Faster, 5 BPM", group: "Playing", singleKey: true },
+  { id: "transpose-down", keys: ["["], aria: "[", label: "Key down a half step", group: "Playing", singleKey: true },
+  { id: "transpose-up", keys: ["]"], aria: "]", label: "Key up a half step", group: "Playing", singleKey: true },
   { id: "bar-back", keys: ["←"], aria: "ArrowLeft", label: "A bar back", group: "Moving", singleKey: false },
   { id: "bar-on", keys: ["→"], aria: "ArrowRight", label: "A bar on", group: "Moving", singleKey: false },
   { id: "section-back", keys: ["Shift ←"], aria: "Shift+ArrowLeft", label: "Start of this section, or the one before; when looping, loop the one before", group: "Moving", singleKey: false },
@@ -75,6 +79,8 @@ export function shortcutFor(e: KeyboardEvent, singleKeys: boolean): ShortcutId |
   if (e.key === "?") return "help";
   if (e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") return "slower";
   if (e.key === "=" || e.key === "+" || e.code === "NumpadAdd") return "faster";
+  if (e.code === "BracketLeft") return "transpose-down";
+  if (e.code === "BracketRight") return "transpose-up";
   if (e.shiftKey) return null;
   return ({ l: "loop", c: "click", m: "mute", v: "view", h: "chords" } as Record<string, ShortcutId>)[letter(e)] ?? null;
 }
@@ -86,7 +92,7 @@ export function shortcutFor(e: KeyboardEvent, singleKeys: boolean): ShortcutId |
  */
 let clicked: Element | null = null;
 if (typeof window !== "undefined") {
-  window.addEventListener("pointerdown", (e) => (clicked = (e.target as HTMLElement).closest?.("button, a") ?? null), true);
+  window.addEventListener("pointerdown", (e) => (clicked = (e.target as HTMLElement).closest?.('button, a, select, input[type="checkbox"]') ?? null), true);
   window.addEventListener("focusin", (e) => {
     if (e.target !== clicked) clicked = null;
   });
@@ -101,6 +107,9 @@ if (typeof window !== "undefined") {
 export function leaveAlone(e: KeyboardEvent): boolean {
   const target = e.target as HTMLElement | null;
   if (!target?.closest) return false;
+  // A menu or checkbox that only has focus because it was clicked doesn't keep Space: it plays, as on a clicked button.
+  const pointed = target.closest('select, input[type="checkbox"]');
+  if (pointed && pointed === clicked && e.code === "Space") return false;
   if (target.closest('input, select, textarea, [contenteditable="true"], [role="slider"], [role="spinbutton"], dialog')) return true;
   const control = target.closest("button, a");
   if (e.code === "Space" && control && control !== clicked) return true;

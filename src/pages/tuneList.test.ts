@@ -61,3 +61,12 @@ describe("remembering the list and when tunes opened", () => {
     expect(readOpened()).toEqual({});
   });
 });
+
+describe("library search", () => {
+  it("reads style names and ignores accents", () => {
+    const accented = { ...swingForm, id: "accented", title: "Só Danço" };
+    expect(listTunes([accented, ballad()], { ...view, query: "so danco" }, {}).map((c) => c.id)).toEqual(["accented"]);
+    expect(listTunes(charts, { ...view, query: "ballad" }, {}).map((c) => c.id)).toEqual([balladForm.id]);
+  });
+});
+const ballad = () => balladForm;

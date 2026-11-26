@@ -8,7 +8,7 @@ import { hasHead, loadMelody } from "../charts/heads";
 import { ChordGrid } from "../components/ChordGrid";
 import { ControlBar, type ProgressStep, type View } from "../components/ControlBar";
 import { LeadSheet } from "../components/LeadSheet";
-import { Mixer, type MixState } from "../components/Mixer";
+import { Mixer, TRACKS, type MixState } from "../components/Mixer";
 import { ShortcutHelp } from "../components/ShortcutHelp";
 import { MELODY_LABELS, MELODY_MODES, type MelodyMode, type MelodyNote } from "../engine/melody";
 import { bandFor, buildSchedule, chorusesFor, mixesStyles, chorusLayoutChanges, clickLabel, performanceBeats, type ClickMode, type PlaybackOptions, type Repeat, type Schedule } from "../engine/schedule";
@@ -20,7 +20,7 @@ import { TRADE_LABELS, TRADE_MODES, tradeLabel, type TradeMode } from "../engine
 import { shareUrl, rememberable, withLink, type LinkSettings } from "./share";
 import { recordOpened } from "./tuneList";
 import { applyPreset, effectiveMute, PRESETS } from "./mix";
-import { CHORDS_SHOWN, clearSettings, defaultSettings, loadSettings, raisedTempo, REPEATS, saveSettings, SPEED_UPS, type ChordsShown, type SpeedUp } from "./settings";
+import { CHORDS_SHOWN, CHORDS_SHOWN_LABELS, clearSettings, countInBarsFor, defaultSettings, loadSettings, raisedTempo, REPEATS, saveSettings, SPEED_UPS, type ChordsShown, type CountIn, type SpeedUp } from "./settings";
 import { leaveAlone, shortcutFor, type ShortcutId } from "./shortcuts";
 import { readStored, store } from "./storage";
 import { useWakeLock } from "./useWakeLock";
@@ -106,8 +106,11 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   const live = liveSetting && repeat === "loop";
   /** Live, after the press: the band is finishing its chorus. */
   const [finishing, setFinishing] = useState(false);
-  const [countInBars, setCountInBars] = useState(initial.countIn);
+  const [countInSetting, setCountInBars] = useState<CountIn>(initial.countIn);
+  const countInBars = countInBarsFor(countInSetting, tempo, chart.beatsPerBar);
   const countIn = countInBars > 0;
+  /** Set by a resume from a pause: one bar is enough to come back in. */
+  const shortCountIn = useRef(false);
   const [intro, setIntro] = useState(initial.intro);
   const [ending, setEnding] = useState(initial.ending);
   const [clickMode, setClickMode] = useState<ClickMode>(initial.click);
@@ -175,8 +178,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   }, [volume]);
   // Each tune remembers its own settings.
   useEffect(() => {
-    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, live, countIn: countInBars, twoFeel, variation, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, trade, chords: chordsShown, melody, mix }, stored, linkNow.current));
-  }, [chart, tempo, transpose, styleId, repeat, live, countInBars, twoFeel, variation, intro, ending, view, clickMode, showScales, speedUp, keyStep, trade, chordsShown, melody, mix]);
+    saveSettings(chart, rememberable({ tempo, transpose, style: styleId, choruses: repeat, live, countIn: countInSetting, twoFeel, variation, intro, ending, view, click: clickMode, showScales, speedUp, keyStep, trade, chords: chordsShown, melody, mix }, stored, linkNow.current));
+  }, [chart, tempo, transpose, styleId, repeat, live, countInSetting, twoFeel, variation, intro, ending, view, clickMode, showScales, speedUp, keyStep, trade, chordsShown, melody, mix]);
   useEffect(() => {
     // An instrument that came from a link isn't remembered until the player picks one.
     if (linkedInstrument.current === instrumentId) return;
@@ -243,6 +246,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     let wanted = true;
     loadMelody(chart.id).then((m) => {
       if (!wanted) return;
+      if (!m) setError("Couldn't read this tune's melody, so the band plays without it.");
       measures.current = m;
       setMeasuresReady(true);
     });
@@ -251,6 +255,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     };
   }, [chart.id, headAvailable, melody]);
 
+  /** Bumped by each start and by a cancel, so a start still waiting on the sounds knows it was replaced. */
+  const startTicket = useRef(0);
   const start = useCallback(
     async (opts: Omit<PlaybackOptions, "choruses" | "transpose" | "tempo" | "twoFeel" | "variation" | "countInBars" | "intro" | "ending" | "keyStep" | "trade" | "melody">, choruses: Repeat = repeat, entry: Entry = "top") => {
       const p = getPlayer();
@@ -260,6 +266,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         setError(null);
         setStatus("loading");
       }
+      const ticket = ++startTicket.current;
       try {
         await p.load();
       } catch (e) {
@@ -270,13 +277,16 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         return;
       }
       if (headAvailable && melody !== "off") measures.current = await loadMelody(chart.id);
-      // The page was left while the sounds loaded: there is nothing to play along with.
+      // The page was left while the sounds loaded, or Home or Play cancelled this start: there is nothing to play along with.
       if (!alive.current) return;
+      if (ticket !== startTicket.current) return;
       (Object.keys(mix) as Mixable[]).forEach((t) => {
         p.setVolume(t, mix[t].level);
         p.setMute(t, effectiveMute(mix, t));
       });
-      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? countInBars : 0, intro, ending, keyStep, trade, melody: melodyOpts(), choruses, transpose, tempo, twoFeel, variation };
+      const bars = (shortCountIn.current ? Math.min(1, countInBars) : countInBars) as 0 | 1 | 2;
+      shortCountIn.current = false;
+      const full: PlaybackOptions = { ...opts, countInBars: opts.countIn ? bars : 0, intro, ending, keyStep, trade, melody: melodyOpts(), choruses, transpose, tempo, twoFeel, variation };
       const schedule = buildSchedule(chart, style, full);
       current.current = { opts: full, schedule, style, repeat };
       p.metronomeOn = metronome;
@@ -316,7 +326,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     const c = current.current;
     if (!playing || !c) return;
     const m = melodyOpts();
-    const sameShape = c.opts.melody?.mode === m?.mode && c.opts.melody?.measures === m?.measures && c.opts.transpose === transpose && c.opts.keyStep === keyStep && c.opts.trade === trade && c.style === style && c.opts.twoFeel === twoFeel && c.opts.variation === variation && c.repeat === repeat;
+    const sameForm = (c.opts.intro !== false) === intro && (c.opts.ending !== false) === ending;
+    const sameShape = sameForm && c.opts.melody?.mode === m?.mode && c.opts.melody?.measures === m?.measures && c.opts.transpose === transpose && c.opts.keyStep === keyStep && c.opts.trade === trade && c.style === style && c.opts.twoFeel === twoFeel && c.opts.variation === variation && c.repeat === repeat;
     if (sameShape && c.opts.tempo === tempo) return;
     const rebuild = () => {
       const now = current.current;
@@ -331,6 +342,15 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         keys.current.begin(here, false, loopOf(now.opts), withChoruses, nowBar?.countIn ? "count-in" : "here");
         return true;
       };
+      // The intro or ending switched on or off: the performance is laid out again from this bar.
+      if ((now.opts.intro !== false) !== intro || (now.opts.ending !== false) !== ending) {
+        const here = placeNow();
+        if (here?.ref.part === "intro" && !intro) {
+          keys.current.begin(sectionStart(0), false, loopOf(now.opts), now.opts.choruses, nowBar?.countIn ? "count-in" : "jump");
+          return;
+        }
+        if (here?.ref.part !== "ending" && restart(now.opts.choruses)) return;
+      }
       if (now.repeat !== repeat && !looped) {
         if (repeat === "loop" || now.repeat === "loop") {
           // Chorus numbers mean something different when they repeat until stopped, so carry on from this bar.
@@ -357,7 +377,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     if (!sameShape) return rebuild();
     const id = window.setTimeout(rebuild, 400);
     return () => window.clearTimeout(id);
-  }, [chart, style, transpose, keyStep, trade, melody, measuresReady, tempo, twoFeel, variation, repeat, playing]);
+  }, [chart, style, transpose, keyStep, trade, melody, measuresReady, tempo, twoFeel, variation, repeat, intro, ending, playing]);
 
   const schedule = current.current?.schedule ?? null;
   const totalBeats = useMemo(
@@ -366,6 +386,14 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   );
   /** The bar sounding, in the schedule its beat came from (a jump's old schedule plays on until the next beat). */
   const nowBar = position ? (position.schedule.bars[position.bar] ?? null) : null;
+  // Speed up also counts the choruses of a run that doesn't loop (a loop's passes raise it from the player's pass event).
+  const chorusPlaying = playing && nowBar?.ref?.part === "form" && !current.current?.schedule.loop ? nowBar.chorus : null;
+  const lastChorus = useRef<number | null>(null);
+  useEffect(() => {
+    if (chorusPlaying !== null && lastChorus.current !== null && chorusPlaying > lastChorus.current && speedUp > 0) setTempo((t) => raisedTempo(t, speedUp));
+    if (chorusPlaying !== null || !playing) lastChorus.current = chorusPlaying;
+  }, [chorusPlaying, playing]);
+
   const looping = current.current?.opts.loopSection != null || current.current?.opts.loopRange != null;
   /**
    * The chorus a bar is in. A loop's bars are numbered from where it started and the schedule
@@ -461,7 +489,12 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
 
   /** Space: pause and keep the place, or play from it. Live: the first press ends the tune after the chorus, a second stops now. */
   const toggle = () => {
-    if (status === "loading") return;
+    // A second press while the sounds load cancels the start.
+    if (status === "loading") {
+      startTicket.current++;
+      setStatus("idle");
+      return;
+    }
     const sectionLooped = current.current?.opts.loopSection != null || !!current.current?.opts.loopRange;
     if (status === "playing" && live && !finishing && !sectionLooped && current.current?.opts.choruses === "loop") {
       finishChorus();
@@ -476,6 +509,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       return;
     }
     const outside = loop !== null && cue && !inLoop(cue.ref, loop);
+    shortCountIn.current = !outside && cue !== null;
     begin(outside ? null : cue, countIn, loop);
   };
 
@@ -487,11 +521,19 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     setJump(null);
   };
 
-  /** Home: stop and go back to the start (of the loop, when looping). */
+  /** Home: back to the start (of the loop, when looping). Playing, the band goes there on the next beat. */
   const toStart = () => {
     cancelPending();
-    if (playing) player.current?.stop();
     setCue(null);
+    if (status === "loading") {
+      startTicket.current++;
+      setStatus("idle");
+      return;
+    }
+    if (playing) {
+      setAnnounce("From the top");
+      begin(loopStart(loop), false, loop);
+    }
   };
 
   /**
@@ -502,6 +544,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   const go = (target: PlayItem, toLoop: Loop) => {
     // In a loop the order is one pass long: carry on in the chorus (so the key) the band is in.
     const item = toLoop !== null && target.ref.part === "form" ? { ...target, chorus: Math.max(1, fromHere()?.chorus ?? 1) } : target;
+    // Shift-click loops from the last place chosen, by the keys as by a click.
+    setPicked(item.ref);
     setAnnounce(describe(item.ref, item.chorus, toLoop !== null));
     if (!playing) {
       setCue(item);
@@ -530,7 +574,19 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
 
   /** Shift with Left or Right: a section back or on; when looping, loop the next or previous section. */
   const moveSection = (delta: number) => {
-    if (loopRange) return;
+    if (loopRange) {
+      // A run of bars moves by its own length, so bars 9-12 become 13-16.
+      const run = rangeBars(chart, loopRange);
+      const all = bars.filter((b) => b.ref.part !== "ending");
+      const at = run.length ? all.findIndex((b) => sameRef(b.ref, run[0].ref)) : -1;
+      if (at < 0) return;
+      const to = Math.min(all.length - run.length, Math.max(0, at + delta * run.length));
+      if (to === at) return;
+      const range = { from: all[to].ref, to: all[to + run.length - 1].ref };
+      setLoop({ range });
+      go({ ref: all[to].ref, chorus: 1 }, { range });
+      return;
+    }
     if (loopSection !== null) {
       const next = Math.min(chart.form.length - 1, Math.max(0, loopSection + delta));
       setLoop({ section: next });
@@ -541,8 +597,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     go(stepSection(navOrder(chart, repeat, null, from?.chorus ?? 1, intro, ending), from, delta), null);
   };
 
-  const playFrom = (ref: BarRef, toLoop: Loop, entry?: Entry) => {
-    const chorus = ref.part === "form" ? (playing && nowBar?.ref ? realChorus(nowBar.chorus) : (cue?.chorus || 1)) : 0;
+  const playFrom = (ref: BarRef, toLoop: Loop, entry?: Entry, inChorus?: number) => {
+    const chorus = ref.part === "form" ? (inChorus ?? (playing && nowBar?.ref ? realChorus(nowBar.chorus) : (cue?.chorus || 1))) : 0;
     begin({ ref, chorus }, playing ? false : countIn, toLoop, repeat, entry);
   };
 
@@ -559,7 +615,10 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
       return;
     }
     const here = nowBar?.ref;
-    if (here && (toLoop === null || inLoop(here, toLoop))) playFrom(here, toLoop, "here");
+    // Leaving a loop carries on in the chorus the loop was in: its passes are practice, not choruses of the
+    // tune (with a key each chorus the passes moved the key, so the band stays in the chorus it reached).
+    const stayIn = toLoop === null && keyStep === 0 && nowBar?.ref?.part === "form" ? Math.max(1, nowBar.chorus) : undefined;
+    if (here && (toLoop === null || inLoop(here, toLoop))) playFrom(here, toLoop, "here", stayIn);
     else begin(loopStart(toLoop), false, toLoop);
   };
 
@@ -599,6 +658,8 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     const nextLoop: Loop = next === null ? null : { section: next };
     setLoop(nextLoop);
     if (!playing) {
+      // A rehearsal letter plays its section looped, as a bar plays from itself; L only sets the loop up.
+      if (section !== undefined && next !== null) return begin(sectionStart(next), countIn, nextLoop);
       if (next !== null && cue && !(cue.ref.part === "form" && cue.ref.section === next)) setCue(sectionStart(next));
       return;
     }
@@ -650,7 +711,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   }, []);
   /** Copy a link to this tune with the tempo, key, style, instrument and choruses on screen. */
   const copyLink = async () => {
-    const url = shareUrl(window.location.origin + window.location.pathname, chart.id, { tempo, transpose, style: styleId, instrument: instrumentId, choruses: repeat, trade, chords: chordsShown, melody });
+    const url = shareUrl(window.location.origin + window.location.pathname, chart.id, { tempo, transpose, style: styleId, instrument: instrumentId, choruses: repeat, trade, chords: chordsShown, melody, live, keyStep, variation, countIn: countInSetting });
     try {
       await navigator.clipboard.writeText(url);
       setCopied("copied");
@@ -701,10 +762,24 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     else if (id === "section-back" || id === "section-on") moveSection(id === "section-on" ? 1 : -1);
     else if (id === "slower" || id === "faster") setTempo((t) => Math.min(TEMPO.max, Math.max(TEMPO.min, t + (id === "faster" ? 5 : -5))));
     else if (id === "loop") toggleLoop();
-    else if (id === "click") setMetronome((m) => !m);
-    else if (id === "mute") setMuted((m) => !m);
-    else if (id === "view" && headAvailable) setView((v) => (v === "chords" ? "sheet" : "chords"));
-    else if (id === "chords") setChordsShown((c) => CHORDS_SHOWN[(CHORDS_SHOWN.indexOf(c) + 1) % CHORDS_SHOWN.length]);
+    else if (id === "click") {
+      setAnnounce(metronome ? "Metronome off" : "Metronome on");
+      setMetronome((m) => !m);
+    } else if (id === "mute") {
+      setAnnounce(muted ? "Sound on" : "Muted");
+      setMuted((m) => !m);
+    } else if (id === "view" && headAvailable) {
+      setAnnounce(view === "chords" ? "Lead sheet" : "Chords");
+      setView((v) => (v === "chords" ? "sheet" : "chords"));
+    } else if (id === "chords") {
+      const next = CHORDS_SHOWN[(CHORDS_SHOWN.indexOf(chordsShown) + 1) % CHORDS_SHOWN.length];
+      setAnnounce(CHORDS_SHOWN_LABELS[next]);
+      setChordsShown(next);
+    } else if (id === "transpose-down" || id === "transpose-up") {
+      const t = Math.max(-TRANSPOSE_RANGE, Math.min(TRANSPOSE_RANGE, transpose + (id === "transpose-up" ? 1 : -1)));
+      setAnnounce(`${keyWords((chartKeyPc + t + 12) % 12, minor)} (${signed(t)})`);
+      setTranspose(t);
+    }
     else if (id === "help") setHelpOpen((o) => !o);
   };
 
@@ -764,10 +839,12 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
     if (nowBar.trade) whereMore.push(tradeLabel(current.current?.opts.trade ?? trade, nowBar.trade));
     if (finishing) whereMore.push("Ending after this chorus");
   } else if (status === "idle" && cue) where = describe(cue.ref, cue.chorus, loop !== null);
+  // Playing, before the first beat arrives (the audio clock's lookahead).
+  if (!where && status === "playing") where = (current.current?.opts.countInBars ?? 0) > 0 ? "Count-in" : "Starting";
   const wherePrefix = !nowBar?.countIn && !nowBar?.ref && status === "idle" && cue ? "Paused" : undefined;
   if (!where && status === "idle") {
     const seconds = Math.round((totalBeats * 60) / tempo);
-    where = live ? "Live: repeats until you end it" : repeat === "loop" ? "Repeats until stopped" : `${repeat} ${repeat === 1 ? "chorus" : "choruses"} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+    where = live ? "Repeats until you end it" : repeat === "loop" ? "Repeats until stopped" : `${repeat} ${repeat === 1 ? "chorus" : "choruses"} · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   }
   // A bar the run plays twice (a repeated ending tag) is told apart by its place in the schedule that's playing.
   const performanceIndex = (() => {
@@ -835,6 +912,16 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
   const rangeLabel = rangeNumbers.length ? barsLabel(rangeNumbers[0], rangeNumbers.at(-1)!, introBars) : null;
   const loopLabel = loopSection !== null ? `Loop ${sectionName(chart, loopSection)}` : rangeLabel;
 
+  /** The band's parts the mixer keeps silent (muted, or left out by a solo), named for the header. */
+  const silenced = TRACKS.filter((t) => t.id !== "metronome" && t.id !== "melody" && bandFor(chart, style).includes(t.id as never) && effectiveMute(mix, t.id)).map((t) => t.name.toLowerCase());
+  const listWords = (names: string[]) => {
+    const text = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  };
+
+  /** Whether the run has a chorus to trade in: the first and last choruses are heads, a loop's passes are solos. */
+  const soloChoruses = repeat === "loop" || loop !== null || repeat >= 3;
+
   /** A group of settings in More, under a plain heading. */
   const group = (id: string, title: string, children: ReactNode) => (
     <div className="settings-group" role="group" aria-labelledby={`settings-${id}`}>
@@ -869,7 +956,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
           {style.twoFeel && (
             <label className="check">
               <input type="checkbox" checked={twoFeel} onChange={(e) => setTwoFeel(e.target.checked)} />
-              Two-feel heads
+              Bass in two on the heads
             </label>
           )}
         </>,
@@ -935,12 +1022,13 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
                   {r === "loop" ? "Until stopped" : r}
                 </option>
               ))}
-              <option value="live">Live: end on cue</option>
+              <option value="live">Until I end it</option>
             </select>
           </label>
           <label className="field">
             <span>Count-in</span>
-            <select value={countInBars} onChange={(e) => setCountInBars(Number(e.target.value) as 0 | 1 | 2)}>
+            <select value={String(countInSetting)} onChange={(e) => setCountInBars(e.target.value === "auto" ? "auto" : (Number(e.target.value) as 0 | 1 | 2))}>
+              <option value="auto">Auto ({countInBarsFor("auto", tempo, chart.beatsPerBar)} {countInBarsFor("auto", tempo, chart.beatsPerBar) === 1 ? "bar" : "bars"})</option>
               <option value={0}>None</option>
               <option value={1}>1 bar</option>
               <option value={2}>2 bars</option>
@@ -966,7 +1054,7 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         <>
           <label className="field">
             <span>Trade</span>
-            <select value={trade} onChange={(e) => setTrade(e.target.value as TradeMode)}>
+            <select value={trade} disabled={!soloChoruses} title={soloChoruses ? undefined : "Trading needs a solo chorus: choose 3 or more choruses, or loop a section"} onChange={(e) => setTrade(e.target.value as TradeMode)}>
               {TRADE_MODES.map((m) => (
                 <option key={m} value={m}>
                   {TRADE_LABELS[m]}
@@ -999,23 +1087,31 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             <select value={speedUp} onChange={(e) => setSpeedUp(Number(e.target.value) as SpeedUp)}>
               {SPEED_UPS.map((n) => (
                 <option key={n} value={n}>
-                  {n === 0 ? "Off" : `+${n} BPM each loop`}
+                  {n === 0 ? "Off" : `+${n} BPM a chorus`}
                 </option>
               ))}
             </select>
           </label>
           <label className="field">
             <span>Metronome plays</span>
-            <select value={clickMode} onChange={(e) => setClickMode(e.target.value as ClickMode)}>
+            <select
+              value={clickMode}
+              onChange={(e) => {
+                setClickMode(e.target.value as ClickMode);
+                setMetronome(true);
+              }}
+            >
               <option value="every">Every beat</option>
               <option value="two-four">{clickLabel("two-four", chart.beatsPerBar)}</option>
               <option value="one">Beat 1 only</option>
             </select>
           </label>
-          <label className="check">
-            <input type="checkbox" checked={showScales} onChange={(e) => setShowScales(e.target.checked)} />
-            Show scales on the chart
-          </label>
+          {view === "chords" && (
+            <label className="check">
+              <input type="checkbox" checked={showScales} onChange={(e) => setShowScales(e.target.checked)} />
+              Show scales on the chart
+            </label>
+          )}
         </>,
       )}
       {group(
@@ -1024,7 +1120,13 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
         <Mixer volume={volume} onVolume={setVolume} mix={mix} onChange={changeMix} onPreset={changePreset} band={melody !== "off" && headAvailable ? [...bandFor(chart, style), "melody"] : bandFor(chart, style)} />,
       )}
       <div className="quiet-row">
-        <button type="button" className="quiet" onClick={resetSettings}>
+        <button
+          type="button"
+          className="quiet"
+          onClick={() => {
+            if (window.confirm(`Put every setting of ${chart.title} back to the original?`)) resetSettings();
+          }}
+        >
           Reset to original
         </button>
         <button type="button" className="quiet" onClick={copyLink}>
@@ -1062,6 +1164,16 @@ export function TunePage({ chart, link = {} }: { chart: Chart; /** Settings from
             <span className="part">
               {instrument.name.split(" ")[0]} part, written in {keyLabel(printedKeyPc, minor)}
             </span>
+          )}
+          {silenced.length > 0 && (
+            <button type="button" className="meta-note" title="Let every part play" onClick={() => setMix((m) => applyPreset(m, PRESETS[0], bandFor(chart, style)))}>
+              {listWords(silenced)} {silenced.length === 1 ? "is" : "are"} off · undo
+            </button>
+          )}
+          {chordsShown !== "always" && (
+            <button type="button" className="meta-note" title="Show the chords (H)" onClick={() => setChordsShown("always")}>
+              {CHORDS_SHOWN_LABELS[chordsShown]} · show
+            </button>
           )}
         </p>
       </header>

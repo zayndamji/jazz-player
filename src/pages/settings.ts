@@ -23,6 +23,8 @@ export const raisedTempo = (tempo: number, step: number) => Math.min(TEMPO.max, 
 /** When the chart shows its chords: always, hidden after the first chorus (to play from memory), or never. */
 export type ChordsShown = "always" | "after-first" | "hidden";
 export const CHORDS_SHOWN: ChordsShown[] = ["always", "after-first", "hidden"];
+/** What the H key says it did. */
+export const CHORDS_SHOWN_LABELS: Record<ChordsShown, string> = { always: "Chords shown", "after-first": "Chords hidden after chorus 1", hidden: "Chords hidden" };
 
 export const MIXABLES: Mixable[] = ["bass", "guitar", "piano", "drums", "melody", "metronome"];
 
@@ -38,14 +40,14 @@ export const initialMix = (): Record<Mixable, MixState> => ({
 /** What a tune remembers between visits: everything More and the player bar can change, except the global Mute and instrument. */
 export interface TuneSettings {
   tempo: number;
-  /** Half steps from the original key, -6 to 5. */
+  /** Half steps from the original key, -6 to 6. */
   transpose: number;
   style: string;
   choruses: Repeat;
   /** Live: choruses repeat until the play button is pressed, then the band finishes the chorus and plays the ending (with choruses "loop"). */
   live: boolean;
   /** Bars of count-in. */
-  countIn: 0 | 1 | 2;
+  countIn: CountIn;
   twoFeel: boolean;
   /** The band develops ("varied") or keeps one groove ("straight"). */
   variation: Variation;
@@ -65,6 +67,18 @@ export interface TuneSettings {
   mix: Record<Mixable, MixState>;
 }
 
+/** Count-in bars, or "auto": two bars when a bar is quick (under 1.5 seconds), else one. */
+export type CountIn = 0 | 1 | 2 | "auto";
+
+/** The bars a count-in plays at this tempo. */
+export function countInBarsFor(countIn: CountIn, tempo: number, beatsPerBar: number): 0 | 1 | 2 {
+  if (countIn !== "auto") return countIn;
+  return (beatsPerBar * 60) / tempo < 1.5 ? 2 : 1;
+}
+
+/** Intros longer than this are left out unless asked for, so Play reaches the tune quickly. */
+export const LONG_INTRO_BARS = 8;
+
 export const tuneKey = (chartId: string) => `jazz-stand.tune.${chartId}`;
 
 export function defaultSettings(chart: Chart): TuneSettings {
@@ -74,10 +88,10 @@ export function defaultSettings(chart: Chart): TuneSettings {
     style: chart.style,
     choruses: 3,
     live: false,
-    countIn: 2,
+    countIn: "auto",
     twoFeel: chart.twoFeel ?? false,
     variation: "varied",
-    intro: true,
+    intro: (chart.intro?.bars.length ?? 0) <= LONG_INTRO_BARS,
     ending: true,
     view: "chords",
     click: "every",
@@ -131,7 +145,7 @@ export function parseSettings(raw: unknown): Partial<TuneSettings> {
   if (validTranspose(raw.transpose)) out.transpose = raw.transpose;
   if (validStyle(raw.style)) out.style = raw.style;
   if (validChoruses(raw.choruses)) out.choruses = raw.choruses;
-  if (raw.countIn === 0 || raw.countIn === 1 || raw.countIn === 2) out.countIn = raw.countIn;
+  if (raw.countIn === 0 || raw.countIn === 1 || raw.countIn === 2 || raw.countIn === "auto") out.countIn = raw.countIn;
   // Entries from before the count-in had a length.
   else if (isBool(raw.countIn)) out.countIn = raw.countIn ? 2 : 0;
   if (isBool(raw.twoFeel)) out.twoFeel = raw.twoFeel;

@@ -53,12 +53,15 @@ export function ImportPanel({ onDone, onCancel }: { onDone: (added: Chart[]) => 
       }}
       onDragLeave={() => setDragging(false)}
       onDrop={drop}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onCancel();
+      }}
     >
       <div className="import-row">
         <button type="button" autoFocus onClick={() => file.current?.click()}>
           Choose MusicXML file
         </button>
-        <input ref={file} type="file" accept=".musicxml,.xml,.mxl,text/xml,application/xml" hidden onChange={(e) => void readFile(e.target.files?.[0])} />
+        <input ref={file} type="file" accept=".musicxml,.xml,text/xml,application/xml" hidden onChange={(e) => void readFile(e.target.files?.[0])} />
       </div>
       <form className="import-row" onSubmit={submit}>
         <input type="text" placeholder="Paste an irealb:// link" aria-label="iReal Pro link" value={link} onChange={(e) => setLink(e.target.value)} />

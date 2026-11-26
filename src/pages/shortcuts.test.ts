@@ -37,3 +37,11 @@ describe("the chords key", () => {
     expect(shortcutFor(e, false)).toBeNull();
   });
 });
+
+describe("the key shortcuts", () => {
+  it("are [ and ] by position", () => {
+    expect(shortcutFor({ key: "[", code: "BracketLeft" } as KeyboardEvent, true)).toBe("transpose-down");
+    expect(shortcutFor({ key: "]", code: "BracketRight" } as KeyboardEvent, true)).toBe("transpose-up");
+    expect(shortcutFor({ key: "[", code: "BracketLeft" } as KeyboardEvent, false)).toBeNull();
+  });
+});

@@ -22,7 +22,15 @@ export function ShortcutHelp({ open, onClose, singleKeys, onSingleKeys }: Props)
   }, [open]);
 
   return (
-    <dialog ref={dialog} className="shortcut-help" aria-labelledby="shortcut-help-title" onClose={onClose}>
+    <dialog ref={dialog} className="shortcut-help" aria-labelledby="shortcut-help-title" onClose={onClose}
+      onKeyDown={(e) => {
+        // "?" opened it, so "?" closes it too (Escape closes any dialog).
+        if (e.key === "?" && !(e.target as HTMLElement).closest("input")) {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+    >
       <div className="shortcut-help-head">
         <h2 id="shortcut-help-title">Keyboard shortcuts</h2>
         <button type="button" className="toggle" onClick={onClose}>
@@ -53,7 +61,7 @@ export function ShortcutHelp({ open, onClose, singleKeys, onSingleKeys }: Props)
       ))}
       <label className="check">
         <input type="checkbox" checked={singleKeys} onChange={(e) => onSingleKeys(e.target.checked)} />
-        Single-key shortcuts (letters, digits, - and =)
+        Single-key shortcuts (letters, digits, - = [ and ])
       </label>
     </dialog>
   );

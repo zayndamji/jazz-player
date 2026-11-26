@@ -30,7 +30,7 @@ interface Props {
   status: "idle" | "loading" | "playing";
   onPlay: () => void;
   /** While playing, what the play button does when it isn't a plain pause (Live), and its icon. */
-  playAction?: { label: string; icon: "pause" | "stop" } | null;
+  playAction?: { label: string; icon: "stop" } | null;
   tempo: number;
   /** The chart's own tempo. */
   originalTempo: number;
@@ -119,7 +119,12 @@ export function ControlBar(p: Props) {
     const close = (e: PointerEvent) => {
       if (panel.current?.contains(e.target as Node)) return;
       setOpen(false);
-      // The tap only closes the panel: swallow the click that follows so it doesn't also play from the bar under it.
+      // Focus left on a menu or checkbox in the panel would keep Space and the arrows from the page.
+      if (panel.current?.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+      // A tap on the player bar's own controls closes the panel and does what it says (More itself only closes it).
+      const target = e.target as HTMLElement;
+      if (bar.current?.contains(target) && !moreButton.current?.contains(target)) return;
+      // A tap on the music only closes the panel: swallow the click that follows so it doesn't also play from the bar under it.
       const swallow = (c: Event) => {
         c.stopPropagation();
         c.preventDefault();
@@ -186,10 +191,9 @@ export function ControlBar(p: Props) {
           type="button"
           className="play"
           onClick={p.onPlay}
-          disabled={p.status === "loading"}
           aria-keyshortcuts="Space"
-          title={withKey(playing ? (p.playAction?.label ?? "Pause") : "Play", "play")}
-          aria-label={playing ? (p.playAction?.label ?? "Pause") : "Play"}
+          title={withKey(playing ? (p.playAction?.label ?? "Pause") : p.status === "loading" ? "Cancel" : "Play", "play")}
+          aria-label={playing ? (p.playAction?.label ?? "Pause") : p.status === "loading" ? "Cancel" : "Play"}
         >
           <span className={`play-icon${playing ? ` ${p.playAction?.icon ?? "pause"}` : ""}`} aria-hidden="true" />
         </button>
@@ -237,11 +241,11 @@ export function ControlBar(p: Props) {
         <TempoControl tempo={p.tempo} original={p.originalTempo} onTempo={p.onTempo} />
 
         {p.onView ? (
-          <div className="segmented" role="group" aria-label="View" aria-keyshortcuts="V" title={withKey("Switch view", "view")}>
-            <button type="button" aria-pressed={p.view === "chords"} onClick={() => p.onView!("chords")}>
+          <div className="segmented" role="group" aria-label="View" title={withKey("Switch view", "view")}>
+            <button type="button" aria-pressed={p.view === "chords"} aria-keyshortcuts="V" onClick={() => p.onView!("chords")}>
               Chords
             </button>
-            <button type="button" aria-pressed={p.view === "sheet"} onClick={() => p.onView!("sheet")}>
+            <button type="button" aria-pressed={p.view === "sheet"} aria-keyshortcuts="V" aria-label="Lead sheet" onClick={() => p.onView!("sheet")}>
               <span className="long">Lead sheet</span>
               <span className="short">Sheet</span>
             </button>

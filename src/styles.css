@@ -108,6 +108,26 @@ input:disabled {
   color: var(--ink);
 }
 
+/* A remembered setting that changes what you hear or see (a part muted, chords hidden), with a click to undo it. */
+.meta .meta-note {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-underline-offset: 3px;
+}
+
+.meta .meta-note::before {
+  content: "·";
+  display: inline-block;
+  margin: 0 8px;
+  color: var(--faint);
+}
+
 .error {
   color: var(--error);
 }
@@ -209,7 +229,7 @@ input:disabled {
 .grid {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 /* The gutter fits a section name ("Ending", "Tag ×2", a two-line "Ending vamp") beside the first barline. */
@@ -292,7 +312,7 @@ input:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 68px;
+  min-height: 56px;
   padding: 8px 12px;
   border: 0;
   border-right: 1.5px solid var(--bar-line);
@@ -340,6 +360,14 @@ input:disabled {
 
 .bar.split {
   justify-content: space-between;
+}
+
+/* Chords with no slashes between them sit at their beats (beat 3 at the middle of a 4/4 bar), as a printed chart spaces them. */
+.bar.split.beats {
+  display: grid;
+  grid-template-columns: repeat(var(--beats, 4), minmax(0, 1fr));
+  justify-items: start;
+  column-gap: 4px;
 }
 
 .bar.active,
@@ -708,7 +736,16 @@ input:disabled {
   background: var(--bar-control);
 }
 
+/* The − and + buttons step the tempo, so the field drops the browser's own arrows. */
+.tempo-input::-webkit-inner-spin-button,
+.tempo-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .tempo-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
   width: 56px;
   padding: 1px 4px;
   border: 1px solid var(--accent);
@@ -796,7 +833,7 @@ input:disabled {
   position: absolute;
   right: 0;
   bottom: calc(100% + 12px);
-  width: 352px;
+  width: 384px;
   max-height: 70vh;
   max-height: 70dvh;
   overflow: auto;
@@ -833,7 +870,8 @@ input:disabled {
 }
 
 /* A quiet second line under a setting's label: "all tunes" under Instrument. */
-.field .field-note {
+.field .field-note,
+.strip .field-note {
   display: block;
   font-size: 12px;
   line-height: 1.2;
@@ -1005,7 +1043,9 @@ input:disabled {
     gap: 2px;
   }
   /* Two chords in a bar stay side by side; one too long for both moves to a second line at the right, read in order. */
-  .bar.split {
+  .bar.split,
+  .bar.split.beats {
+    display: flex;
     flex-wrap: wrap;
     align-content: center;
     justify-content: flex-start;
@@ -1400,6 +1440,15 @@ kbd {
   }
   .controlbar-row > .toggle {
     flex: 1 1 0;
+    order: 4;
+  }
+  /* The toggles always start the third row, Prev and Next together, however wide the tempo reads. */
+  .controlbar-row::after {
+    content: "";
+    order: 3;
+    flex-basis: 100%;
+    height: 0;
+    margin-top: -4px;
   }
   .bar.section-end {
     padding-right: 8px;
