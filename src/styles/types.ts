@@ -43,6 +43,12 @@ export interface Feel {
    * end of the form is marked (a short fill and a crash), so the form can still be followed.
    */
   variation?: Variation;
+  /**
+   * The parts that will be heard (the chart's band, or the style's). A style may comp differently when a
+   * part it writes is left out: bossa's piano moves above the guitar's register only when the guitar plays.
+   * Left out, every part of the style's own band counts as playing.
+   */
+  band?: Track[];
 }
 
 export type Variation = "varied" | "straight";

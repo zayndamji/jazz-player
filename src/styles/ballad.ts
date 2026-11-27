@@ -1,7 +1,7 @@
 import type { TimelineBar } from "../engine/timeline";
-import { PIANO_RANGE, type VoicingRange } from "../engine/voicing";
-import { BASS_HIGH, BASS_LOW, bassUnder, chordAfter, endsSection, isFormEnd, shifted, voiceClear } from "./context";
-import { gauss, timing } from "./feel";
+import { PIANO_RANGE, VOICING_LOW, type VoicingRange } from "../engine/voicing";
+import { BASS_HIGH, BASS_LOW, bassUnder, chordAfter, isFormEnd, marksSection, shifted, voiceClear } from "./context";
+import { barPlans, chorusPlans, drumGain, gauss, timing } from "./feel";
 import { seededRandom } from "./random";
 import { weighted } from "./shape";
 import { landing, nearest, twoBeat, walk } from "./swing";
@@ -48,8 +48,11 @@ export const ballad: Style = {
     const music = bars.filter((b) => !b.countIn);
     const first = music[0]?.startBeat ?? 0;
     const place = (time: number, part: Parameters<typeof clock.at>[0]) => Math.max(first, time + clock.at(part));
+    // The brushes follow the chorus arc at half the swing's depth (the head 2 dB under the solos, the
+    // out-head about 1), as a gain that leaves the brush sound alone; the plans draw nothing from `random`.
+    let drumLevel = 1;
     const drum = (time: number, sound: DrumSound, velocity: number, spread = 0.06) =>
-      events.push({ track: "drums", drum: sound, time: place(time, sound === "kick" ? "kick" : sound === "pedal" ? "pedal" : "snare"), duration: 0.5, velocity: human(velocity, spread) });
+      events.push({ track: "drums", drum: sound, time: place(time, sound === "kick" ? "kick" : sound === "pedal" ? "pedal" : "snare"), duration: 0.5, velocity: human(velocity, spread), gain: drumLevel });
     /** A chord rolled from the bottom up, every note held to the same end; the top note sings out a little, the inner notes sit under it. */
     const roll = (time: number, notes: number[], length: number, velocity: number) => {
       const start = place(time, "piano");
@@ -72,10 +75,12 @@ export const ballad: Style = {
     /** The next bar's first bass note, as this bar's approach aimed at it. */
     let planned: number | null = null;
 
+    const plans = barPlans(music, chorusPlans(music, () => 0.5));
     music.forEach((bar: TimelineBar, i) => {
       const t = bar.startBeat;
       const next = music[i + 1];
       clock.bar();
+      drumLevel = Math.sqrt(drumGain(bar, plans[i]));
       // The form builds: Garner's 1954 record plays the bridge and the last A loudest (per-bar
       // level -22 to -12 dB), so the bridge lifts 1.5 dB and the section after it 2.5.
       if (bar.chorus !== chorus) [chorus, pastBridge] = [bar.chorus, false];
@@ -90,7 +95,8 @@ export const ballad: Style = {
         if (random() < 0.5) register = weighted([{ weight: 0.6, value: -3 }, { weight: 1, value: 0 }, { weight: 0.8, value: 3 }, { weight: 0.3, value: 5 }], random, register);
       }
       const lift = straight ? 1 : (bar.chorus <= 1 ? 0.94 : 1.04) * 10 ** ((sectionDb + phraseDb + slope * (inPhrase - 1.5) + gauss(random) * 0.5) / 20);
-      const range: VoicingRange = shifted(PIANO_RANGE, register);
+      // The hand moves down at most to C3: lower, a rolled four-note chord over the bass turned to mud (A2 and Bb2 voicings).
+      const range: VoicingRange = shifted(PIANO_RANGE, register, VOICING_LOW);
 
       if (bar.final) {
         // Each chord of the last bar on its beat, the last one rolled and held like a fermata, the bass
@@ -221,7 +227,7 @@ export const ballad: Style = {
       }
 
       // Drums: brushes.
-      const fill = endsSection(bar, next) && !next?.final && (!straight || isFormEnd(bar, next));
+      const fill = marksSection(bar, next) && !next?.final && (!straight || isFormEnd(bar, next));
       for (const b of [0, 2]) drum(t + b, "brush", 0.5 * lift);
       for (const b of [1, 3]) {
         if (fill && b === 3) continue;

@@ -226,8 +226,9 @@ describe("fitUnderMelody", () => {
   });
 
   it("keeps the whole chord's pitch classes when a voicing fits", () => {
-    const [out] = fitUnderMelody([piano(0, [60, 64, 67, 71])], [lead(0, 72)]);
-    expect(out.notes!.map((n) => n % 12).sort((a, b) => a - b)).toEqual([0, 4, 7, 11]);
+    // (A Cmaj7 under a melody C loses its B now: a minor ninth under the melody; Dm7 under C keeps all four.)
+    const [out] = fitUnderMelody([piano(0, [62, 65, 69, 72])], [lead(0, 72)]);
+    expect(out.notes!.map((n) => n % 12).sort((a, b) => a - b)).toEqual([0, 2, 5, 9]);
     expect(Math.max(...out.notes!)).toBeLessThanOrEqual(70);
     expect(ascending(out.notes!)).toBe(true);
     expect(lowSeconds(out.notes!)).toBe(0);

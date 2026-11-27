@@ -202,7 +202,13 @@ describe("swing drums over a long take", () => {
 });
 
 describe("sparse comping", () => {
-  const sparse = buildSchedule({ ...chart, comp: "sparse" }, swing, { choruses: 10, countIn: false, transpose: 0 });
+  // A modal form (minor chords held for eight bars, as So What): only there does a sparse pianist stroll.
+  const modal = { ...chart, id: "modal", comp: "sparse" as const, intro: undefined, ending: undefined, form: [
+    { label: "A", bars: Array.from({ length: 16 }, (_, k) => (k ? "%" : "Dm7")) },
+    { label: "B", bars: Array.from({ length: 8 }, (_, k) => (k ? "%" : "Ebm7")) },
+    { label: "A", bars: Array.from({ length: 8 }, (_, k) => (k ? "%" : "Dm7")) },
+  ] };
+  const sparse = buildSchedule(modal, swing, { choruses: 10, countIn: false, transpose: 0 });
   const solos = sparse.bars.filter((b) => b.ref?.part === "form" && b.chorus >= 2 && b.chorus <= 9);
   const empty = solos.map((b) => !sparse.events.some((e) => e.track === "piano" && e.time >= b.startBeat - 0.3 && e.time < b.startBeat + 3.9));
 
@@ -224,5 +230,12 @@ describe("sparse comping", () => {
     });
     const long = runs.filter((r) => r >= 4).reduce((a, r) => a + r, 0);
     expect(long / runs.reduce((a, r) => a + r, 0)).toBeGreaterThan(0.75);
+  });
+
+  it("never strolls over changes: a sparse tune with chord changes (Fly Me) still comps every phrase", () => {
+    const changes = buildSchedule({ ...chart, comp: "sparse" }, swing, { choruses: 10, countIn: false, transpose: 0 });
+    const bars = changes.bars.filter((b) => b.ref?.part === "form");
+    const out = bars.filter((b) => !changes.events.some((e) => e.track === "piano" && e.time >= b.startBeat - 0.3 && e.time < b.startBeat + 3.9));
+    expect(out.length / bars.length).toBeLessThan(0.08);
   });
 });

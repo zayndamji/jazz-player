@@ -311,6 +311,9 @@ function drumFor(note: Note, grid: Grid, early: boolean, random: () => number): 
   return "snare";
 }
 
+/** How much louder a straight (samba-kit) drum solo plays than the groove it replaces: 4 dB. */
+const SAMBA_LIFT = 10 ** (4 / 20);
+
 const clamp = (v: number) => Math.min(0.7, Math.max(0.2, v));
 const hit = (time: number, drum: DrumSound, velocity: number, duration = 0.25, gain?: number): NoteEvent => ({
   track: "drums",
@@ -360,7 +363,11 @@ export function drumSolo(starts: number[], beatsPerBar: number, random: () => nu
   let developed = 0;
 
   const out: NoteEvent[] = [];
-  const push = (time: number, drum: DrumSound, v: number, duration = 0.25) => out.push(hit(time + clock.at(drum), drum, v, duration, gain));
+  // A straight (bossa, Latin) solo plays the soft cross-stick, hats and kick the groove plays, so at the
+  // groove's level it was no louder than the groove (0.5 dB, the 2026-11-26 audit) where a swing solo on
+  // snare and toms stands 8 dB over the ride: it plays 4 dB up, as a drummer opens up for the turn.
+  const level = grid.kit === "samba" ? (gain ?? 1) * SAMBA_LIFT : gain;
+  const push = (time: number, drum: DrumSound, v: number, duration = 0.25) => out.push(hit(time + clock.at(drum), drum, v, duration, level));
   starts.forEach((start, p) => {
     clock.bar();
     const kind = kinds[p];

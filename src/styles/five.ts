@@ -1,6 +1,6 @@
 import { chordAt, type TimelineBar } from "../engine/timeline";
 import { SWING_RANGE, VOICING_LOW, voiceChord } from "../engine/voicing";
-import { BASS_HIGH, BASS_LOW, bassOnsets, bassStruck, chordAfter, endsSection, isFormEnd, keepInRange, moveOn, shifted, type VoicingContext } from "./context";
+import { BASS_HIGH, BASS_LOW, bassOnsets, bassStruck, chordAfter, isFormEnd, keepInRange, marksSection, moveOn, shifted, type VoicingContext } from "./context";
 import { DAMPER, GrooveBook, grooveBar, holdLength, type CompHit, type Groove } from "./comping";
 import { drumGain, drumTalk, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
@@ -232,7 +232,7 @@ export const five: Style = {
       pushedIn = pushes;
 
       // Drums.
-      const fill = !straight && endsSection(bar, next) && !next?.final;
+      const fill = !straight && marksSection(bar, next) && !next?.final;
       const bigFill = isFormEnd(bar, next) && !!next;
       const sectionFill = fill && !bigFill && random() < (solo ? 0.5 : 0.35);
       const smallFill = !straight && phraseEnd && random() < (solo ? 0.15 : 0.08);
@@ -248,7 +248,7 @@ export const five: Style = {
       const rideEnd = theFill ? Math.min(...theFill.map(([at]) => at)) : BAR;
       let crash = 0;
       if (prev && isFormEnd(prev, bar)) crash = 0.6;
-      else if (!straight && prev && endsSection(prev, bar) && random() < 0.5) crash = 0.48;
+      else if (!straight && prev && marksSection(prev, bar) && random() < 0.5) crash = 0.48;
       if (crash) drum(t, "crash", crash, 0.05);
       // The ride: every beat, swung skips after 2 and 4, sometimes after 5.
       const ride: [number, number][] = [[0, 0.56], [1, 0.6], [1 + sw, 0.4], [2, 0.54], [3, 0.6], [3 + sw, 0.4], [4, 0.56]];

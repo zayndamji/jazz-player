@@ -122,7 +122,13 @@ describe("bossa style", () => {
       return chordUnder(s, e)?.symbol === "G7" && beat < 3.4 && chordAfter(s.bars, bar.index, beat)?.symbol === "Cm7";
     });
     expect(g7.length).toBeGreaterThan(0);
-    for (const e of g7) expect(e.notes!.map((n) => n % 12)).toEqual(expect.arrayContaining([8, 3])); // Ab and Eb
+    // Over the guitar the piano plays three of the four voiced tones: a flat tension at least, never the natural 9th or 13th.
+    for (const e of g7) {
+      const pcs = e.notes!.map((n) => n % 12);
+      expect(pcs.some((pc) => pc === 8 || pc === 3)).toBe(true); // Ab or Eb
+      expect(pcs).not.toContain(9);
+      expect(pcs).not.toContain(4);
+    }
   });
 
   it("keeps the bass's second note off a half step under or over the comping (no natural 5th under a b13 or #11)", () => {

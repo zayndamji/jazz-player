@@ -1,4 +1,5 @@
 import type { TimelineBar } from "../engine/timeline";
+import { MARKED_SECTION } from "./context";
 import { barPlans, chorusPlans, type ChorusPlan } from "./feel";
 
 /**
@@ -15,7 +16,7 @@ export interface BarShape {
   intensity: number;
   /** Bars into the current four-bar phrase, from 0. */
   inPhrase: number;
-  /** Last bar of a four-bar phrase that doesn't end a section: room for a small fill. */
+  /** Last bar of a four-bar phrase that doesn't end a section (of eight bars or more): room for a small fill. */
   phraseEnd: boolean;
   /** The chorus's place in the performance (feel.ts). */
   plan: ChorusPlan;
@@ -49,12 +50,14 @@ export function shapeBars(bars: TimelineBar[], random: () => number, arc = false
     const next = bars[i + 1];
     // The held tonic after the last bar (same ref) ends the section too.
     const sectionEnd = !next?.ref || !!next.tonic || next.ref.section !== bar.ref?.section || next.ref.part !== bar.ref?.part || next.ref.bar === 0;
+    // A short form section (a 16-bar tune charted as four 4-bar sections) ends on a phrase end, as `marksSection` has it.
+    const marked = sectionEnd && (!next?.ref || !!next.tonic || next.ref.part !== bar.ref?.part || next.chorus !== bar.chorus || (bar.ref?.bar ?? 0) + 1 >= MARKED_SECTION);
     const left = bars.slice(i).filter(inLast).length;
     const shout = arc && plan.last && bar.chorus === lastChorus && left > 0 && left <= Math.min(8, formBars);
     return {
       intensity: chorus + (bar.contrast ? 0.03 : 0) + drift + (inPhrase === 3 ? 0.02 : 0) + (shout ? 0.04 : 0),
       inPhrase,
-      phraseEnd: inPhrase === 3 && !sectionEnd,
+      phraseEnd: inPhrase === 3 && !marked,
       plan,
       shout,
     };

@@ -223,7 +223,7 @@ export function buildSchedule(chart: Chart, style: Style, opts: PlaybackOptions)
   const band = bandFor(chart, style);
   const pedal = chart.pedal ? keyPitchClass(chart.pedal) : undefined;
   const tempo = opts.tempo ?? chart.tempo;
-  const feel: Feel = { tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, pedal, variation: opts.variation ?? "varied" };
+  const feel: Feel = { tempo, twoFeel: opts.twoFeel ?? chart.twoFeel ?? false, comp: chart.comp, pedal, variation: opts.variation ?? "varied", band };
   const played = playStyles(bars, style, feel, beatsPerBar, chart.band).filter((e) => band.includes(e.track));
   let events = restInBreaks(applyTrading(played, bars, beatsPerBar, opts.trade ?? "off", 7, band.includes("drums"), { style: style.id, bpm: tempo }), bars, beatsPerBar);
   const melody = opts.melody && opts.melody.mode !== "off" ? opts.melody : null;

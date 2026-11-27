@@ -4,6 +4,7 @@ import { minorKeyDominant, minorKeyTensions, type ParsedChord } from "../chart/c
  * Four-note jazz piano voicings without the root (the bass has it):
  * 3rd, 5th (or 13th on dominants), 7th (or 6th), and 9th.
  *
+ * No two voices a minor ninth apart (`hasMinorNinth`), unless no shape fits without one.
  * Spacing: drop-2 shapes (the second voice from the top dropped an octave)
  * spread the chord over about an octave and a half, the open sound of bossa
  * piano and guitar. Close shapes are kept as options, but seconds and thirds
@@ -120,6 +121,13 @@ function playable(v: number[], range: VoicingRange): boolean {
   return true;
 }
 
+/**
+ * True when two voices sit a minor ninth apart (13 half steps, or two octaves and a half step): the
+ * harshest interval inside a voicing (the 13th under the 7th, the 9th under a minor 3rd), which
+ * arrangers keep out of a chord. A b9 tension is still fine against the root, which the bass plays.
+ */
+export const hasMinorNinth = (notes: number[]) => notes.some((a, i) => notes.some((b, j) => j > i && (Math.abs(b - a) === 13 || Math.abs(b - a) === 25)));
+
 /** Every voicing shape the piano may use for these pitch classes, lowest note first. */
 export function voicingOptions(pcs: number[], range: VoicingRange = PIANO_RANGE): { notes: number[]; drop2: boolean }[] {
   const out: { notes: number[]; drop2: boolean }[] = [];
@@ -166,6 +174,7 @@ export function voiceChord(
   const bass = context.bass;
   if (bass !== undefined) keep((notes) => notes[0] >= bass + 3);
   if (range.guideBottom) keep((notes) => guides.includes(notes[0] % 12));
+  keep((notes) => !hasMinorNinth(notes));
   const ceiling = context.ceiling;
   if (ceiling !== undefined && options.length) {
     const lowestTop = Math.min(...options.map((o) => o.notes[o.notes.length - 1]));

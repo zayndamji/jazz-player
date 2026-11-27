@@ -2,7 +2,7 @@ import type { ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
 import { SWING_RANGE, VOICING_LOW } from "../engine/voicing";
 import { placeBass } from "./bossa";
-import { BASS_HIGH, BASS_LOW, bassOnsets, bassStruck, chordAfter, endsSection, isFormEnd, keepInRange, moveOn, shifted, type VoicingContext } from "./context";
+import { BASS_HIGH, BASS_LOW, bassOnsets, bassStruck, chordAfter, isFormEnd, keepInRange, marksSection, moveOn, shifted, type VoicingContext } from "./context";
 import { DAMPER } from "./comping";
 import { drumGain, drumTalk, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
@@ -32,6 +32,12 @@ import { voiceFor } from "./waltz";
  */
 
 const BAR = 3;
+
+/**
+ * Where the roots lean: D#2. Bossa's home (A#1) kept the whole tune in E1 to E2, a median of A1 (55 Hz)
+ * on the Spartacus chart, which small speakers barely play; the record's bass sits about an octave up.
+ */
+const HOME = 39;
 
 /** The bar's place in its pair, counted from its section's first bar: 0 the first bar, 1 the second. */
 export const pairOf = (bar: TimelineBar, i: number) => (bar.ref?.bar ?? i) % 2;
@@ -142,7 +148,7 @@ export const latinWaltz: Style = {
         bar.chords.forEach((c, k) => {
           const end = k === bar.chords.length - 1;
           const at = t + c.beat;
-          const low = (lastBass = placeBass(c.chord.bass, lastBass));
+          const low = (lastBass = placeBass(c.chord.bass, lastBass, null, HOME));
           const range = shifted(SWING_RANGE, 0, VOICING_LOW);
           const context = { next: bar.chords[k + 1]?.chord ?? null, bass: low };
           const voiced = voiceFor(c.chord, piano, range, context);
@@ -166,16 +172,16 @@ export const latinWaltz: Style = {
       if (!groove && pair === 1 && random() < 0.3) figure = "one-three";
       if (odd) {
         // Three chords, or one on beat 2: each root on its beat.
-        for (const c of bar.chords) bass(c.beat, (lastBass = placeBass(c.chord.bass, lastBass)), Math.max(0.45, c.length - 0.1), c.beat ? 0.76 : 0.84);
+        for (const c of bar.chords) bass(c.beat, (lastBass = placeBass(c.chord.bass, lastBass, null, HOME)), Math.max(0.45, c.length - 0.1), c.beat ? 0.76 : 0.84);
       } else {
         const one = chordAt(bar, 0)?.chord ?? held ?? bar.chords[0]?.chord;
         if (!one) return;
-        const root = (lastBass = placeBass(one.bass, lastBass));
-        const three = onThree ? placeBass(onThree.chord.bass, root) : root;
+        const root = (lastBass = placeBass(one.bass, lastBass, null, HOME));
+        const three = onThree ? placeBass(onThree.chord.bass, root, null, HOME) : root;
         // Where the next bar's root goes: anticipated on the and of 3, now and then from a step under it.
         const into = () => {
           if (!nextFirst) return root;
-          const goal = placeBass(nextFirst.chord.bass, three);
+          const goal = placeBass(nextFirst.chord.bass, three, null, HOME);
           const step = straight ? 0 : weighted([{ weight: 0.82, value: 0 }, { weight: 0.12, value: -2 }, { weight: 0.06, value: -1 }], random);
           return goal + step >= BASS_LOW && goal + step <= BASS_HIGH ? goal + step : goal;
         };
@@ -228,7 +234,7 @@ export const latinWaltz: Style = {
         const found = ahead ? nextFirst! : chordAt(bar, beat);
         const c = found ?? (held ? { chord: held, beat: 0, length: BAR, attack: false } : undefined);
         if (!c) return;
-        const context: VoicingContext = ahead ? { next: chordAfter(music, i + 1, 0, 2, 0.01), bass: placeBass(c.chord.bass, lastBass) } : { next: chordAfter(music, i, beat, 2, 0.01), bass: bassAt(beat) };
+        const context: VoicingContext = ahead ? { next: chordAfter(music, i + 1, 0, 2, 0.01), bass: placeBass(c.chord.bass, lastBass, null, HOME) } : { next: chordAfter(music, i, beat, 2, 0.01), bass: bassAt(beat) };
         const last = piano;
         const voiced = voiceFor(c.chord, last, range, context);
         const repeat = !!last && voiced.join() === last.join();
@@ -253,7 +259,7 @@ export const latinWaltz: Style = {
 
       // Drums.
       const formEnd = isFormEnd(bar, next) && !!next;
-      const sectionEnd = endsSection(bar, next) && !next?.final;
+      const sectionEnd = marksSection(bar, next) && !next?.final;
       const pick = (list: Hit[][]) => (lastFill = weighted(list.map((x) => ({ weight: 1, value: x })), random, lastFill));
       let fill: Hit[] | null = null;
       if (straight) fill = formEnd ? SMALL[0] : null;
@@ -263,7 +269,7 @@ export const latinWaltz: Style = {
       const stopAt = fill ? Math.min(...fill.map(([slot]) => slot)) : 6;
 
       let crash = 0;
-      if (prev && !intro && endsSection(prev, bar)) crash = isFormEnd(prev, bar) ? 0.6 : !straight && random() < (solo ? 0.45 : 0.25) ? 0.48 : 0;
+      if (prev && !intro && marksSection(prev, bar)) crash = isFormEnd(prev, bar) ? 0.6 : !straight && random() < (solo ? 0.45 : 0.25) ? 0.48 : 0;
       if (crash) {
         drum(t, "crash", crash, 0.05);
         drum(t, "kick", crash * 0.75);

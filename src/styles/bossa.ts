@@ -1,8 +1,8 @@
 import type { ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
 import { guitarFingers, guitarThumb } from "../engine/guitar";
-import { PIANO_RANGE, voicingIntervals, type VoicingRange } from "../engine/voicing";
-import { BASS_HIGH, BASS_LOW, bassOnsets, bassStruck, bassUnder, chordAfter, endsSection, isFormEnd, shifted, voiceClear } from "./context";
+import { PIANO_RANGE, voiceChord, voicingIntervals, type VoicingRange } from "../engine/voicing";
+import { BASS_HIGH, BASS_LOW, bassOnsets, bassStruck, bassUnder, chordAfter, isFormEnd, marksSection, shifted, voiceClear } from "./context";
 import { DAMPER, GrooveBook, grooveBar, holdLength, type CompHit, type Groove } from "./comping";
 import { drumGain, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
@@ -168,6 +168,28 @@ export function placeBass(pc: number, from: number, to: number | null = null, ho
 const rubs = (pc: number, chord: ParsedChord, next: ParsedChord | null) =>
   voicingIntervals(chord, next).some((iv) => [1, 11].includes((((chord.root + iv - pc) % 12) + 12) % 12));
 
+/** True when a piano note sits a half step or a minor ninth from a guitar note (a rub between the two chord instruments). */
+const rubsGuitar = (notes: number[], guitar: number[]) => notes.some((p) => guitar.some((g) => [1, 13, 25].includes(Math.abs(p - g))));
+
+/**
+ * The piano's shape when the guitar comps too: above the guitar's top note (a whole step at least), three
+ * notes, the open drop-2 shape with its lowest voice left out, so the two instruments sit in their own
+ * registers and never interleave (Jobim's light right hand over Gilberto's guitar). Any note a half step
+ * or a minor ninth from a guitar note sounding with it is left out, keeping two notes at least.
+ */
+export function overGuitar(chord: ParsedChord, previous: number[] | null, next: ParsedChord | null, guitar: number[], shift = 0): { voicing: number[]; notes: number[] } {
+  const top = guitar.length ? Math.max(...guitar) : FINGERS_TOP_GUESS;
+  const low = Math.max(top + 2, 60);
+  const range: VoicingRange = { low, high: Math.min(low + 16 + Math.max(0, shift), 86), center: low + 6 + Math.max(0, shift) };
+  const voiced = voiceChord(chord, previous && previous.length === 4 ? previous : null, range, { next });
+  let notes = voiced.length > 3 ? voiced.slice(1) : voiced;
+  const clear = notes.filter((n) => !rubsGuitar([n], guitar));
+  if (clear.length >= 2) notes = clear;
+  return { voicing: voiced, notes };
+}
+/** Where the guitar's grips top out when none is sounding (`TOP_CENTER` in src/engine/guitar.ts). */
+const FINGERS_TOP_GUESS = 64;
+
 /**
  * The bar's other chord tone, after the bass note: the fifth; the flat fifth on half-diminished and
  * diminished chords (Dm7b5 plays D then Ab); the chord's own root over a slash bass. When the comping's
@@ -241,8 +263,21 @@ export const bossa: Style = {
 
     let piano: number[] | null = null;
     let guitar: number[] | null = null;
+    // With the guitar comping, the piano plays small shapes above it (`overGuitar`); without it (a chart's
+    // band, as Henderson's Blue Bossa has no guitar), the full open voicings in the middle register.
+    const withGuitar = !feel?.band || feel.band.includes("guitar");
     // The guitar's finger chords and thumb notes, whose lengths are settled once all are placed.
     const fingers: { event: NoteEvent; until: number }[] = [];
+    /** The guitar's finger notes sounding between two times (beats): each chord rings until its `until`, at most two beats. */
+    const guitarSounding = (from: number, to: number) =>
+      fingers.filter(({ event, until }) => event.time < to && Math.min(until, event.time + 2) > from + 0.02).flatMap(({ event }) => event.notes!);
+    /** The piano's notes for a hit: over the guitar when it plays (voice-led from the full shape kept in `piano`), else the open voicing. */
+    const pianoHit = (chord: ParsedChord, range: VoicingRange, next: ParsedChord | null, bass: number | null, from: number, to: number, shift: number): number[] => {
+      if (!withGuitar) return (piano = voiceClear(chord, piano, range, next, bass));
+      const { voicing, notes } = overGuitar(chord, piano, next, guitarSounding(from, to), shift);
+      piano = voicing;
+      return notes;
+    };
     const thumbs: { event: NoteEvent; until: number }[] = [];
     /**
      * The fingers' chord: a light roll from the lowest string up, about 5 ms a string with a little
@@ -330,9 +365,9 @@ export const bossa: Style = {
           const n = notes[k] ?? placeBass(c.chord.bass, BASS_HOME);
           bassAt({ track: "bass", time: t + c.beat, duration: bassLength, velocity: last ? 0.85 : 0.8, notes: [n] });
           const after = last ? null : bar.chords[k + 1].chord;
-          piano = voiceClear(c.chord, piano, PIANO_RANGE, after, n);
           guitar = guitarFingers(c.chord, guitar, { next: after, bass: n });
-          events.push({ track: "piano", time: t + c.beat, duration: last ? length : length - 0.1, velocity: last ? 0.5 : 0.46, notes: piano, ...pianoTouch(piano, random, true) });
+          const chordNotes = withGuitar ? overGuitar(c.chord, piano, after, guitar).notes : (piano = voiceClear(c.chord, piano, PIANO_RANGE, after, n));
+          events.push({ track: "piano", time: t + c.beat, duration: last ? length : length - 0.1, velocity: last ? 0.5 : 0.46, notes: chordNotes, ...pianoTouch(chordNotes, random, true) });
           events.push({ track: "guitar", time: t + c.beat + 0.02, duration: last ? length : length - 0.1, velocity: last ? 0.6 : 0.55, notes: guitar, ...pluck(guitar) });
           drum(t + c.beat, "kick", last ? 0.8 : 0.6);
           if (last) drum(t + c.beat, "crash", 0.55, 0);
@@ -451,19 +486,19 @@ export const bossa: Style = {
         const until = bar.chords.find((c) => c.beat > beat + 0.01)?.beat ?? (push ? 3.5 : changesNext ? 4 : 4.5);
         const gap = (hits[h + 1]?.[0] ?? 4.25) - beat;
         const duration = Math.max(0.4, Math.min(holdLength(length, gap, share), until - beat - 0.08));
-        piano = voiceClear(slot.chord, piano, range, chordAfter(music, i, beat), under(beat, duration));
-        events.push({ track: "piano", time: t + beat + clock.at("piano"), duration, velocity: human(velocity * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random, !straight && duration >= 2 && random() < 0.3), ...(duration < 1.2 ? { release: DAMPER } : {}) });
+        const notes = pianoHit(slot.chord, range, chordAfter(music, i, beat), under(beat, duration), t + beat, t + beat + duration, shift);
+        events.push({ track: "piano", time: t + beat + clock.at("piano"), duration, velocity: human(velocity * lift * pianoGain, 0.12), notes, ...pianoTouch(notes, random, !straight && duration >= 2 && random() < 0.3), ...(duration < 1.2 ? { release: DAMPER } : {}) });
       });
       if (push && !layOut) {
-        piano = voiceClear(nextChord!.chord, piano, range, pushTo, under(3.5, 1.4));
+        const notes = pianoHit(nextChord!.chord, range, pushTo, under(3.5, 1.4), t + 3.5, t + 4.9, shift);
         // The pushed chord rings into the bar it belongs to.
-        events.push({ track: "piano", time: t + 3.5 + clock.at("piano"), duration: 1.4, velocity: human(0.44 * lift * pianoGain, 0.12), notes: piano, ...pianoTouch(piano, random) });
+        events.push({ track: "piano", time: t + 3.5 + clock.at("piano"), duration: 1.4, velocity: human(0.44 * lift * pianoGain, 0.12), notes, ...pianoTouch(notes, random) });
       }
       pushedIn = push;
 
       // Drums: light throughout.
       const fillChance = shout ? 0.9 : plan.role === "peak" ? 0.8 : solos ? 0.6 : 0.5;
-      const fill = endsSection(bar, next) && !next?.final && (isFormEnd(bar, next) || (!straight && random() < fillChance));
+      const fill = marksSection(bar, next) && !next?.final && (isFormEnd(bar, next) || (!straight && random() < fillChance));
       const bigFill = isFormEnd(bar, next) && !!next;
       const hatEnd = bigFill ? 6 : fill ? 7 : 8; // hats stop for the fill
       // The bridge moves to the ride cymbal from the second chorus, and the whole peak chorus
@@ -477,7 +512,7 @@ export const bossa: Style = {
       if (!sparse || solos) for (const beat of RIM) if (beat < (bigFill ? 3 : fill ? 3.5 : 4)) drum(t + beat, "rim", 0.5 * lift);
 
       // A soft crash at the top of each chorus, sometimes at other sections.
-      if (i > 0 && prev && endsSection(prev, bar) && (bigFillBefore(prev, bar) || (!straight && random() < (solos ? 0.5 : 0.35)))) drum(t, "crash", bigFillBefore(prev, bar) ? 0.6 : 0.46, 0.05);
+      if (i > 0 && prev && marksSection(prev, bar) && (bigFillBefore(prev, bar) || (!straight && random() < (solos ? 0.5 : 0.35)))) drum(t, "crash", bigFillBefore(prev, bar) ? 0.6 : 0.46, 0.05);
 
       if (bigFill) {
         // Beat 4: soft sixteenths, snare to toms (two variants).

@@ -124,6 +124,20 @@ export function endsSection(bar: TimelineBar, next: TimelineBar | undefined): bo
   return next.ref.part !== bar.ref.part || next.ref.section !== bar.ref.section || next.ref.bar === 0;
 }
 
+/** Sections shorter than this (a 16-bar tune charted as four 4-bar sections) are marked like phrase ends, not section ends. */
+export const MARKED_SECTION = 8;
+
+/**
+ * True when the drums should mark this bar as a section end (a fill, a crash on the next downbeat): it ends
+ * a section of eight bars or more, the form, or a part (the intro into the form). A short form section
+ * ending into the next is a phrase end: a 16-bar tune charted as A B A C of four bars each filled every four bars.
+ */
+export function marksSection(bar: TimelineBar, next: TimelineBar | undefined): boolean {
+  if (!endsSection(bar, next)) return false;
+  if (!next?.ref || next.ref.part !== bar.ref!.part || isFormEnd(bar, next)) return true;
+  return bar.ref!.bar + 1 >= MARKED_SECTION;
+}
+
 /** True when this bar ends a pass through the form (the next bar starts the form again, or leaves it). */
 export const isFormEnd = (bar: TimelineBar, next: TimelineBar | undefined) =>
   bar.ref?.part === "form" && (!next?.ref || next.ref.part !== "form" || next.chorus !== bar.chorus || sameRef(next.ref, { part: "form", section: 0, bar: 0 }));

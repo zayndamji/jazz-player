@@ -22,6 +22,16 @@ const middleBars = (s: Schedule) =>
   s.bars.filter((b, i) => b.ref?.part === "form" && !b.final && !isFormEnd(b, s.bars[i + 1]) && s.bars[i + 1]?.ref?.section === b.ref.section && !(i > 0 && isFormEnd(s.bars[i - 1], b)));
 
 describe("latin style", () => {
+  it("keeps the standard 2-3 cascara: 1 2 3 3& 4& on the 2 side, 1 2 2& 3& 4& on the 3 side", () => {
+    expect(CASCARA.map((bar) => bar.map(([slot]) => slot))).toEqual([
+      [0, 2, 4, 5, 7],
+      [0, 2, 3, 5, 7],
+    ]);
+    // The 2 side's clave strokes, and the 3 side's first two, fall on cascara strokes.
+    expect(CLAVE[0].every((s) => CASCARA[0].some(([c]) => c === s))).toBe(true);
+    expect(CLAVE[1].slice(0, 2).every((s) => CASCARA[1].some(([c]) => c === s))).toBe(true);
+  });
+
   it("plays the clave on the cross-stick and the cascara on the ride or bell", () => {
     const s = play(bossaForm, "latin");
     for (const bar of middleBars(s)) {
@@ -36,7 +46,8 @@ describe("latin style", () => {
   });
 
   it("plays the bass on the and of 2 and 4, with beat 1 only when nothing anticipated it", () => {
-    const s = play(bossaForm, "latin");
+    // Five choruses: which figure a section plays is drawn per section, so three choruses left the count to chance.
+    const s = play(bossaForm, "latin", { choruses: 5 });
     let tumbao = 0;
     for (const bar of middleBars(s)) {
       if (bar.chords.some((c) => c.attack && (c.beat === 1 || c.beat === 3))) continue;

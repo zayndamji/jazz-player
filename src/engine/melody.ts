@@ -5,7 +5,7 @@ import { seededRandom } from "../styles/random";
 import { EVEN_SWING, swingRatio } from "../styles/swing";
 import type { NoteEvent } from "../styles/types";
 import { chartBars, type BarRef, type TimelineBar } from "./timeline";
-import { GUITAR_RANGE, VOICING_LOW, voicingOptions } from "./voicing";
+import { GUITAR_RANGE, hasMinorNinth, VOICING_LOW, voicingOptions } from "./voicing";
 
 /** When the band's lead line plays: never, in the head choruses (and the intro and ending), or in every chorus. */
 export type MelodyMode = "off" | "head" | "every";
@@ -261,29 +261,34 @@ function voicingDistance(a: number[], b: number[]): number {
  * low down), between `low` and `high` and nearest the original; failing that, the same with one pitch
  * class left out; failing that, the original without the notes outside the span (so no new intervals).
  */
-function revoice(original: number[], low: number, high: number): number[] {
+function revoice(original: number[], low: number, high: number, clashes: (notes: number[]) => boolean = () => false): number[] {
   const pcs = [...new Set(original.map((n) => n % 12))];
   const best = (sets: number[][]) => {
     let pick: number[] | null = null;
     let score = Infinity;
     for (const set of sets) {
       for (const o of voicingOptions(set, { low, high, center: (low + high) / 2 })) {
+        if (clashes(o.notes) || hasMinorNinth(o.notes)) continue;
         const d = voicingDistance(o.notes, original) - 0.5 * o.notes.at(-1)! / 100;
         if (d < score) [pick, score] = [o.notes, d];
       }
     }
     return pick;
   };
-  return best([pcs]) ?? (pcs.length > 2 ? best(pcs.map((_, k) => pcs.filter((__, j) => j !== k))) : null) ?? original.filter((n) => n >= low && n <= high);
+  return best([pcs]) ?? (pcs.length > 2 ? best(pcs.map((_, k) => pcs.filter((__, j) => j !== k))) : null) ?? original.filter((n) => n >= low && n <= high && !clashes([n]));
 }
+
+/** True when a comping note sits a minor ninth (or two octaves and a half step) under a melody note sounding with it. */
+const ninthUnder = (notes: number[], melody: number[]) => notes.some((n) => melody.some((m) => m - n === 13 || m - n === 25));
 
 /**
  * Keeps the piano's and guitar's voicings under the melody. A comping gesture (an event's chord, or a roll
  * written as single-note events) that sounds with a melody note and reaches a half step under the lowest
- * such melody note, or higher, is re-voiced whole: its pitch classes as the playable close or drop-2 voicing
+ * such melody note, or higher, or has a note a minor ninth under one (the 7th under a melody on the root,
+ * the 9th under a melody on the minor 3rd), is re-voiced whole: its pitch classes as the playable close or drop-2 voicing
  * (`voicingOptions`) nearest the original with its top at least a whole step under the melody and its lowest
  * note at least a minor third over the bass sounding with it (and not below C3, or E3 on guitar, unless the
- * original was). When nothing fits, one pitch class is left out; failing that, the notes over the melody
+ * original was), with no note a minor ninth under the melody nor between two of its own notes. When nothing fits, one pitch class is left out; failing that, the notes over the melody
  * (or on the bass) are dropped. The new notes take the original's slots in order, low to high (offsets,
  * roll times), the top note the original top's level or velocity. Other tracks pass through. Returns new
  * events; a gesture left with no notes is removed.
@@ -301,10 +306,11 @@ export function fitUnderMelody(events: NoteEvent[], melody: NoteEvent[]): NoteEv
     // The notes low to high with where each came from: [pitch, event, note index].
     const slots = parts.flatMap((e, p) => e.notes!.map((n, j) => [n, p, j] as const)).sort((a, b) => a[0] - b[0]);
     const original = slots.map((s) => s[0]);
-    if (original.at(-1)! <= ceiling) continue;
+    const sung = tops.flatMap((m) => m.notes!);
+    if (original.at(-1)! <= ceiling && !ninthUnder(original, sung)) continue;
     const under = bass(g.start, g.end).flatMap((b) => b.notes!);
     const low = Math.max(under.length ? Math.max(...under) + 3 : 0, Math.min(original[0], g.track === "guitar" ? GUITAR_RANGE.low : VOICING_LOW));
-    const notes = revoice(original, low, ceiling).sort((a, b) => a - b);
+    const notes = revoice(original, low, ceiling, (v) => ninthUnder(v, sung)).sort((a, b) => a - b);
     const m = notes.length;
     // Note i takes slot i; the top note keeps the original top's level.
     const from = (i: number) => (i === m - 1 ? slots.length - 1 : i);

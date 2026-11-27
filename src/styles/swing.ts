@@ -1,8 +1,8 @@
 import { minorKeyDominant, minorKeyTensions, type ParsedChord } from "../chart/chords";
 import { scaleIntervals } from "../chart/scales";
 import { chordAt, type TimelineBar, type TimelineChord } from "../engine/timeline";
-import { GUITAR_RANGE, SWING_RANGE, type VoicingRange } from "../engine/voicing";
-import { BASS_HIGH, BASS_LOW, BASS_TOP, bassStruck, bassUnder, chordAfter, endsSection, inBassRange, isFormEnd, shifted, voiceClear } from "./context";
+import { GUITAR_RANGE, hasMinorNinth, SWING_RANGE, type VoicingRange } from "../engine/voicing";
+import { BASS_HIGH, BASS_LOW, BASS_TOP, bassStruck, bassUnder, chordAfter, endsSection, inBassRange, isFormEnd, marksSection, moveOn, shifted, voiceClear } from "./context";
 import { DAMPER, GrooveBook, grooveBar, holdLength, type CompHit, type Groove } from "./comping";
 import { drumGain, drumTalk, gauss, pianoTouch, timing, type ChorusPlan } from "./feel";
 import { seededRandom } from "./random";
@@ -363,6 +363,12 @@ export function plane(notes: number[], scale: number[], steps: number): number[]
   });
 }
 
+/** A chord a modal pianist planes over when it is held: minor (not half-diminished) or sus, never a dominant or major chord. */
+export const modalVamp = (c: ParsedChord) => {
+  const has = (n: string) => c.intervalNames.includes(n);
+  return (has("3m") && !has("5d")) || (!has("3m") && !has("3M") && (has("4P") || has("11P")));
+};
+
 /** A drum fill: hits as [beat offset from the fill's start, sound, velocity]. */
 type Fill = { start: number; hits: [number, DrumSound, number][] };
 
@@ -490,7 +496,9 @@ export const swing: Style = {
     let registerDrift = 0;
     let phraseDb = 0;
     let phraseSlope = 0;
-    let crashRide = false; // riding on the crash for a phrase at the peak
+    // Riding on the crash: the last two bars of a phrase at the peak or in the shout, once a chorus at most.
+    let crashLeft = 0;
+    let crashChorus = -1;
     let feathering = true;
     // Ride level (dB of gain, and a velocity factor), moving toward each chorus's level a little a bar.
     let rideDb: number | null = null;
@@ -513,6 +521,10 @@ export const swing: Style = {
       for (let k = i; k < j; k++) span[k] = { pos: k - i, length: j - i };
       i = j;
     }
+    // A modal tune: at least 40% of its form bars on a minor or sus chord held four bars or more (So What,
+    // Impressions). Only there does a sparse pianist stroll; elsewhere sparse comping just plays less.
+    const formBars = music.filter((b) => b.ref?.part === "form");
+    const modalTune = formBars.length > 0 && music.filter((b, k) => b.ref?.part === "form" && span[k].length >= 4 && b.chords.length > 0 && modalVamp(b.chords.at(-1)!.chord)).length >= 0.4 * formBars.length;
     // In two through the intro, the first chorus and the out-head (as Cannonball's 1958 Autumn
     // Leaves plays its heads); the first chorus's last bar walks into the solos.
     const twoAt = (i: number) => {
@@ -797,10 +809,11 @@ export const swing: Style = {
       // The chart's comping colour: sparse cells and strolled phrases, busy ones, or blues riffs
       // (a groove on the ands of 2 and 4, where Kelly-style blues comping sits, varied less).
       const colour = feel.comp;
-      // Sparse: in the solos the pianist strolls (lays out) for whole four-bar phrases, often two
-      // or three running, as Evans does on the 1959 modal record (piano in 30 to 40% of solo bars,
-      // out for 7 to 13 bars at a time): about 45% of the solo bars, runs of about nine bars.
-      if (inPhrase === 0) strolling = !straight && colour === "sparse" && (plan.role === "solo" || plan.role === "peak") && random() < (strolling ? 0.55 : 0.35);
+      // Sparse over a modal tune: in the solos the pianist strolls (lays out) for whole four-bar phrases, often
+      // two or three running, as Evans does on the 1959 modal record (piano in 30 to 40% of solo bars, out for
+      // 7 to 13 bars at a time): about 45% of the solo bars, runs of about nine bars. Over changes (Fly Me to
+      // the Moon) a pianist who strolls leaves the soloist without the harmony: there sparse only comps less.
+      if (inPhrase === 0) strolling = !straight && colour === "sparse" && modalTune && (plan.role === "solo" || plan.role === "peak") && random() < (strolling ? 0.55 : 0.35);
       // Busy comps lighter under the head's melody than in the solos.
       const busy = plan.role === "head" || plan.role === "outhead" || plan.role === "intro" ? 0.86 : 1.15;
       const density = plan.density * (colour === "sparse" ? 0.82 : colour === "busy" ? busy : colour === "blues" ? 1.08 : 1);
@@ -869,14 +882,20 @@ export const swing: Style = {
         const under = top ?? undefined;
         const base: number[] = voiceClear(c.chord, piano, range, following, top);
         piano = base;
-        // Over a modal vamp the hand planes the shape up and down the chord's scale, as Evans and
-        // Kelly do over the long D minor of the 1959 record, never one voicing three hits running.
+        // Over a modal vamp (a minor or sus chord held four bars or more) the hand planes the shape up and
+        // down the chord's scale, as Evans and Kelly do over the long D minor of the 1959 record, never one
+        // voicing three hits running. A dominant held as long (a blues's first four bars) is no modal vamp:
+        // planed, its shapes lost the 3rd and 7th (Freddie Freeloader's Bb7); it moves to another inversion instead.
         let voiced = base;
-        if (!straight && (ahead ? vampAt(i + 1, c) : vampAt(i, c))) {
+        const vamp = !straight && (ahead ? vampAt(i + 1, c) : vampAt(i, c));
+        if (vamp && !modalVamp(c.chord)) {
+          if (recent.length >= 2 && recent.every((r) => r === base.join(","))) voiced = moveOn(base, base, true, (from) => voiceClear(c.chord, from, range, following, top));
+          planeStep = 0;
+        } else if (vamp) {
           const scale = planeScale(c.chord, following);
           const key = (v: number[]) => v.join(",");
           const fits = (v: number[]) =>
-            v[0] >= Math.max(52, range.low - 1) && v.at(-1)! <= range.high + 3 && (under === undefined || v[0] >= under + 3) && v.every((n, j) => j === 0 || v[j - 1] >= 55 || n - v[j - 1] >= 3);
+            v[0] >= Math.max(52, range.low - 1) && v.at(-1)! <= range.high + 3 && (under === undefined || v[0] >= under + 3) && v.every((n, j) => j === 0 || v[j - 1] >= 55 || n - v[j - 1] >= 3) && !hasMinorNinth(v);
           const options = [-3, -2, -1, 0, 1, 2, 3]
             .map((k) => ({ k, notes: plane(base, scale, k) }))
             .filter((o) => fits(o.notes) && !(recent.length >= 2 && recent.every((r) => r === key(o.notes))));
@@ -896,7 +915,7 @@ export const swing: Style = {
         let notes = voiced;
         if (straight) notes = voiced;
         else if (!fast && duration < 0.5 && plan.density < 1 && random() < 0.2) notes = [voiced[0], voiced[2], voiced[3]];
-        else if (plan.energy >= 1 && duration >= 0.6 && random() < 0.28 * plan.density && voiced[1] + 12 > voiced[3] && voiced[1] + 12 <= 84) notes = [...voiced, voiced[1] + 12];
+        else if (plan.energy >= 1 && duration >= 0.6 && random() < 0.28 * plan.density && voiced[1] + 12 > voiced[3] && voiced[1] + 12 <= 84 && !hasMinorNinth([...voiced, voiced[1] + 12])) notes = [...voiced, voiced[1] + 12];
         // Anticipations are accented a little, as pianists push them.
         // Blues: laid back a few milliseconds more, and now and then a crushed note, the
         // minor third struck just before the major third of a dominant chord.
@@ -915,7 +934,9 @@ export const swing: Style = {
       pushedIn = pushes;
 
       // Drums
-      const fill = !straight && endsSection(bar, next) && !next?.final;
+      // The bar before a section in another style (a swing bridge into Latin A's) is set up like a section end, always with a fill.
+      const switching = !!next && !!bar.style && !!next.style && next.style !== bar.style && !next.final;
+      const fill = !straight && (marksSection(bar, next) || switching) && !next?.final;
       const bigFill = isFormEnd(bar, next) && !!next;
       // Real drummers mark most phrase ends by comping into them (below), not with a fill:
       // busy fills at under 5% of the records' phrase ends.
@@ -928,7 +949,7 @@ export const swing: Style = {
       };
       // Section ends: a full fill about half the time, else a short set-up (the records' drummers
       // mark most of them with one or two notes and a crash); the end of the form always fills.
-      const sectionFill = fill && !bigFill && random() < (shout ? 0.9 : plan.role === "peak" ? 0.7 : plan.role === "solo" ? 0.55 : 0.4);
+      const sectionFill = fill && !bigFill && (switching || random() < (shout ? 0.9 : plan.role === "peak" ? 0.7 : plan.role === "solo" ? 0.55 : 0.4));
       const theFill = straight ? (bigFill ? vocab.medium[0] : null) : bigFill ? pickFill(plan.role === "solo" && random() < 0.35 ? vocab.medium : vocab.big) : sectionFill ? pickFill(vocab.medium) : fill || smallFill ? pickFill(shout ? vocab.medium : vocab.small) : null;
       const rideEnd = theFill && theFill.start <= 2 && (bigFill || sectionFill || shout) ? theFill.start : 4;
 
@@ -937,7 +958,9 @@ export const swing: Style = {
       let crash = 0;
       if (crashAhead) crashAhead = false;
       else if (straight) crash = i > 0 && prev && isFormEnd(prev, bar) ? 0.6 : 0;
-      else if (i > 0 && prev && endsSection(prev, bar)) crash = isFormEnd(prev, bar) ? 0.66 : random() < 0.45 ? 0.5 : 0;
+      // Out of a section in another style (Latin A's into a swing bridge) the change of feel always gets a crash and kick.
+      else if (i > 0 && prev && !!prev.style && !!bar.style && prev.style !== bar.style) crash = 0.6;
+      else if (i > 0 && prev && marksSection(prev, bar)) crash = isFormEnd(prev, bar) ? 0.66 : random() < 0.45 ? 0.5 : 0;
       else if ((plan.role === "peak" || shout) && inPhrase === 0 && random() < 0.2) crash = 0.4;
       if (crash) {
         drum(t, "crash", crash, 0.05);
@@ -956,9 +979,15 @@ export const swing: Style = {
       else ride = weighted(RIDE.filter((r) => r !== home && r !== ridePrev).map((r) => ({ weight: r.id === "quarters" ? 0.12 : 0.2, value: r })), random);
       ridePrev = ride;
       const onHat = !straight && headHat && (plan.role === "head" || plan.role === "outhead") && !bar.contrast && !inTwo;
-      // At the peak a phrase now and then rides on the crash, the wash drummers build with
-      // (rarely: the records crash in 5 to 8% of bars in all).
-      if (inPhrase === 0) crashRide = !straight && !fast && !onHat && (plan.role === "peak" || shout) && random() < 0.1;
+      // At the peak a phrase now and then builds into the next on the crash, the wash drummers lift
+      // with: its last two bars, once a chorus at most (the records crash in 5 to 8% of bars in all).
+      // A whole phrase or chorus on an unchoked crash was a wash over the band (Tenor Madness's peak).
+      if (inPhrase === 2 && crashChorus !== bar.chorus && !straight && !fast && !onHat && (plan.role === "peak" || shout) && random() < 0.25) {
+        crashLeft = 2;
+        crashChorus = bar.chorus;
+      }
+      const crashRide = crashLeft > 0;
+      if (crashLeft > 0) crashLeft--;
       // The ride follows the chorus's level through a smoothed gain (three quarters of the drums'
       // chorus level in dB) and a velocity factor from the chorus energy, each moving a little a
       // bar, so it rises into the solos over a few bars instead of jumping at the barline, and
@@ -977,8 +1006,10 @@ export const swing: Style = {
         if (crash && at < 0.01) continue;
         const accented = accent === "even" && !kind ? 0.57 : accent === "skip" && kind === 1 ? v * 1.3 : v;
         const hit = accented * (kind && fast ? 0.83 : 1) * level * (kind === 0 && b === edge ? 1.3 : 1);
-        if (crashRide) drum(t + at, "crash", hit * (kind ? 0.45 : 0.6), 0.1);
-        else drum(t + at, onHat ? "hat" : "ride", hit, 0.22);
+        // On the crash the beats only, softer than a crash accent: it rings over the skips by itself.
+        if (crashRide) {
+          if (!kind) drum(t + at, "crash", hit * 0.45, 0.1);
+        } else drum(t + at, onHat ? "hat" : "ride", hit, 0.22);
       }
       [1, 3].forEach((b) => drum(t + b, "pedal", 0.5, 0.12));
       // A feathered kick (only 1 and 3 when fast), heavier as the band builds; accents later on.
@@ -1011,8 +1042,10 @@ export const swing: Style = {
         }
       }
       if (theFill) for (const [at, sound, velocity] of theFill.hits) drum(t + theFill.start + at, sound, velocity * (0.9 + 0.2 * (lift - 0.9)));
+      // Into another style, a kick on the and of 4 sets the new feel up (the crash is the new style's, on its 1).
+      if (switching) drum(t + 3 + sw, "kick", 0.44);
       // A kick-and-crash set-up on the and of 4 when the piano pushes into a new section.
-      if (!straight && pushes && next && endsSection(bar, next) && !next.final && random() < 0.4) {
+      else if (!straight && pushes && next && marksSection(bar, next) && !next.final && random() < 0.4) {
         drum(t + 3 + sw, "kick", 0.42);
         drum(t + 3 + sw, "crash", isFormEnd(bar, next) ? 0.64 : 0.5, 0.05);
         crashAhead = true;

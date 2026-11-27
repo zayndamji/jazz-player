@@ -27,10 +27,19 @@ const CHANNELS: Record<Mixable, { volume: number; pan: number }> = {
   piano: { volume: -8, pan: 0.2 },
   guitar: { volume: -3.5, pan: -0.3 },
   drums: { volume: -4, pan: 0 },
-  // The melody sits in the middle, a little in front of the comping.
-  melody: { volume: -4, pan: 0 },
+  // The melody sits in the middle, in front of the comping: at -4 dB it measured 1 to 2 dB under the
+  // piano in the swing and Latin heads (2026-11-26 audit, A-weighted); -1 puts it about 2 dB over.
+  melody: { volume: -1, pan: 0 },
   metronome: { volume: -8, pan: 0 },
 };
+
+/**
+ * Each channel's send to the room, as a gain: 0.25 is the wet share the old 16% wet crossfade gave (its
+ * equal-power curve, sin(0.16 x 90 degrees)); the bass sends less, and the click stays dry.
+ */
+const ROOM_SEND: Record<Mixable, number> = { bass: 0.1, piano: 0.25, guitar: 0.25, drums: 0.25, melody: 0.25, metronome: 0 };
+/** The room's send is high-passed here (Hz): the low end stays dry. */
+const ROOM_HIGHPASS = 220;
 
 /** Seconds notes fade over when the band restarts or stops: quick, but not a click. */
 const FADE = 0.08;
@@ -164,9 +173,17 @@ export class Player {
       this.master = new Tone.Gain(this.muted ? 0 : this.masterLevel).toDestination();
       const out = new Tone.Compressor({ threshold: -14, ratio: 1.8, attack: 0.01, release: 0.2 }).connect(this.master);
       if (import.meta.env.DEV) (window as unknown as { __jazzStand: unknown }).__jazzStand = { preMute: out, Tone, player: this };
-      const room = new Tone.Reverb({ decay: 1.4, preDelay: 0.01, wet: 0.16 }).connect(out);
+      // The room is a send: every channel goes to the compressor dry, and a share of it (`ROOM_SEND`) through a
+      // high-pass to a fully wet reverb, so the bass and the low end of the kick and piano stay clean (before,
+      // the whole band went through the reverb at 16% wet, the bass's 40 to 110 Hz smeared with the rest).
+      const room = new Tone.Reverb({ decay: 1.4, preDelay: 0.01, wet: 1 }).connect(out);
+      const send = new Tone.Filter({ type: "highpass", frequency: ROOM_HIGHPASS, rolloff: -12 }).connect(room);
       const channels = {} as Record<Mixable, Tone.Channel>;
-      for (const [name, c] of Object.entries(CHANNELS)) channels[name as Mixable] = new Tone.Channel(c).connect(room);
+      for (const [name, c] of Object.entries(CHANNELS)) {
+        const channel = new Tone.Channel(c).connect(out);
+        channel.connect(new Tone.Gain(ROOM_SEND[name as Mixable]).connect(send));
+        channels[name as Mixable] = channel;
+      }
       this.channels = channels;
 
       const { piano, bass, guitar, drums } = await files;

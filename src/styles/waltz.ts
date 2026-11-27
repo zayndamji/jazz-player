@@ -1,7 +1,7 @@
 import { minorKeyDominant, minorKeyTensions, type ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar } from "../engine/timeline";
-import { SWING_RANGE, VOICING_LOW, voiceChord, type VoicingRange } from "../engine/voicing";
-import { bassOnsets, bassStruck, chordAfter, endsSection, isFormEnd, keepInRange, moveOn, PIANO_FLOOR, shifted, type VoicingContext } from "./context";
+import { hasMinorNinth, SWING_RANGE, VOICING_LOW, voiceChord, type VoicingRange } from "../engine/voicing";
+import { bassOnsets, bassStruck, chordAfter, isFormEnd, keepInRange, marksSection, moveOn, PIANO_FLOOR, shifted, type VoicingContext } from "./context";
 import { DAMPER, GrooveBook, grooveBar, holdLength, type CompHit, type Groove } from "./comping";
 import { drumGain, drumTalk, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
@@ -156,7 +156,9 @@ const modal = (c: ParsedChord) => (has(c, "3m") && !has(c, "5d")) || (has(c, "3M
  * A quartal voicing: three or four notes stacked in fourths (a third on top when the
  * next fourth leaves the scale) from the chord's scale, holding the 3rd or the 7th,
  * placed nearest the previous top note. Its lowest note stays at least a minor third above
- * the bass sounding under it (`context.bass`). Returns null when no stack fits.
+ * the bass sounding under it (`context.bass`). A sixth chord (C6, Em6) holds its 6th and never a
+ * 7th, which would make it another chord. No minor ninth between two notes (the top is a fourth,
+ * a major or a minor third over the stack, never a minor ninth over its bottom). Returns null when no stack fits.
  */
 export function quartal(chord: ParsedChord, previous: number[] | null, range: VoicingRange, context: VoicingContext = {}): number[] | null {
   const scale = new Set(scalePcs(chord, context.next ?? undefined));
@@ -164,14 +166,16 @@ export function quartal(chord: ParsedChord, previous: number[] | null, range: Vo
   const pc = (n: number) => ((n % 12) + 12) % 12;
   const third = pc(chord.root + (has(chord, "3m") ? 3 : has(chord, "3M") ? 4 : 5));
   const seventh = pc(chord.root + (has(chord, "7M") ? 11 : has(chord, "7m") ? 10 : 9));
+  const sixth = (has(chord, "6M") || has(chord, "13M")) && !has(chord, "7M") && !has(chord, "7m");
   const options: number[][] = [];
   for (const start of scale) {
     const stack = [start, start + 5, start + 10];
     if (!stack.every((n) => scale.has(pc(n)))) continue;
-    const top = scale.has(pc(start + 15)) ? start + 15 : scale.has(pc(start + 14)) ? start + 14 : scale.has(pc(start + 13)) ? start + 13 : null;
+    const top = scale.has(pc(start + 15)) ? start + 15 : scale.has(pc(start + 14)) ? start + 14 : null;
     const notes = top === null ? stack : [...stack, top];
     const pcs = notes.map(pc);
     if (!pcs.includes(third) && !pcs.includes(seventh)) continue;
+    if (sixth && (!pcs.includes(pc(chord.root + 9)) || pcs.includes(pc(chord.root + 10)) || pcs.includes(pc(chord.root + 11)))) continue;
     if (pcs.includes(pc(chord.root + 1))) continue; // no flat nine on a modal chord
     options.push(notes);
   }
@@ -212,6 +216,12 @@ export function phrygianLine(line: number[], chord: ParsedChord, next: ParsedCho
   const pc = (n: number) => (((n - chord.root) % 12) + 12) % 12;
   return line.map((n, b) => (b === 0 || (approach && b === line.length - 1) || !lower.has(pc(n)) ? n : n - 1));
 }
+
+/**
+ * Where a pedal sits: the note nearest E2, so an E pedal is E2 (82 Hz), not the open E1 string (41 Hz), which
+ * small speakers barely play and which sat under a whole tune as a rumble; the octave of a figure stays at or under D3.
+ */
+const PEDAL_HOME = 40;
 
 /** For each bar, the pedal note when it sits in a run of bars on one bass note: eight or more bars, or four or more with a slash chord. */
 function pedals(music: TimelineBar[]): (number | null)[] {
@@ -320,7 +330,7 @@ export const waltz: Style = {
       // Bass.
       const bassFrom = events.length;
       if (pedal !== null) {
-        const root = nearest(pedal, 31);
+        const root = nearest(pedal, PEDAL_HOME);
         const figure = straight ? PEDAL[1] : weighted((tied ? PEDAL_AFTER_TIE : PEDAL).map((f) => ({ weight: f.weight * (f.hits.length > 2 && !solo ? 0.7 : 1), value: f })), random);
         for (const [slot, interval, length, velocity] of figure.hits) {
           const note = interval === 12 && root + 12 > 50 ? root : interval === 7 ? nearest((pedal + 7) % 12, root + 5) : root + interval;
@@ -339,7 +349,7 @@ export const waltz: Style = {
         bar.chords.forEach((c, k) => starts.push(k === 0 ? (planned ?? landing(c.chord.bass, bassNote, lean)) : landing(c.chord.bass, starts[k - 1], lean)));
         const lastStart = starts.at(-1) ?? bassNote;
         const nextPedal = pedalOf[i + 1];
-        const nextFirst = !next?.chords[0] ? null : nextPedal !== null && nextPedal !== undefined ? nearest(nextPedal, 31) : landing(next.chords[0].chord.bass, lastStart, next.final ? 0 : lean);
+        const nextFirst = !next?.chords[0] ? null : nextPedal !== null && nextPedal !== undefined ? nearest(nextPedal, PEDAL_HOME) : landing(next.chords[0].chord.bass, lastStart, next.final ? 0 : lean);
         planned = nextFirst;
         bar.chords.forEach((c, k) => {
           const target = k + 1 < bar.chords.length ? starts[k + 1] : nextFirst;
@@ -424,7 +434,7 @@ export const waltz: Style = {
         if (!c) return;
         // Voiced toward the chord after it, clear of the bass under it (the next bar's, for an anticipation).
         const context: VoicingContext = ahead
-          ? { next: chordAfter(music, i + 1, 0, 2, 0.01), bass: pedalOf[i + 1] !== null && pedalOf[i + 1] !== undefined ? nearest(pedalOf[i + 1]!, 31) : nearest(c.chord.bass, bassAt(beat)) }
+          ? { next: chordAfter(music, i + 1, 0, 2, 0.01), bass: pedalOf[i + 1] !== null && pedalOf[i + 1] !== undefined ? nearest(pedalOf[i + 1]!, PEDAL_HOME) : nearest(c.chord.bass, bassAt(beat)) }
           : { next: chordAfter(music, i, beat, 2, 0.01), bass: bassAt(beat) };
         const last = piano;
         const voiced = voiceFor(c.chord, last, range, context);
@@ -440,7 +450,7 @@ export const waltz: Style = {
         // Over a pedal, the left hand doubles the bass note with an open fifth on the riff's first chord.
         if (!straight && pedal !== null && h === 0 && random() < 0.45) {
           const low = PIANO_FLOOR + ((pedal - PIANO_FLOOR + 120) % 12); // A2 to G#3, the lowest the piano samples go
-          notes = [low, low + 7, ...piano.filter((n) => n > low + 9)];
+          notes = [low, low + 7, ...piano.filter((n) => n > low + 9 && !hasMinorNinth([low, low + 7, n]))];
         }
         events.push({
           track: "piano",
@@ -459,7 +469,7 @@ export const waltz: Style = {
 
       // Drums.
       const vocab = waltzFills(sw);
-      const fill = !straight && endsSection(bar, next) && !next?.final;
+      const fill = !straight && marksSection(bar, next) && !next?.final;
       const bigFill = isFormEnd(bar, next) && !!next;
       // Phrase ends are marked mostly by comping into them; section ends by a full fill about half
       // the time and a short set-up otherwise; the form's end always fills (as in swing).
@@ -476,7 +486,7 @@ export const waltz: Style = {
       let crash = 0;
       if (crashAhead) crashAhead = false;
       else if (straight) crash = prev && isFormEnd(prev, bar) ? 0.58 : 0;
-      else if (prev && endsSection(prev, bar)) crash = isFormEnd(prev, bar) ? 0.62 : random() < 0.55 ? 0.48 : 0;
+      else if (prev && marksSection(prev, bar)) crash = isFormEnd(prev, bar) ? 0.62 : random() < 0.55 ? 0.48 : 0;
       else if ((plan.role === "peak" || shout) && inPhrase === 0 && random() < 0.2) crash = 0.4;
       if (crash) {
         drum(t, "crash", crash, 0.05);
@@ -519,7 +529,7 @@ export const waltz: Style = {
           }
         }
       } else for (const [at, sound, velocity] of theFill) drum(t + at, sound, velocity * (0.9 + 0.2 * (lift - 0.9)));
-      if (!straight && pushes && next && endsSection(bar, next) && !next.final && random() < 0.4) {
+      if (!straight && pushes && next && marksSection(bar, next) && !next.final && random() < 0.4) {
         drum(t + 2 + sw, "kick", 0.42);
         drum(t + 2 + sw, "crash", isFormEnd(bar, next) ? 0.6 : 0.48, 0.05);
         crashAhead = true;

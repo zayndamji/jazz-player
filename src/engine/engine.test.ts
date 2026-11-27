@@ -3,6 +3,7 @@ import { parseChord } from "../chart/chords";
 import { chordScale } from "../chart/scales";
 import { bossaForm } from "../fixtures";
 import { bossa } from "../styles/bossa";
+import { chordAfter } from "../styles/context";
 import { buildSchedule, chorusesFor, clicksOn, performanceBeats } from "./schedule";
 import { validateChart } from "../charts";
 import type { Chart } from "../chart/types";
@@ -219,16 +220,29 @@ describe("bossa style", () => {
   });
 
   it("never has guitar and piano on different chords at once", () => {
-    // The guitar's grips take three of the piano's voiced tones, or the chord's root or plain 5th.
+    // Both take their tones from one tension set (the chord's voiced tones, `voicingIntervals`, with the
+    // chord after it), the guitar also the root or plain 5th; the piano plays a few of them above the guitar
+    // (`overGuitar`), so the guitar's notes need not be among the piano's, but never outside the set.
     const piano = schedule.events.filter((e) => e.track === "piano");
     let checked = 0;
     for (const g of schedule.events.filter((e) => e.track === "guitar" && e.notes!.length > 1)) {
       const under = piano.filter((p) => p.time <= g.time + 0.03 && p.time + p.duration > g.time + 0.03);
-      const bar = schedule.bars.filter((b) => b.startBeat <= g.time + 0.6).at(-1)!;
-      const chord = bar.chords.filter((c) => c.beat <= g.time - bar.startBeat + 0.6).at(-1)!.chord;
+      // The chord sounding at a time (a hit on the and of 4 may push the next bar's): its tension set, root and 5th.
+      const tones = (time: number) => {
+        const i = schedule.bars.filter((b) => b.startBeat <= time).length - 1;
+        const bar = schedule.bars[i];
+        const beat = time - bar.startBeat;
+        const chord = bar.chords.filter((c) => c.beat <= beat).at(-1)!.chord;
+        return new Set([...voicingIntervals(chord, chordAfter(schedule.bars, i, beat)).map((iv) => (chord.root + iv) % 12), chord.root, (chord.root + 7) % 12]);
+      };
+      const fits = (notes: number[], time: number) => [tones(time + 0.03), tones(time + 0.6)].some((set) => notes.every((n) => set.has(n % 12)));
       for (const p of under) {
-        const allowed = new Set([...p.notes!.map((n) => n % 12), chord.root, (chord.root + 7) % 12]);
-        for (const n of g.notes!) expect(allowed.has(n % 12), `beat ${g.time.toFixed(2)}`).toBe(true);
+        expect(fits(p.notes!, p.time), `piano at beat ${p.time.toFixed(2)}`).toBe(true);
+        expect(fits(g.notes!, g.time), `beat ${g.time.toFixed(2)}`).toBe(true);
+        // One chord between them: the guitar's notes fit the chord the piano is holding.
+        expect(fits(g.notes!, p.time), `beat ${g.time.toFixed(2)} against the piano's chord`).toBe(true);
+        // In their own registers: the piano above the guitar.
+        expect(Math.min(...p.notes!), `beat ${g.time.toFixed(2)}`).toBeGreaterThan(Math.max(...g.notes!));
       }
       checked += under.length;
     }

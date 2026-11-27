@@ -2,7 +2,7 @@ import type { ParsedChord } from "../chart/chords";
 import { chordAt, type TimelineBar, type TimelineChord } from "../engine/timeline";
 import { PIANO_RANGE, type VoicingRange } from "../engine/voicing";
 import { otherPc, placeBass } from "./bossa";
-import { BASS_HIGH, BASS_LOW, bassUnder, chordAfter, endsSection, isFormEnd, shifted, voiceClear } from "./context";
+import { BASS_HIGH, BASS_LOW, bassUnder, chordAfter, isFormEnd, marksSection, shifted, voiceClear } from "./context";
 import { DAMPER, GrooveBook, grooveBar, holdLength, type CompHit, type Groove } from "./comping";
 import { drumGain, gauss, pianoTouch, timing } from "./feel";
 import { seededRandom } from "./random";
@@ -42,10 +42,14 @@ export const CLAVE = [
   [0, 3, 6],
 ];
 
-/** The cáscara for 2-3 clave, [eighth slot, velocity] per bar: the strokes that fall with the clave a little stronger. */
+/**
+ * The cáscara for 2-3 clave, [eighth slot, velocity] per bar: the 2 side "1, 2, 3, and of 3, and of 4",
+ * the 3 side "1, 2, and of 2, and of 3, and of 4" (counted 1 2 3 3& 4& | 1 2 2& 3& 4&). The strokes that
+ * fall with the clave (2 and 3, then 1 and the and of 2) a little stronger, the and of 4 leaning into the next bar.
+ */
 export const CASCARA: [number, number][][] = [
-  [[1, 0.4], [2, 0.54], [4, 0.54], [6, 0.46]],
-  [[0, 0.58], [2, 0.44], [4, 0.5], [5, 0.4], [7, 0.46]],
+  [[0, 0.46], [2, 0.56], [4, 0.56], [5, 0.4], [7, 0.46]],
+  [[0, 0.58], [2, 0.44], [3, 0.54], [5, 0.42], [7, 0.48]],
 ];
 
 /** The conga's tumbao on the kit's left hand: a slap on 2 (cross-stick), open tones on 4 and its and (low tom). */
@@ -277,7 +281,9 @@ export const latin: Style = {
 
       // Drums.
       const formEnd = isFormEnd(bar, next) && !!next && !next.final;
-      const fill = endsSection(bar, next) && !next?.final && (formEnd || (!straight && random() < (shout ? 0.9 : solos ? 0.6 : 0.45)));
+      // The bar before a section in another style (Latin A's into a swing bridge) always fills, with a kick set-up.
+      const switching = !!next && !!bar.style && !!next.style && next.style !== bar.style && !next.final;
+      const fill = (marksSection(bar, next) || switching) && !next?.final && (formEnd || switching || (!straight && random() < (shout ? 0.9 : solos ? 0.6 : 0.45)));
       const bigFill = formEnd && (straight || random() < 0.6) ? (random() < 0.5 ? "two" : "one") : null;
       // Where the groove stops for a fill, in eighth slots.
       const stopAt = bigFill === "two" ? 4 : bigFill === "one" ? 6 : fill ? 7 : 8;
@@ -290,8 +296,9 @@ export const latin: Style = {
       [1, 3].forEach((b) => drum(t + b, "pedal", 0.36));
 
       // A crash with the kick on the first beat of a new section: always after the form's end, sometimes elsewhere.
-      if (prev && endsSection(prev, bar) && !intro && (isFormEnd(prev, bar) || (!straight && random() < (solos ? 0.45 : 0.25)))) {
-        drum(t, "crash", isFormEnd(prev, bar) ? 0.6 : 0.48, 0.05);
+      const fromOther = !!prev && !!prev.style && !!bar.style && prev.style !== bar.style;
+      if (fromOther || (prev && marksSection(prev, bar) && !intro && (isFormEnd(prev, bar) || (!straight && random() < (solos ? 0.45 : 0.25))))) {
+        drum(t, "crash", fromOther || isFormEnd(prev!, bar) ? 0.6 : 0.48, 0.05);
         drum(t, "kick", 0.55 * lift);
       }
 
@@ -309,6 +316,8 @@ export const latin: Style = {
       } else if (!straight && shapes[i].phraseEnd && solos && random() < 0.3) {
         drum(t + 3.5, "tomLow", 0.28); // a tom note into the next phrase
       }
+      // Into another style the kick sets the new feel up on the and of 4 (the crash is the new style's, on its 1).
+      if (switching) drum(t + 3.5, "kick", 0.46);
     });
 
     /** Whether a solo chorus plays the cáscara on the bell (most do), the same through the chorus. */
